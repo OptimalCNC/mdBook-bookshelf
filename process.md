@@ -21,60 +21,61 @@
 ## Current State
 - Status: IN_PROGRESS
 - Current iteration: 4
-- Current chunk: C05
-- Next action: Implement per-page reader context for breadcrumbs, within-book prev/next, and Bookshelf return metadata.
+- Current chunk: C06
+- Next action: Implement the renderer route and output manifest for synthetic and authored pages.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
 ## Active Chunk
 ```yaml
-chunk_id: C05
-title: Build per-page reader context
-objective: Derive renderer-ready reader context for each page, including active book ownership, breadcrumbs, within-book previous and next links, and Bookshelf return metadata.
-why_now: The site model and sidebar trees now exist, but the renderer still lacks the per-page navigation context needed to render content pages correctly without inventing behavior outside the bookshelf-owned model.
+chunk_id: C06
+title: Build the renderer route and output manifest
+objective: Derive deterministic rendered routes and output paths for the synthetic Bookshelf page and all authored pages so later HTML rendering can emit stable links and files from the bookshelf-owned model.
+why_now: The model layers are complete enough for rendering, but the renderer still lacks canonical page addresses and output targets for site root, shelf links, deep links, and future page emission.
 depends_on:
   - C03
-  - C04
+  - C05
 scope_in:
-  - Add page-level reader-context types for authored pages and the synthetic Bookshelf page.
-  - Derive active book context for each authored page from the existing site model.
-  - Compute breadcrumb data in `Book / Page` form from the existing site and sidebar models.
-  - Compute previous and next links strictly within each book's authored reading order.
-  - Expose Bookshelf return metadata for authored content pages, targeting the synthetic Bookshelf page from C03.
-  - Add lookup APIs for resolving reader context by authored source path and by the synthetic Bookshelf page id.
+  - Add renderer-owned manifest types for rendered pages and output targets.
+  - Derive one canonical rendered target for the synthetic Bookshelf page.
+  - Derive one canonical rendered target for every authored page from its normalized source path relative to the bookshelf.toml directory.
+  - Expose lookups by synthetic page id and authored source path for later HTML rendering and link generation.
+  - Enforce uniqueness of rendered output paths across synthetic and authored pages.
+  - Add tests for the self-contained example and output-path invariants.
 scope_out:
-  - HTML rendering and output writing.
-  - Route/URL emission for rendered pages.
-  - Search index generation and book-labeled search results.
-  - Serve and watch workflows.
-  - Asset copying and page templating.
+  - HTML rendering and templating.
+  - Markdown-to-HTML conversion.
+  - Asset copying and static file emission.
+  - Search index generation and search result labeling.
+  - Build CLI and serve workflow.
 target_files:
-  - src/reader_context.rs
+  - src/render_manifest.rs
   - src/lib.rs
-  - tests/reader_context_example.rs
-  - tests/reader_context_invariants.rs
+  - tests/render_manifest_example.rs
+  - tests/render_manifest_invariants.rs
 implementation_tasks:
-  - Define reader-context structs for breadcrumbs, adjacent-page links, Bookshelf return metadata, and per-page active-book context.
-  - Build reader contexts from the existing site model and sidebar model without mutating authored pages, sidebars, or the synthetic Bookshelf page.
-  - Derive per-book previous and next links from authored_page_order so navigation never crosses book boundaries.
-  - Provide lookup helpers for authored pages by normalized source path and for the synthetic Bookshelf page by page id.
-  - Add example and invariant tests covering breadcrumbs, prev/next boundaries, and deep-link book activation.
+  - Define manifest structs for rendered page identity, route path, and output path.
+  - Implement a builder that consumes the existing site model and reader-context data to produce one manifest entry per rendered page.
+  - Map the synthetic Bookshelf page to the site root output target `index.html`.
+  - Map authored markdown pages to stable `.html` output paths derived from normalized paths relative to the config directory.
+  - Add lookup helpers for authored pages by source path and for the synthetic Bookshelf page by page id.
+  - Add validation and tests for unique output paths and root-entry ownership.
 acceptance_criteria:
-  - A new public API builds reader context from the self-contained example and returns contexts for all nine authored pages plus the synthetic Bookshelf page.
-  - Resolving `modules/parser/docs/grammar.md` in the self-contained example yields active book `parser`, breadcrumbs `Example Parser / Grammar`, previous page `modules/parser/docs/index.md`, next page `modules/parser/docs/runtime.md`, and a Bookshelf return target pointing to the synthetic Bookshelf page from C03.
-  - Resolving `docs/architecture.md` yields active book `meta`, breadcrumbs `Example Core / Architecture`, previous page `docs/onboarding.md`, and no next page.
-  - Resolving `modules/ui/docs/index.md` yields active book `ui`, breadcrumbs `Example UI / Example UI`, no previous page, and next page `modules/ui/docs/navigation.md`.
-  - No authored page in the example has a previous or next link that crosses into another book.
-  - Resolving the synthetic Bookshelf page by its page id yields owner book `meta`, breadcrumbs `Example Core / Bookshelf`, and no previous or next page.
+  - A new public API builds a render manifest from the self-contained example and returns exactly 10 rendered entries: 9 authored pages and 1 synthetic Bookshelf page.
+  - The synthetic Bookshelf page is the only entry with output path `index.html`, and manifest lookup by page id resolves that root output to the `bookshelf` page.
+  - In the self-contained example, authored source paths map to deterministic output paths relative to the site root: `docs/index.md` -> `docs/index.html`, `docs/architecture.md` -> `docs/architecture.html`, `modules/parser/docs/grammar.md` -> `modules/parser/docs/grammar.html`, and `modules/ui/docs/index.md` -> `modules/ui/docs/index.html`.
+  - Every authored page has exactly one rendered output path ending in `.html`, and no authored page claims `index.html`.
+  - Building the manifest fails with an explicit error if two rendered pages would collide on the same output path.
+  - The chunk introduces no HTML post-processing step and no temp-workspace-copy step.
 verification:
-  - command: "cargo test --test reader_context_example"
-    expect: "The self-contained example produces the expected reader context for representative meta, parser, ui, and synthetic Bookshelf pages."
-  - command: "cargo test --test reader_context_invariants"
-    expect: "Prev/next boundaries stay book-local and deep-link lookups activate the correct book context without mutating sidebar or authored-page order."
+  - command: "cargo test --test render_manifest_example"
+    expect: "The self-contained example produces the expected root Bookshelf output plus deterministic authored-page output paths."
+  - command: "cargo test --test render_manifest_invariants"
+    expect: "Rendered output paths remain unique, root ownership is preserved, and collisions fail with targeted errors."
 review_focus:
-  - Reader context must be derived entirely from the existing bookshelf-owned model, not from ad hoc rendering assumptions.
-  - Previous and next links must be computed from per-book authored order only and must never cross book boundaries.
-  - Breadcrumbs and Bookshelf return metadata must identify the active book unambiguously for deep-linked content pages.
+  - Output addressing must be renderer-owned and derived deterministically from the existing bookshelf model, not from ad hoc file writes.
+  - The site root must resolve only to the synthetic Bookshelf page.
+  - Authored output paths must be normalized relative to the bookshelf.toml directory so deep links stay stable and reviewable.
 ```
 
 ## Chunk Ledger
@@ -86,6 +87,8 @@ review_focus:
   commits `a23bfcc`, `9828143`; verification passed (`cargo test --test bookshelf_page_example`, `cargo test --test bookshelf_page_negative`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
 - C04 `Build book-scoped sidebar trees`:
   commit `b3f8726`; verification passed (`cargo test --test sidebar_model_example`, `cargo test --test sidebar_model_invariants`, `cargo test`); reviewer-subagent approved; Claude CLI review remains environment-blocked.
+- C05 `Build per-page reader context`:
+  commit `81a46ca`; verification passed (`cargo test --test reader_context_example`, `cargo test --test reader_context_invariants`, `cargo test`); reviewer-subagent approved; Claude CLI review remains environment-blocked.
 
 ## Final Validation
 - Pending
@@ -135,3 +138,9 @@ review_focus:
 - 2026-04-20T06:26:27Z [planner] [C05] [PLANNED] Chose per-page reader context derivation for breadcrumbs, within-book prev/next, and Bookshelf return metadata as the next chunk after sidebar modeling.
 - 2026-04-20T06:26:27Z [coordinator] [C05] [ACCEPTED] Accepted the planner artifact and activated C05 for implementation.
 - 2026-04-20T06:28:24Z [developer] [C05] [STARTED] Deriving per-page reader context for breadcrumbs, within-book navigation, and Bookshelf return metadata.
+- 2026-04-20T06:30:43Z [developer] [C05] [FINISHED] Added derived reader context, verified breadcrumbs and book-local navigation, and re-ran the required C05 tests.
+- 2026-04-20T06:32:49Z [reviewer-subagent] [C05] [APPROVED] Reader context is derived from the existing model layers, keeps prev/next book-local, and exposes unambiguous active-book, breadcrumb, and Bookshelf-return metadata for authored and synthetic pages.
+- 2026-04-20T06:33:37Z [coordinator] [C05] [CLOSED] Moved C05 to the ledger after verification passed and the strict subagent reviewer approved the initial iteration.
+- 2026-04-20T06:35:53Z [planner] [C06] [PLANNED] Chose renderer route and output manifest derivation as the first renderer-facing chunk after the model layers were completed.
+- 2026-04-20T06:35:53Z [coordinator] [C06] [ACCEPTED] Accepted the planner artifact and activated C06 for implementation.
+- 2026-04-20T06:38:23Z [developer] [C06] [STARTED] Building the renderer-owned route and output manifest for synthetic and authored pages.
