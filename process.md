@@ -21,60 +21,60 @@
 ## Current State
 - Status: IN_PROGRESS
 - Current iteration: 4
-- Current chunk: C04
-- Next action: Implement book-scoped sidebar tree generation and root-book Bookshelf affix behavior.
+- Current chunk: C05
+- Next action: Implement per-page reader context for breadcrumbs, within-book prev/next, and Bookshelf return metadata.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
 ## Active Chunk
 ```yaml
-chunk_id: C04
-title: Build book-scoped sidebar trees
-objective: Derive renderer-ready sidebar trees from the site model, including the root-book Bookshelf affix and strict active-book scoping.
-why_now: Sidebar behavior is the next explicit reader-shell requirement in the handoff and blocks later page rendering, while still fitting into a single focused model chunk.
+chunk_id: C05
+title: Build per-page reader context
+objective: Derive renderer-ready reader context for each page, including active book ownership, breadcrumbs, within-book previous and next links, and Bookshelf return metadata.
+why_now: The site model and sidebar trees now exist, but the renderer still lacks the per-page navigation context needed to render content pages correctly without inventing behavior outside the bookshelf-owned model.
 depends_on:
   - C03
+  - C04
 scope_in:
-  - Add sidebar model types for affix entries, authored chapter entries, and per-book sidebar trees.
-  - Generate one sidebar tree per book from the existing site model, preserving canonical summary order and nesting depth.
-  - Inject a synthetic Bookshelf affix entry into the root-book sidebar only, targeting the synthetic Bookshelf page from C03.
-  - Keep non-root sidebars limited to their own authored chapters with no cross-book leakage.
-  - Expose a public API that returns sidebar data by book id for later renderer use.
-  - Add tests for the self-contained example and root-affix/sidebar-scoping invariants.
+  - Add page-level reader-context types for authored pages and the synthetic Bookshelf page.
+  - Derive active book context for each authored page from the existing site model.
+  - Compute breadcrumb data in `Book / Page` form from the existing site and sidebar models.
+  - Compute previous and next links strictly within each book's authored reading order.
+  - Expose Bookshelf return metadata for authored content pages, targeting the synthetic Bookshelf page from C03.
+  - Add lookup APIs for resolving reader context by authored source path and by the synthetic Bookshelf page id.
 scope_out:
-  - Breadcrumb computation.
-  - Previous and next computation.
-  - Header Bookshelf return control.
   - HTML rendering and output writing.
-  - Search index and search result labels.
+  - Route/URL emission for rendered pages.
+  - Search index generation and book-labeled search results.
   - Serve and watch workflows.
+  - Asset copying and page templating.
 target_files:
-  - src/sidebar.rs
+  - src/reader_context.rs
   - src/lib.rs
-  - tests/sidebar_model_example.rs
-  - tests/sidebar_model_invariants.rs
+  - tests/reader_context_example.rs
+  - tests/reader_context_invariants.rs
 implementation_tasks:
-  - Define sidebar structs for root affix entries, authored chapter nodes, and per-book sidebar trees.
-  - Build sidebar trees from C03 site-model data without mutating authored_page_order or authored_pages.
-  - Represent Bookshelf as a dedicated affix entry that references the synthetic Bookshelf page id from C03.
-  - Preserve declared summary nesting and chapter order for authored nodes.
-  - Add verification coverage for root-book affix behavior and non-root book isolation.
+  - Define reader-context structs for breadcrumbs, adjacent-page links, Bookshelf return metadata, and per-page active-book context.
+  - Build reader contexts from the existing site model and sidebar model without mutating authored pages, sidebars, or the synthetic Bookshelf page.
+  - Derive per-book previous and next links from authored_page_order so navigation never crosses book boundaries.
+  - Provide lookup helpers for authored pages by normalized source path and for the synthetic Bookshelf page by page id.
+  - Add example and invariant tests covering breadcrumbs, prev/next boundaries, and deep-link book activation.
 acceptance_criteria:
-  - A new public API builds sidebar data from the self-contained example site model and returns exactly three sidebars: meta, parser, and ui.
-  - The `meta` sidebar contains exactly one affix entry titled `Bookshelf` targeting the synthetic Bookshelf page from C03, plus authored chapter entries `Example Core`, `Onboarding`, and `Architecture` in canonical summary order.
-  - The `parser` sidebar contains only `Example Parser`, `Grammar`, and `Runtime`; the `ui` sidebar contains only `Example UI`, `Navigation`, and `Diagnostics`; neither non-root sidebar includes a `Bookshelf` affix or any chapter from another book.
-  - Sidebar chapter entries preserve the summary nesting depth from C02, so `Grammar` and `Runtime` remain children of `Example Parser` and the root-book chapters remain under `Example Core`.
-  - The Bookshelf affix remains synthetic only: it is not added to authored_page_order, does not become an authored page, and stays distinct from authored chapter entries so root-book chapter ordering remains unchanged.
-  - The chunk introduces no HTML post-processing step and no temp-workspace-copy step.
+  - A new public API builds reader context from the self-contained example and returns contexts for all nine authored pages plus the synthetic Bookshelf page.
+  - Resolving `modules/parser/docs/grammar.md` in the self-contained example yields active book `parser`, breadcrumbs `Example Parser / Grammar`, previous page `modules/parser/docs/index.md`, next page `modules/parser/docs/runtime.md`, and a Bookshelf return target pointing to the synthetic Bookshelf page from C03.
+  - Resolving `docs/architecture.md` yields active book `meta`, breadcrumbs `Example Core / Architecture`, previous page `docs/onboarding.md`, and no next page.
+  - Resolving `modules/ui/docs/index.md` yields active book `ui`, breadcrumbs `Example UI / Example UI`, no previous page, and next page `modules/ui/docs/navigation.md`.
+  - No authored page in the example has a previous or next link that crosses into another book.
+  - Resolving the synthetic Bookshelf page by its page id yields owner book `meta`, breadcrumbs `Example Core / Bookshelf`, and no previous or next page.
 verification:
-  - command: "cargo test --test sidebar_model_example"
-    expect: "The self-contained example produces the expected meta, parser, and ui sidebar trees with correct titles, nesting, and no cross-book leakage."
-  - command: "cargo test --test sidebar_model_invariants"
-    expect: "Root-book Bookshelf affix behavior and non-root sidebar scoping invariants pass without altering authored page order."
+  - command: "cargo test --test reader_context_example"
+    expect: "The self-contained example produces the expected reader context for representative meta, parser, ui, and synthetic Bookshelf pages."
+  - command: "cargo test --test reader_context_invariants"
+    expect: "Prev/next boundaries stay book-local and deep-link lookups activate the correct book context without mutating sidebar or authored-page order."
 review_focus:
-  - Sidebar generation must consume only the existing site model and must not invent extra authored pages or mutate canonical order.
-  - The root-book Bookshelf entry must be modeled as a dedicated affix, not as a numbered chapter node.
-  - Non-root sidebars must remain isolated to their owning books even when multiple books have similar structures.
+  - Reader context must be derived entirely from the existing bookshelf-owned model, not from ad hoc rendering assumptions.
+  - Previous and next links must be computed from per-book authored order only and must never cross book boundaries.
+  - Breadcrumbs and Bookshelf return metadata must identify the active book unambiguously for deep-linked content pages.
 ```
 
 ## Chunk Ledger
@@ -84,6 +84,8 @@ review_focus:
   commits `7199aef`, `d0a0442`; verification passed (`cargo test --test site_model_example`, `cargo test --test site_model_negative`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
 - C03 `Synthesize the in-memory Bookshelf page`:
   commits `a23bfcc`, `9828143`; verification passed (`cargo test --test bookshelf_page_example`, `cargo test --test bookshelf_page_negative`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
+- C04 `Build book-scoped sidebar trees`:
+  commit `b3f8726`; verification passed (`cargo test --test sidebar_model_example`, `cargo test --test sidebar_model_invariants`, `cargo test`); reviewer-subagent approved; Claude CLI review remains environment-blocked.
 
 ## Final Validation
 - Pending
@@ -127,3 +129,9 @@ review_focus:
 - 2026-04-20T06:15:20Z [planner] [C04] [PLANNED] Chose book-scoped sidebar tree generation with root-book Bookshelf affix behavior as the next chunk after synthetic page modeling.
 - 2026-04-20T06:16:48Z [coordinator] [C04] [ACCEPTED] Accepted the planner artifact and activated C04 for implementation.
 - 2026-04-20T06:18:33Z [developer] [C04] [STARTED] Building derived per-book sidebar trees with a root-book Bookshelf affix and strict book scoping.
+- 2026-04-20T06:20:47Z [developer] [C04] [FINISHED] Added the derived sidebar model, verified root-affix and scoping invariants, and re-ran the required C04 tests.
+- 2026-04-20T06:24:20Z [reviewer-subagent] [C04] [APPROVED] Sidebar generation stays book-scoped, preserves canonical nesting/order, and models the root Bookshelf entry as a synthetic affix without altering authored pages.
+- 2026-04-20T06:24:55Z [coordinator] [C04] [CLOSED] Moved C04 to the ledger after verification passed and the strict subagent reviewer approved the initial iteration.
+- 2026-04-20T06:26:27Z [planner] [C05] [PLANNED] Chose per-page reader context derivation for breadcrumbs, within-book prev/next, and Bookshelf return metadata as the next chunk after sidebar modeling.
+- 2026-04-20T06:26:27Z [coordinator] [C05] [ACCEPTED] Accepted the planner artifact and activated C05 for implementation.
+- 2026-04-20T06:28:24Z [developer] [C05] [STARTED] Deriving per-page reader context for breadcrumbs, within-book navigation, and Bookshelf return metadata.
