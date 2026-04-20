@@ -38,6 +38,41 @@ summary = "docs/SUMMARY.md"
 }
 
 #[test]
+fn rejects_existing_non_markdown_page_targets() {
+    let root = make_fixture(
+        "non_markdown_target",
+        r#"[bookshelf]
+root_book = "meta"
+
+[[bookshelf.book]]
+id = "meta"
+title = "Meta"
+summary = "docs/SUMMARY.md"
+"#,
+        &[
+            ("docs/SUMMARY.md", "# Summary\n\n- [Meta](index.txt)\n"),
+            ("docs/index.txt", "not markdown\n"),
+        ],
+    );
+    let input_catalog = load_input_catalog(root.join("bookshelf.toml")).unwrap();
+
+    let error = build_site_model(&input_catalog).unwrap_err();
+    assert!(matches!(
+        error,
+        BuildSiteModelError::NonMarkdownPageTarget {
+            ref book_id,
+            ref summary_path,
+            ref target,
+            ref source_path,
+            ..
+        } if book_id == "meta"
+            && summary_path.ends_with(Path::new("docs/SUMMARY.md"))
+            && target == "index.txt"
+            && source_path.ends_with(Path::new("docs/index.txt"))
+    ));
+}
+
+#[test]
 fn rejects_duplicate_page_ownership_across_books() {
     let root = make_fixture(
         "duplicate_page_ownership",

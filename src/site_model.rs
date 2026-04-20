@@ -20,6 +20,13 @@ pub enum BuildSiteModelError {
         target: String,
         source_path: PathBuf,
     },
+    NonMarkdownPageTarget {
+        book_id: String,
+        summary_path: PathBuf,
+        line: usize,
+        target: String,
+        source_path: PathBuf,
+    },
     DuplicatePageOwnership {
         source_path: PathBuf,
         first_book_id: String,
@@ -50,6 +57,21 @@ impl fmt::Display for BuildSiteModelError {
             } => write!(
                 f,
                 "canonical SUMMARY.md for `{}` at {} references missing page target `{}` on line {} ({})",
+                book_id,
+                summary_path.display(),
+                target,
+                line,
+                source_path.display()
+            ),
+            Self::NonMarkdownPageTarget {
+                book_id,
+                summary_path,
+                line,
+                target,
+                source_path,
+            } => write!(
+                f,
+                "canonical SUMMARY.md for `{}` at {} references non-markdown page target `{}` on line {} ({})",
                 book_id,
                 summary_path.display(),
                 target,
@@ -211,6 +233,16 @@ fn resolve_summary_target(
         });
     }
 
+    if !is_markdown_path(&source_path) {
+        return Err(BuildSiteModelError::NonMarkdownPageTarget {
+            book_id: book.id.clone(),
+            summary_path: book.summary_path.clone(),
+            line: entry.line,
+            target: entry.target.clone(),
+            source_path,
+        });
+    }
+
     let source_path =
         source_path
             .canonicalize()
@@ -281,9 +313,17 @@ fn resolve_path(base_dir: &Path, raw_path: &str) -> PathBuf {
     }
 }
 
+fn is_markdown_path(path: &Path) -> bool {
+    matches!(
+        path.extension().and_then(|extension| extension.to_str()),
+        Some("md" | "markdown")
+    )
+}
+
 #[cfg(test)]
 mod tests {
-    use super::parse_summary_entries;
+    use super::{is_markdown_path, parse_summary_entries};
+    use std::path::Path;
 
     #[test]
     fn preserves_summary_order_and_depth() {
@@ -298,5 +338,12 @@ mod tests {
         assert_eq!(entries[1].summary_depth, 1);
         assert_eq!(entries[2].title, "Last");
         assert_eq!(entries[2].summary_depth, 0);
+    }
+
+    #[test]
+    fn recognizes_markdown_targets_by_extension() {
+        assert!(is_markdown_path(Path::new("index.md")));
+        assert!(is_markdown_path(Path::new("guide.markdown")));
+        assert!(!is_markdown_path(Path::new("index.txt")));
     }
 }

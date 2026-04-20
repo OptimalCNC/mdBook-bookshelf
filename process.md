@@ -20,9 +20,9 @@
 
 ## Current State
 - Status: IN_PROGRESS
-- Current iteration: 2
+- Current iteration: 3
 - Current chunk: C02
-- Next action: Implement authored page ownership and per-book reading-order modeling.
+- Next action: Implement the C02 review fix that rejects non-markdown SUMMARY targets and adds a regression test.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
@@ -101,3 +101,7 @@ review_focus:
 - 2026-04-20T05:51:00Z [planner] [C02] [PLANNED] Chose authored page ownership and per-book reading-order modeling as the next chunk after validated input loading.
 - 2026-04-20T05:51:00Z [coordinator] [C02] [ACCEPTED] Accepted the planner artifact and activated C02 for implementation.
 - 2026-04-20T05:53:23Z [developer] [C02] [STARTED] Building the authored page site model with summary-order traversal and normalized page ownership checks.
+- 2026-04-20T05:55:13Z [developer] [C02] [FINISHED] Added the authored page model, verified page ownership and reading order, and re-ran the required C02 tests.
+- 2026-04-20T05:57:00Z [reviewer-subagent] [C02] [CHANGES_REQUIRED] Site-model page resolution accepts any existing file path from SUMMARY links, so C02 does not yet enforce authored markdown-page ownership.
+- 2026-04-20T05:57:46Z [coordinator] [C02] [CHANGES_REQUIRED] Synthesized a same-chunk fix request: reject non-markdown SUMMARY targets explicitly and add regression coverage for existing non-markdown files.
+- 2026-04-20T05:58:21Z [developer] [C02] [STARTED] Applying the C02 review fix to reject non-markdown SUMMARY targets and add regression coverage.
