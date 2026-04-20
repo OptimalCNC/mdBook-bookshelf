@@ -21,61 +21,63 @@
 ## Current State
 - Status: IN_PROGRESS
 - Current iteration: 2
-- Current chunk: C01
-- Next action: Implement the minimal C01 review fix for TOML-compliant quoted strings and add a regression test for `#` inside valid values.
+- Current chunk: C02
+- Next action: Implement authored page ownership and per-book reading-order modeling.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
 ## Active Chunk
 ```yaml
-chunk_id: C01
-title: Bootstrap validated bookshelf input loading
-objective: Create the first Rust implementation slice that loads bookshelf.toml, resolves each book's canonical SUMMARY.md, and produces a validated in-memory input catalog for later renderer work.
-why_now: Rendering cannot start safely until the implementation can load the human-owned config and canonical summaries without inventing HTML post-processing or temp-workspace staging.
-depends_on: []
+chunk_id: C02
+title: Build the authored page catalog and per-book reading order
+objective: Transform the validated input catalog into a site-owned authored page model with stable page ownership, summary hierarchy metadata, and per-book reading order for all authored markdown pages.
+why_now: The renderer-oriented architecture now needs a concrete page model; without resolved page ownership and reading order, sidebar, breadcrumbs, previous and next, and direct rendering remain speculative.
+depends_on:
+  - C01
 scope_in:
-  - Initialize a Rust crate for the bookshelf implementation with a library entry point.
-  - Parse bookshelf.toml, including root_book and bookshelf.book entries.
-  - Resolve each summary path relative to the config file and load the canonical SUMMARY.md for that book.
-  - Derive each book's content root from the first summary link and store it in a validated input catalog.
-  - Return structured validation errors for missing bookshelf config, missing root_book, duplicate book ids, missing or empty summary, configured root_book not present in the book list, and authored Bookshelf entries inside canonical summaries.
-  - Add unit and integration tests for the self-contained example and targeted negative cases.
+  - Add a page-model API that consumes the C01 input catalog.
+  - Parse every canonical SUMMARY.md link into authored page records for each book.
+  - Preserve summary nesting metadata needed for later sidebar generation.
+  - Resolve every authored page target to an existing markdown source file.
+  - Record stable page ownership by book id and reject duplicate ownership of the same source page across books.
+  - Expose each book's authored page order starting at that book's content root.
 scope_out:
-  - HTML rendering, templates, and theming.
-  - Generated Bookshelf page rendering.
-  - Sidebar, breadcrumbs, previous and next, search labeling, and cross-book routing.
-  - Serve workflow, watch mode, and live rebuild behavior.
+  - Synthesizing the in-memory Bookshelf page.
+  - HTML rendering, templates, assets, and theming.
+  - Breadcrumb rendering, sidebar HTML, header controls, and previous/next link output.
+  - Search index output and search result labels.
+  - Serve and watch workflows.
 target_files:
-  - Cargo.toml
+  - src/site_model.rs
   - src/lib.rs
-  - src/config.rs
-  - src/input_catalog.rs
-  - tests/input_catalog_example.rs
-  - tests/input_catalog_negative.rs
+  - tests/site_model_example.rs
+  - tests/site_model_negative.rs
 implementation_tasks:
-  - Create the crate skeleton and add dependencies needed for TOML parsing and summary loading.
-  - Define typed config and input-catalog structures for the bookshelf site and per-book records.
-  - Implement a load_input_catalog API that accepts a bookshelf.toml path and resolves all file paths relative to that config file.
-  - Parse each canonical SUMMARY.md, extract the root page link, and reject authored Bookshelf entries.
-  - Add tests that cover the self-contained example fixture and the required negative validation cases.
+  - Define site-model structs for books and authored pages, including source path, owning book id, title, order position, and summary depth.
+  - Implement a builder that walks each canonical SUMMARY.md and collects all authored page entries in declared order.
+  - Validate that each referenced markdown page exists on disk and that no authored page path is claimed by more than one book.
+  - Expose a public API that builds the authored site model from the C01 input catalog.
+  - Add example and negative tests that exercise page ownership and per-book order.
 acceptance_criteria:
-  - A new library API can load bookshelf/handoffs/examples/self-contained/bookshelf.toml and returns root_book = meta with exactly three books: meta, parser, and ui.
-  - The loaded catalog resolves content-root pages to docs/index.md, modules/parser/docs/index.md, and modules/ui/docs/index.md relative to the example config.
-  - Loading fails with explicit errors for missing bookshelf config, missing root_book, duplicate book ids, missing or empty summary, configured root_book not present in the configured books, and any canonical SUMMARY.md that authors a Bookshelf entry.
-  - All new tests pass without requiring any HTML post-processing step or temp-workspace copy step.
+  - A new public API can build a site model from `bookshelf/handoffs/examples/self-contained/bookshelf.toml` and returns authored page orders `meta:[docs/index.md,docs/onboarding.md,docs/architecture.md]`, `parser:[modules/parser/docs/index.md,modules/parser/docs/grammar.md,modules/parser/docs/runtime.md]`, and `ui:[modules/ui/docs/index.md,modules/ui/docs/navigation.md,modules/ui/docs/diagnostics.md]` relative to the example config directory.
+  - The site model records exactly nine authored pages for the self-contained example, and every authored page is owned by exactly one book.
+  - Each authored page record includes the resolved markdown source path and the summary depth needed to reconstruct later sidebar trees.
+  - Building the site model fails with explicit errors when a summary references a missing markdown file or when two books claim the same authored page path.
+  - The chunk introduces no HTML post-processing step and no temp-workspace-copy step.
 verification:
-  - command: "cargo test --test input_catalog_example"
-    expect: "The self-contained example fixture loads successfully and asserts the expected book ids and root-page paths."
-  - command: "cargo test --test input_catalog_negative"
-    expect: "Negative cases fail with targeted validation errors for the required config and summary invariants."
+  - command: "cargo test --test site_model_example"
+    expect: "The self-contained example builds into an authored site model with the expected page ownership and per-book order."
+  - command: "cargo test --test site_model_negative"
+    expect: "Negative fixtures fail with targeted errors for missing page targets and duplicate page ownership."
 review_focus:
-  - Path resolution must be anchored to the bookshelf.toml directory, not the process working directory.
-  - Summary loading must preserve one canonical SUMMARY.md per book and must not synthesize a merged or global summary.
-  - Validation errors should identify the offending book id or summary path so failures are actionable.
+  - Summary traversal must preserve authored order exactly as declared in each canonical SUMMARY.md.
+  - Page ownership must be normalized by resolved path so duplicate claims are caught reliably.
+  - The model must represent authored pages only; the generated Bookshelf page stays out of this chunk.
 ```
 
 ## Chunk Ledger
-- none yet
+- C01 `Bootstrap validated bookshelf input loading`:
+  commits `621f5f2`, `d8088d2`; verification passed (`cargo test --test input_catalog_example`, `cargo test --test input_catalog_negative`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
 
 ## Final Validation
 - Pending
@@ -93,3 +95,9 @@ review_focus:
 - 2026-04-20T05:46:09Z [coordinator] [C01] [CHANGES_REQUIRED] Synthesized a same-chunk fix request: replace the ad hoc config parser with TOML-compliant parsing and add a `#`-in-string regression test.
 - 2026-04-20T05:46:09Z [coordinator] [C01] [REVIEW_BLOCKED] Claude CLI reviewer returned `API Error: Unable to connect to API (ConnectionRefused)` and did not emit a verdict.
 - 2026-04-20T05:46:54Z [developer] [C01] [STARTED] Applying the C01 review fix for quoted `#` TOML values and adding regression coverage.
+- 2026-04-20T05:47:47Z [developer] [C01] [FINISHED] Fixed quoted `#` handling in config parsing, added regression coverage, and re-ran the required C01 tests.
+- 2026-04-20T05:49:04Z [reviewer-subagent] [C01] [APPROVED] Quote-aware inline-comment stripping now preserves valid TOML `#` inside strings, and regression coverage plus direct repro verification pass.
+- 2026-04-20T05:49:30Z [coordinator] [C01] [CLOSED] Moved C01 to the ledger after verification passed and the strict subagent reviewer approved the review-fix iteration.
+- 2026-04-20T05:51:00Z [planner] [C02] [PLANNED] Chose authored page ownership and per-book reading-order modeling as the next chunk after validated input loading.
+- 2026-04-20T05:51:00Z [coordinator] [C02] [ACCEPTED] Accepted the planner artifact and activated C02 for implementation.
+- 2026-04-20T05:53:23Z [developer] [C02] [STARTED] Building the authored page site model with summary-order traversal and normalized page ownership checks.
