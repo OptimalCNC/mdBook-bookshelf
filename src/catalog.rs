@@ -45,6 +45,11 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
             .parent()
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from("."));
+        let book_root_rel = if book_root_rel.as_os_str().is_empty() {
+            PathBuf::from(".")
+        } else {
+            book_root_rel
+        };
 
         let book_root_abs = config.config_dir.join(&book_root_rel);
         let book_src_abs = config.config_dir.join(&book_src_rel);
