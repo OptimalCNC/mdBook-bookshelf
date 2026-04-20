@@ -35,6 +35,28 @@ fn preserves_root_ownership_and_unique_output_paths() {
             .output_path,
         PathBuf::from("index.html")
     );
+    assert!(render_manifest
+        .entry_for_page_id("bookshelf")
+        .expect("bookshelf entry should exist")
+        .route_path
+        .as_os_str()
+        .is_empty());
+    assert!(site_model.bookshelf_page.route_path.as_os_str().is_empty());
+    assert!(reader_context
+        .bookshelf_page_context
+        .route_path
+        .as_os_str()
+        .is_empty());
+    for context in &reader_context.authored_page_contexts {
+        assert!(context.bookshelf_return.route_path.as_os_str().is_empty());
+        assert_eq!(
+            context.bookshelf_return.route_path,
+            render_manifest
+                .entry_for_page_id(&context.bookshelf_return.page_id)
+                .expect("bookshelf manifest entry should exist")
+                .route_path
+        );
+    }
 }
 
 #[test]

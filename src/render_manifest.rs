@@ -130,7 +130,7 @@ pub fn build_render_manifest(
             page_id: reader_context.bookshelf_page_context.page_id.clone(),
         },
         title: reader_context.bookshelf_page_context.title.clone(),
-        route_path: PathBuf::new(),
+        route_path: reader_context.bookshelf_page_context.route_path.clone(),
         output_path: PathBuf::from("index.html"),
     };
     claim_output_path(&mut claimed_outputs, &synthetic_entry)?;

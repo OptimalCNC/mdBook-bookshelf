@@ -18,10 +18,7 @@ fn builds_the_generated_bookshelf_page_for_the_self_contained_example() {
     );
     assert_eq!(site_model.bookshelf_page.page_id, "bookshelf");
     assert_eq!(site_model.bookshelf_page.title, "Bookshelf");
-    assert_eq!(
-        site_model.bookshelf_page.route_path,
-        PathBuf::from("bookshelf")
-    );
+    assert!(site_model.bookshelf_page.route_path.as_os_str().is_empty());
     assert_eq!(site_model.bookshelf_page.owner_book_id, "meta");
     assert_eq!(site_model.bookshelf_page.shelf_items.len(), 3);
     assert_eq!(site_model.authored_pages.len(), 9);

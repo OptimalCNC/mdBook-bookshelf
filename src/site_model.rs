@@ -273,7 +273,7 @@ fn synthesize_bookshelf_page(
     Ok(BookshelfPage {
         page_id: "bookshelf".to_owned(),
         title: "Bookshelf".to_owned(),
-        route_path: PathBuf::from("bookshelf"),
+        route_path: PathBuf::new(),
         owner_book_id: input_catalog.root_book.clone(),
         shelf_items,
     })

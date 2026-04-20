@@ -20,9 +20,9 @@
 
 ## Current State
 - Status: IN_PROGRESS
-- Current iteration: 4
+- Current iteration: 5
 - Current chunk: C06
-- Next action: Implement the renderer route and output manifest for synthetic and authored pages.
+- Next action: Reconcile the synthetic Bookshelf page route across site model, reader context, and render manifest so the canonical route is the site root only.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
@@ -144,3 +144,7 @@ review_focus:
 - 2026-04-20T06:35:53Z [planner] [C06] [PLANNED] Chose renderer route and output manifest derivation as the first renderer-facing chunk after the model layers were completed.
 - 2026-04-20T06:35:53Z [coordinator] [C06] [ACCEPTED] Accepted the planner artifact and activated C06 for implementation.
 - 2026-04-20T06:38:23Z [developer] [C06] [STARTED] Building the renderer-owned route and output manifest for synthetic and authored pages.
+- 2026-04-20T06:40:53Z [developer] [C06] [FINISHED] Added the derived render manifest, verified deterministic output addressing, and re-ran the required C06 tests.
+- 2026-04-20T06:43:08Z [reviewer-subagent] [C06] [CHANGES_REQUIRED] Render manifest makes the synthetic Bookshelf page live at the site root, but site-model and reader-context metadata still point to `bookshelf`, leaving conflicting canonical routes for the same page.
+- 2026-04-20T07:07:05Z [coordinator] [C06] [CHANGES_REQUIRED] User confirmed the Bookshelf page is canonical only at the site root; synthesized a same-chunk fix request to align site-model, reader-context, and render-manifest routing on `/`.
+- 2026-04-20T07:08:05Z [developer] [C06] [STARTED] Applying the C06 review fix to make the Bookshelf page canonical only at the site root across all model layers.
