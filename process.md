@@ -21,61 +21,60 @@
 ## Current State
 - Status: IN_PROGRESS
 - Current iteration: 4
-- Current chunk: C03
-- Next action: Implement the C03 review fix that adds first-class synthetic Bookshelf page identity metadata to the site model.
+- Current chunk: C04
+- Next action: Implement book-scoped sidebar tree generation and root-book Bookshelf affix behavior.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
 ## Active Chunk
 ```yaml
-chunk_id: C03
-title: Synthesize the in-memory Bookshelf page
-objective: Extend the site model with the generated Bookshelf page and root entrypoint metadata so the renderer has a first-class chooser page to render.
-why_now: The authored page model exists, but the architecture still lacks the synthetic root-book page that the site must open first and that later header and navigation rendering must reference.
+chunk_id: C04
+title: Build book-scoped sidebar trees
+objective: Derive renderer-ready sidebar trees from the site model, including the root-book Bookshelf affix and strict active-book scoping.
+why_now: Sidebar behavior is the next explicit reader-shell requirement in the handoff and blocks later page rendering, while still fitting into a single focused model chunk.
 depends_on:
-  - C01
-  - C02
+  - C03
 scope_in:
-  - Add generated Bookshelf page data to the site model as a synthetic page owned by the configured root book.
-  - Build shelf items from configured books using each book's title, description, and root authored page from the existing site model.
-  - Expose the site's default/root entry as the generated Bookshelf page.
-  - Enforce the root-book special case so its shelf item targets the root book's content root page, not the Bookshelf page itself.
-  - Keep the generated Bookshelf page out of authored page ownership and authored reading-order collections.
-  - Add tests that verify the self-contained example and one targeted invariant failure.
+  - Add sidebar model types for affix entries, authored chapter entries, and per-book sidebar trees.
+  - Generate one sidebar tree per book from the existing site model, preserving canonical summary order and nesting depth.
+  - Inject a synthetic Bookshelf affix entry into the root-book sidebar only, targeting the synthetic Bookshelf page from C03.
+  - Keep non-root sidebars limited to their own authored chapters with no cross-book leakage.
+  - Expose a public API that returns sidebar data by book id for later renderer use.
+  - Add tests for the self-contained example and root-affix/sidebar-scoping invariants.
 scope_out:
-  - HTML rendering, templates, assets, and theming.
-  - Sidebar affix injection and sidebar tree generation.
-  - Breadcrumb computation and rendering.
+  - Breadcrumb computation.
   - Previous and next computation.
-  - Search index and search-label generation.
+  - Header Bookshelf return control.
+  - HTML rendering and output writing.
+  - Search index and search result labels.
   - Serve and watch workflows.
 target_files:
-  - src/site_model.rs
+  - src/sidebar.rs
   - src/lib.rs
-  - tests/bookshelf_page_example.rs
-  - tests/bookshelf_page_negative.rs
+  - tests/sidebar_model_example.rs
+  - tests/sidebar_model_invariants.rs
 implementation_tasks:
-  - Define site-model structs for the generated Bookshelf page and its shelf items.
-  - Update the site-model builder to synthesize the Bookshelf page from configured books after authored pages are loaded.
-  - Link each shelf item to that book's root authored page using the same normalized page identity used by authored pages.
-  - Add a public accessor or field that marks the generated Bookshelf page as the model's root entry.
-  - Add tests covering self-contained shelf data and the failure path when a configured book cannot be linked to its root authored page.
+  - Define sidebar structs for root affix entries, authored chapter nodes, and per-book sidebar trees.
+  - Build sidebar trees from C03 site-model data without mutating authored_page_order or authored_pages.
+  - Represent Bookshelf as a dedicated affix entry that references the synthetic Bookshelf page id from C03.
+  - Preserve declared summary nesting and chapter order for authored nodes.
+  - Add verification coverage for root-book affix behavior and non-root book isolation.
 acceptance_criteria:
-  - Building the site model from `bookshelf/handoffs/examples/self-contained/bookshelf.toml` produces exactly one generated Bookshelf page owned by root book `meta`.
-  - The site model exposes the generated Bookshelf page as the default/root site entry.
-  - The generated Bookshelf page contains exactly three shelf items with book ids `meta`, `parser`, and `ui`, titles from `bookshelf.toml`, and descriptions matching the example config.
-  - Each shelf item targets that book's authored content root page from C02; specifically, the `meta` shelf item targets `docs/index.md` relative to the example config directory and does not self-target the generated Bookshelf page.
-  - The generated Bookshelf page is synthetic only: it is not added to `authored_pages`, does not change any `authored_page_order`, and does not require a canonical `SUMMARY.md` entry.
-  - Building fails with an explicit error if a configured book cannot be linked to a root authored page while synthesizing the Bookshelf page.
+  - A new public API builds sidebar data from the self-contained example site model and returns exactly three sidebars: meta, parser, and ui.
+  - The `meta` sidebar contains exactly one affix entry titled `Bookshelf` targeting the synthetic Bookshelf page from C03, plus authored chapter entries `Example Core`, `Onboarding`, and `Architecture` in canonical summary order.
+  - The `parser` sidebar contains only `Example Parser`, `Grammar`, and `Runtime`; the `ui` sidebar contains only `Example UI`, `Navigation`, and `Diagnostics`; neither non-root sidebar includes a `Bookshelf` affix or any chapter from another book.
+  - Sidebar chapter entries preserve the summary nesting depth from C02, so `Grammar` and `Runtime` remain children of `Example Parser` and the root-book chapters remain under `Example Core`.
+  - The Bookshelf affix remains synthetic only: it is not added to authored_page_order, does not become an authored page, and stays distinct from authored chapter entries so root-book chapter ordering remains unchanged.
+  - The chunk introduces no HTML post-processing step and no temp-workspace-copy step.
 verification:
-  - command: "cargo test --test bookshelf_page_example"
-    expect: "The self-contained example builds a site model with one generated Bookshelf page, the correct shelf items, and the Bookshelf page as the site root."
-  - command: "cargo test --test bookshelf_page_negative"
-    expect: "An inconsistent root-page linkage fails with a targeted error instead of silently producing a broken shelf item."
+  - command: "cargo test --test sidebar_model_example"
+    expect: "The self-contained example produces the expected meta, parser, and ui sidebar trees with correct titles, nesting, and no cross-book leakage."
+  - command: "cargo test --test sidebar_model_invariants"
+    expect: "Root-book Bookshelf affix behavior and non-root sidebar scoping invariants pass without altering authored page order."
 review_focus:
-  - The generated Bookshelf page must live in the site model as synthetic data, not as an authored page or a hidden summary mutation.
-  - Shelf items must use normalized page identity so root authored pages match reliably even when source paths differ in representation.
-  - The root-book special case must preserve chooser behavior by linking the root-book shelf item to the root book content page, not back to the Bookshelf page.
+  - Sidebar generation must consume only the existing site model and must not invent extra authored pages or mutate canonical order.
+  - The root-book Bookshelf entry must be modeled as a dedicated affix, not as a numbered chapter node.
+  - Non-root sidebars must remain isolated to their owning books even when multiple books have similar structures.
 ```
 
 ## Chunk Ledger
@@ -83,6 +82,8 @@ review_focus:
   commits `621f5f2`, `d8088d2`; verification passed (`cargo test --test input_catalog_example`, `cargo test --test input_catalog_negative`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
 - C02 `Build the authored page catalog and per-book reading order`:
   commits `7199aef`, `d0a0442`; verification passed (`cargo test --test site_model_example`, `cargo test --test site_model_negative`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
+- C03 `Synthesize the in-memory Bookshelf page`:
+  commits `a23bfcc`, `9828143`; verification passed (`cargo test --test bookshelf_page_example`, `cargo test --test bookshelf_page_negative`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
 
 ## Final Validation
 - Pending
@@ -120,3 +121,9 @@ review_focus:
 - 2026-04-20T06:09:20Z [reviewer-subagent] [C03] [CHANGES_REQUIRED] The site model adds shelf items but still lacks first-class synthetic Bookshelf page identity such as route/title metadata, so later rendering would have to invent page data outside the model.
 - 2026-04-20T06:10:09Z [coordinator] [C03] [CHANGES_REQUIRED] Synthesized a same-chunk fix request: add first-class Bookshelf page route/title identity to the site model and verify it directly in tests.
 - 2026-04-20T06:10:49Z [developer] [C03] [STARTED] Applying the C03 review fix to add first-class Bookshelf page identity metadata and direct verification coverage.
+- 2026-04-20T06:11:39Z [developer] [C03] [FINISHED] Added direct Bookshelf page identity metadata, verified it in C03 tests, and re-ran the required test suite.
+- 2026-04-20T06:12:59Z [reviewer-subagent] [C03] [APPROVED] The site model now carries first-class synthetic Bookshelf page identity and the root entry points to that page id directly, with direct verification coverage passing.
+- 2026-04-20T06:13:45Z [coordinator] [C03] [CLOSED] Moved C03 to the ledger after verification passed and the strict subagent reviewer approved the review-fix iteration.
+- 2026-04-20T06:15:20Z [planner] [C04] [PLANNED] Chose book-scoped sidebar tree generation with root-book Bookshelf affix behavior as the next chunk after synthetic page modeling.
+- 2026-04-20T06:16:48Z [coordinator] [C04] [ACCEPTED] Accepted the planner artifact and activated C04 for implementation.
+- 2026-04-20T06:18:33Z [developer] [C04] [STARTED] Building derived per-book sidebar trees with a root-book Bookshelf affix and strict book scoping.
