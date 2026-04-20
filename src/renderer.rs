@@ -5,7 +5,7 @@ use std::path::{Component, Path, PathBuf};
 
 use crate::reader_context::{AuthoredPageReaderContext, ReaderContextModel};
 use crate::render_manifest::{RenderManifest, RenderedPageIdentity, RenderedPageManifestEntry};
-use crate::search::{build_search_index, write_search_index, SearchIndexError};
+use crate::search::{build_search_index, write_search_index, SearchIndex, SearchIndexError};
 use crate::sidebar::{BookSidebar, SidebarChapter, SidebarModel};
 use crate::site_model::SiteModel;
 
@@ -243,8 +243,28 @@ pub fn render_site_with_search_index(
     )?;
     let search_index = build_search_index(reader_context, render_manifest)?;
     let search_index_path = write_search_index(output_dir, &search_index)?;
+    let search_page_path = render_search_page(output_dir, &search_index)?;
     written_paths.push(search_index_path);
+    written_paths.push(search_page_path);
     Ok(written_paths)
+}
+
+fn render_search_page(
+    output_dir: impl AsRef<Path>,
+    search_index: &SearchIndex,
+) -> Result<PathBuf, RenderSiteError> {
+    let output_dir = output_dir.as_ref();
+    fs::create_dir_all(output_dir).map_err(|source| RenderSiteError::Io {
+        path: output_dir.to_path_buf(),
+        source,
+    })?;
+    let output_path = output_dir.join("search.html");
+    let html = render_search_html(search_index);
+    fs::write(&output_path, html).map_err(|source| RenderSiteError::Io {
+        path: output_path.clone(),
+        source,
+    })?;
+    Ok(output_path)
 }
 
 fn render_bookshelf_html(
@@ -276,7 +296,7 @@ fn render_bookshelf_html(
     }
 
     Ok(format!(
-        "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>{title}</title></head><body><div id=\"page-wrapper\" class=\"page-wrapper\"><main id=\"content\" class=\"content\" role=\"main\"><h1>{title}</h1><ul class=\"bookshelf-grid\">{shelf_items}</ul></main></div></body></html>",
+        "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>{title}</title></head><body><div id=\"page-wrapper\" class=\"page-wrapper\"><main id=\"content\" class=\"content\" role=\"main\"><div class=\"menu-bar\"><a class=\"search-link\" href=\"search.html\">Search</a></div><h1>{title}</h1><ul class=\"bookshelf-grid\">{shelf_items}</ul></main></div></body></html>",
         title = escape_html(&site_model.bookshelf_page.title),
         shelf_items = shelf_items_markup
     ))
@@ -309,6 +329,7 @@ fn render_authored_page_html(
             page_id: bookshelf_page_id.to_owned(),
         })?;
     let bookshelf_href = relative_href(&current_entry.output_path, &bookshelf_entry.output_path);
+    let search_href = relative_href(&current_entry.output_path, Path::new("search.html"));
 
     let sidebar_affixes = render_sidebar_affixes(
         &sidebar.affix_entries,
@@ -357,17 +378,35 @@ fn render_authored_page_html(
     };
 
     Ok(format!(
-        "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>{title}</title></head><body><div id=\"page-wrapper\" class=\"page-wrapper\"><nav id=\"sidebar\" class=\"sidebar\"><div class=\"sidebar-scrollbox\">{affixes}<ol class=\"chapter\">{chapters}</ol></div></nav><main id=\"content\" class=\"content\" role=\"main\"><div class=\"menu-bar\"><a class=\"bookshelf-return\" href=\"{bookshelf_href}\">Bookshelf</a></div><nav class=\"breadcrumbs\">{book_title} / {page_title}</nav><div class=\"page\">{content_html}</div><div class=\"nav-wrapper\">{previous_link}{next_link}</div></main></div></body></html>",
+        "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>{title}</title></head><body><div id=\"page-wrapper\" class=\"page-wrapper\"><nav id=\"sidebar\" class=\"sidebar\"><div class=\"sidebar-scrollbox\">{affixes}<ol class=\"chapter\">{chapters}</ol></div></nav><main id=\"content\" class=\"content\" role=\"main\"><div class=\"menu-bar\"><a class=\"bookshelf-return\" href=\"{bookshelf_href}\">Bookshelf</a><a class=\"search-link\" href=\"{search_href}\">Search</a></div><nav class=\"breadcrumbs\">{book_title} / {page_title}</nav><div class=\"page\">{content_html}</div><div class=\"nav-wrapper\">{previous_link}{next_link}</div></main></div></body></html>",
         title = escape_html(&context.page_title),
         affixes = sidebar_affixes,
         chapters = sidebar_chapters,
         bookshelf_href = escape_html(&bookshelf_href),
+        search_href = escape_html(&search_href),
         book_title = escape_html(&context.breadcrumbs.book_title),
         page_title = escape_html(&context.breadcrumbs.page_title),
         content_html = content_html,
         previous_link = previous_link,
         next_link = next_link
     ))
+}
+
+fn render_search_html(search_index: &SearchIndex) -> String {
+    let mut results_markup = String::new();
+    for document in &search_index.documents {
+        results_markup.push_str(&format!(
+            "<li class=\"search-result\"><a class=\"search-result-link\" href=\"{href}\">{title}</a><span class=\"search-book-label\">{book_label}</span></li>",
+            href = escape_html(&document.href),
+            title = escape_html(&document.title),
+            book_label = escape_html(&document.book_label)
+        ));
+    }
+
+    format!(
+        "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><title>Search</title></head><body><div id=\"page-wrapper\" class=\"page-wrapper\"><main id=\"content\" class=\"content\" role=\"main\"><div class=\"menu-bar\"><a class=\"search-link\" href=\"search.html\">Search</a></div><h1>Search</h1><input type=\"search\" aria-label=\"Search\" /><ul class=\"search-results\">{results}</ul></main></div></body></html>",
+        results = results_markup
+    )
 }
 
 fn render_sidebar_affixes(
@@ -718,8 +757,11 @@ fn escape_html(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_path, relative_href, render_markdown, split_target_suffix};
+    use super::{
+        normalize_path, relative_href, render_markdown, render_search_html, split_target_suffix,
+    };
     use crate::render_manifest::{RenderManifest, RenderedPageIdentity, RenderedPageManifestEntry};
+    use crate::search::{SearchDocument, SearchIndex};
     use std::path::{Path, PathBuf};
 
     #[test]
@@ -788,5 +830,22 @@ mod tests {
             normalize_path(Path::new("/tmp/docs/./nested/../page.md")),
             PathBuf::from("/tmp/docs/page.md")
         );
+    }
+
+    #[test]
+    fn renders_search_page_with_visible_book_labels() {
+        let html = render_search_html(&SearchIndex {
+            documents: vec![SearchDocument {
+                title: "Grammar".to_owned(),
+                href: "modules/parser/docs/grammar.html".to_owned(),
+                book_label: "Example Parser".to_owned(),
+                body: "parser-only concern".to_owned(),
+            }],
+        });
+
+        assert!(html.contains("<h1>Search</h1>"));
+        assert!(html.contains("aria-label=\"Search\""));
+        assert!(html.contains("modules/parser/docs/grammar.html"));
+        assert!(html.contains("Example Parser"));
     }
 }

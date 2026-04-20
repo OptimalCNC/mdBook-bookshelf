@@ -21,8 +21,8 @@
 ## Current State
 - Status: IN_PROGRESS
 - Current iteration: 8
-- Current chunk: C12
-- Next action: Add concrete repo-scale fixture coverage and integration validation.
+- Current chunk: C14
+- Next action: Add the user-facing site-wide search page and shared search affordance.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
@@ -102,6 +102,8 @@ review_focus:
   commits `a3e3408`, `f0de595`; verification passed (`cargo test --test build_cli_example`, `cargo test --test build_cli_invariants`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
 - C11 `Add the top-level serve workflow`:
   commit `421e323`; verification passed (`cargo test --test serve_cli_example`, `cargo test --test serve_cli_invariants`, `cargo test` with local socket binding permissions); reviewer-subagent approved; Claude CLI review remains environment-blocked.
+- C12 `Add concrete repo-scale fixture coverage`:
+  commit `f66e68c`; verification passed (`cargo test --test repo_scale_example`, `cargo test --test repo_scale_invariants`, `cargo test`); reviewer-subagent approved; Claude CLI review remains environment-blocked.
 
 ## Final Validation
 - Pending
@@ -206,6 +208,21 @@ review_focus:
 2026-04-20T08:29:28Z [planner] [C10] [PLANNED] Chose a single top-level build workflow and CLI entrypoint as the next chunk before serve orchestration or repo-scale validation.
 - 2026-04-20T08:50:58Z [planner] [C11] [PLANNED] Chose the top-level serve workflow as the next smallest user-facing workflow gap after the build command.
 - 2026-04-20T08:50:58Z [coordinator] [C11] [ACCEPTED] Accepted the planner artifact and activated C11 for implementation.
+- 2026-04-20T09:05:01Z [coordinator] [C11] [VERIFIED] Re-ran `cargo test --test serve_cli_example`, `cargo test --test serve_cli_invariants`, and `cargo test` successfully with local socket binding permissions in the coordinator workspace.
+- 2026-04-20T09:05:01Z [coordinator] [C11] [COMMITTED] Developer worker created checkpoint commit `421e323` with message `bookshelf: C11 iteration 1`.
+- 2026-04-20T09:15:13Z [reviewer-subagent] [C11] [APPROVED] The serve workflow stays a thin wrapper over the canonical build pipeline, serves the expected root/authored/search routes, and preserves root-only Bookshelf canonicals without exposing bookshelf aliases or authored `.md` paths.
+- 2026-04-20T09:15:13Z [coordinator] [C11] [CLOSED] Moved C11 to the ledger after verification passed and the strict subagent reviewer approved the initial iteration.
+- 2026-04-20T09:17:26Z [planner] [C12] [PLANNED] Chose concrete repo-scale fixture coverage and integration validation as the next chunk before final whole-system acceptance review.
+- 2026-04-20T09:17:26Z [coordinator] [C12] [ACCEPTED] Accepted the planner artifact and activated C12 for implementation.
+- 2026-04-20T09:22:34Z [coordinator] [C12] [VERIFIED] Re-ran `cargo test --test repo_scale_example`, `cargo test --test repo_scale_invariants`, and `cargo test` successfully in the coordinator workspace.
+- 2026-04-20T09:22:34Z [coordinator] [C12] [COMMITTED] Developer worker created checkpoint commit `f66e68c` with message `bookshelf: C12 iteration 1`.
+- 2026-04-20T09:25:18Z [reviewer-subagent] [C12] [APPROVED] The repo-scale fixture and tests faithfully exercise the existing top-level build path and validate cross-book context, root-book affix separation, and canonical search/output behavior at larger scale.
+2026-04-20T09:32:59Z [planner] [C14] [PLANNED] Chose a generated user-facing search page and shared search affordance backed by the existing search index as the smallest fix for the final acceptance blocker.
+- 2026-04-20T09:33:12Z [reviewer-subagent] [C13] [CHANGES_REQUIRED] Search data exists, but the rendered site still has no user-facing search experience that can actually show site-wide results with owning-book labels.
+- 2026-04-20T09:33:12Z [coordinator] [C13] [CHANGES_REQUIRED] Whole-system review found one remaining blocker: add a user-facing search flow that renders site-wide results with visible owning-book labels.
+- 2026-04-20T09:35:44Z [planner] [C14] [PLANNED] Chose a root-level user-facing search page and shared search affordance as the narrowest fix for the final search-UX blocker.
+- 2026-04-20T09:35:44Z [coordinator] [C14] [ACCEPTED] Accepted the planner artifact and activated C14 for implementation.
+- 2026-04-20T09:25:18Z [coordinator] [C12] [CLOSED] Moved C12 to the ledger after verification passed and the strict subagent reviewer approved the initial iteration.
 - 2026-04-20T08:58:32Z [coordinator] [C11] [VERIFIED] Re-ran `cargo test --test serve_cli_example`, `cargo test --test serve_cli_invariants`, and `cargo test` successfully with local socket binding permissions in the coordinator workspace.
 - 2026-04-20T08:58:32Z [coordinator] [C11] [COMMITTED] Developer worker created checkpoint commit `421e323` with message `bookshelf: C11 iteration 1`.
 - 2026-04-20T09:00:42Z [reviewer-subagent] [C11] [APPROVED] The serve workflow stays a thin wrapper over the canonical build pipeline, serves the expected root/authored/search routes, and preserves root-only Bookshelf canonicals without exposing bookshelf aliases or authored `.md` paths.
@@ -224,4 +241,10 @@ review_focus:
  - 2026-04-20T09:17:26Z [planner] [C12] [PLANNED] Chose concrete repo-scale fixture coverage and integration validation as the next chunk before final whole-system acceptance review.
  - 2026-04-20T09:17:26Z [coordinator] [C12] [ACCEPTED] Accepted the planner artifact and activated C12 for implementation.
 2026-04-20T09:17:26Z [planner] [C12] [PLANNED] Chose concrete repo-scale fixture coverage and integration validation as the next chunk before final whole-system acceptance review.
+- 2026-04-20T09:29:41Z [planner] [C13] [PLANNED] Chose the final whole-system acceptance review against the handoff criteria and test plan as the next chunk before any cleanup follow-up.
+- 2026-04-20T09:29:41Z [coordinator] [C13] [ACCEPTED] Accepted the planner artifact and started the final whole-system acceptance review.
 - 2026-04-20T09:20:49Z [developer] [C12] [STARTED] Adding the concrete repo-scale fixture and validating it through the existing top-level build workflow.
+- 2026-04-20T09:23:17Z [developer] [C12] [FINISHED] Added the repo-scale fixture, verified the top-level build workflow at larger scale, and re-ran the required C12 tests.
+- 2026-04-20T09:25:18Z [reviewer-subagent] [C12] [APPROVED] The repo-scale fixture and tests faithfully exercise the existing top-level build path and validate cross-book context, root-book affix separation, and canonical search/output behavior at larger scale.
+2026-04-20T09:27:31Z [planner] [C13] [PLANNED] Chose the final whole-system acceptance review against the handoff criteria and test plan as the next chunk before any cleanup follow-up.
+- 2026-04-20T09:26:30Z [reviewer-subagent] [C13] [CHANGES_REQUIRED] The pipeline emits searchindex.json with owning-book labels, but the final site still has no user-facing search experience that can actually show labeled site-wide results, so final acceptance remains incomplete.

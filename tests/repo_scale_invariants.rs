@@ -31,6 +31,7 @@ fn repo_scale_output_preserves_canonical_routes_affix_separation_and_search_href
             PathBuf::from("modules/hmi/docs/index.html"),
             PathBuf::from("modules/parser/docs/acceptance-reference.html"),
             PathBuf::from("modules/parser/docs/index.html"),
+            PathBuf::from("search.html"),
             PathBuf::from("searchindex.json"),
         ]
     );
