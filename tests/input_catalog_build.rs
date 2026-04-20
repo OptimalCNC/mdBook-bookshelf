@@ -1,0 +1,55 @@
+use mdbook_bookshelf::build_input_catalog;
+use std::path::{Path, PathBuf};
+
+#[test]
+fn input_catalog_build() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let fixtures = repo_root.join("tests/fixtures/input-catalog");
+
+    let valid_config = fixtures.join("valid/bookshelf.toml");
+    let catalog = build_input_catalog(&valid_config).expect("valid fixture should build catalog");
+    assert_eq!("root", catalog.root_book_id);
+    assert_eq!(2, catalog.books.len());
+
+    assert_eq!("root", catalog.books[0].id);
+    assert!(catalog.books[0].is_root_book);
+    assert_eq!(
+        Path::new("root-book"),
+        catalog.books[0].book_root_rel.as_path()
+    );
+    assert_eq!(Path::new("src"), catalog.books[0].book_src_rel.as_path());
+    assert_eq!(
+        fixtures.join("valid/root-book/src/SUMMARY.md"),
+        catalog.books[0].summary_abs
+    );
+
+    assert_eq!("child", catalog.books[1].id);
+    assert!(!catalog.books[1].is_root_book);
+    assert_eq!(
+        Path::new("child-book"),
+        catalog.books[1].book_root_rel.as_path()
+    );
+    assert_eq!(
+        fixtures.join("valid/child-book/src/SUMMARY.md"),
+        catalog.books[1].summary_abs
+    );
+
+    let missing_config = fixtures.join("invalid-missing-summary/bookshelf.toml");
+    let missing_err = build_input_catalog(&missing_config).expect_err("must fail");
+    assert_eq!(
+        format!(
+            "book 'root' missing canonical summary at {}",
+            fixtures
+                .join("invalid-missing-summary/root-book/src/SUMMARY.md")
+                .display()
+        ),
+        missing_err.to_string()
+    );
+
+    let invalid_location_config = fixtures.join("invalid-summary-location/bookshelf.toml");
+    let location_err = build_input_catalog(&invalid_location_config).expect_err("must fail");
+    assert_eq!(
+        "book 'root' summary must be at '<book-root>/src/SUMMARY.md': 'root-book/docs/SUMMARY.md'",
+        location_err.to_string()
+    );
+}

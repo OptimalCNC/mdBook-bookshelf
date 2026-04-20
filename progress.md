@@ -29,9 +29,9 @@
 
 ## Current State
 - Status: CHUNK_READY
-- Current iteration: CHUNK-002 implementation
-- Current chunk: CHUNK-002
-- Next action: implement strict `bookshelf.toml` parsing and structural validation ahead of multi-book catalog loading.
+- Current iteration: CHUNK-003 implementation
+- Current chunk: CHUNK-003
+- Next action: implement a validated input catalog that resolves per-book roots/src paths and enforces canonical `SUMMARY.md` ownership.
 - Blockers: none recorded.
 
 ## Open Risks
@@ -42,55 +42,61 @@
 
 ## Active Chunk
 ```yaml
-chunk_id: CHUNK-002
-title: Add `bookshelf.toml` typed parser with structural validation
-objective: Introduce a strict in-crate `bookshelf.toml` loader that parses into typed Rust structs and validates minimal structural invariants required before multi-book catalog loading.
-why_now: Multi-book loading cannot be implemented safely until the human-owned top-level config is reliably parsed and rejected on invalid topology.
+chunk_id: CHUNK-003
+title: Build validated multi-book input catalog with canonical `SUMMARY.md` ownership checks
+objective: Convert validated `bookshelf.toml` data into a concrete multi-book input catalog and enforce per-book canonical `SUMMARY.md` presence/rules before any site-model or rendering work.
+why_now: This is the smallest missing bridge between config validation and mdBook seam reuse, and it directly gates acceptance criteria on canonical per-book summary ownership.
 depends_on:
   - CHUNK-001
+  - CHUNK-002
 mdbook_touchpoints:
-  - avoid: no `MDBook` load calls in this chunk; config validation is completed before invoking mdBook seams
-  - prepare_for_reuse: produce validated per-book roots/src inputs that the next chunk can pass to `parse_summary` + `load_with_config_and_summary`
+  - reuse: prepare per-book normalized inputs that feed `load_single_book_with_summary` in later chunks
+  - avoid: no render/build path (`MDBook::build`/HTML renderer) and no site shell generation
 scope_in:
-  - define `bookshelf.toml` schema structs for site-level settings and declared books
-  - implement parse-from-path API with actionable validation errors
-  - validate required structural rules: non-empty catalog, unique book IDs, configured root book present in the declared books, and path normalization checks
-  - add focused tests for valid config and representative failure modes
+  - implement catalog builder API from validated config to typed per-book entries
+  - resolve and normalize each book root/src path relative to `bookshelf.toml`
+  - enforce canonical summary rule per book: exactly one expected summary file at `<book_src>/SUMMARY.md` and it must exist
+  - enforce root-book ownership invariants needed for future in-memory `Bookshelf` page attachment
+  - add focused fixtures/tests for valid and invalid catalog/summary ownership cases
 scope_out:
-  - no per-book `SUMMARY.md` parsing yet
-  - no `MDBook` loading yet
-  - no rendering/site-model logic
+  - no parsing of summary contents yet
+  - no chapter loading via mdBook yet
+  - no multi-book site model assembly
+  - no navigation/render/search behavior
 target_files:
+  - src/catalog.rs
   - src/lib.rs
-  - src/config.rs
-  - tests/bookshelf_config_parse.rs
-  - tests/fixtures/bookshelf-config/valid/bookshelf.toml
-  - tests/fixtures/bookshelf-config/invalid-duplicate-id/bookshelf.toml
-  - tests/fixtures/bookshelf-config/invalid-missing-root/bookshelf.toml
+  - tests/input_catalog_build.rs
+  - tests/fixtures/input-catalog/valid/bookshelf.toml
+  - tests/fixtures/input-catalog/valid/root-book/src/SUMMARY.md
+  - tests/fixtures/input-catalog/valid/child-book/src/SUMMARY.md
+  - tests/fixtures/input-catalog/invalid-missing-summary/bookshelf.toml
+  - tests/fixtures/input-catalog/invalid-summary-location/bookshelf.toml
 implementation_tasks:
-  - add a public `load_bookshelf_config(path)` entrypoint returning typed config plus validation
-  - encode validation rules with deterministic error messages for reviewable assertions
-  - ensure relative paths are resolved against config directory without workspace copying
-  - add table-driven tests for valid config and each invalid topology case
+  - add `build_input_catalog(config_path)` returning deterministic typed entries with resolved absolute paths
+  - encode summary ownership checks with stable error messages for assertions
+  - ensure catalog preserves deterministic book ordering for downstream reproducibility
+  - add tests for happy path, missing `SUMMARY.md`, and non-canonical summary placement expectations
 acceptance_criteria:
-  - valid fixture config parses successfully into typed structs
-  - duplicate book IDs fail validation with a specific deterministic error
-  - missing root book membership fails validation with a specific deterministic error
-  - empty book catalog fails validation
-  - chunk introduces no `MDBook::build()` or stock HTML rendering usage
+  - valid fixture builds a catalog containing all configured books with normalized root/src/summary paths
+  - catalog build fails when any book lacks `<src>/SUMMARY.md`
+  - catalog build fails when summary ownership assumptions are violated
+  - errors are deterministic and assertion-friendly
+  - chunk introduces no render/build invocation or HTML post-processing logic
 verification:
-  - command: `cargo test bookshelf_config_parse -- --exact`
-    expect: exits 0 and covers one valid plus multiple invalid config cases
+  - command: `cargo test input_catalog_build -- --exact`
+    expect: exits 0 and covers valid plus invalid summary-ownership scenarios
   - command: `cargo check --offline`
     expect: exits 0
 review_focus:
-  - config schema fidelity to `bookshelf.toml` as the single human-owned source
-  - validation strictness is sufficient to gate next chunk for catalog + summary ownership checks
-  - error outputs are stable and assertion-friendly for future review loops
+  - canonical per-book `SUMMARY.md` rule is enforced strictly and only once per book
+  - path resolution is deterministic and rooted at human-owned `bookshelf.toml`
+  - output catalog shape is minimal but sufficient for the next mdBook loading chunk
 ```
 
 ## Chunk Ledger
 - CHUNK-001 approved via commits `007cca2` and `55866ca`: added published mdBook crate dependencies, a minimal `load_single_book_with_summary()` seam around `parse_summary` + `load_with_config_and_summary`, and a passing deterministic seam smoke test. Verified with `cargo check --offline` and `cargo test seam_single_book_load -- --exact`.
+- CHUNK-002 approved via commits `4473c11` and `e0aafec`: added typed `bookshelf.toml` loading with TOML-native deserialization, structural validation for catalog/root/path invariants, and passing regression coverage for standard mdBook tables, inline comments, escaped quotes, duplicate IDs, missing root membership, and empty catalogs. Verified with `cargo test bookshelf_config_parse -- --exact` and `cargo check --offline`.
 
 ## Final Validation
 - Pending
@@ -114,7 +120,14 @@ review_focus:
 - 2026-04-20T15:24:36Z [developer] [CHUNK-002] [DONE] Added typed config loading/validation with fixtures for valid config, duplicate IDs, missing root membership, and empty catalog plus passing offline checks.
 - 2026-04-20T15:26:40Z [reviewer-subagent] [CHUNK-002] CHANGES_REQUIRED - Handwritten line parser is not TOML-compliant and can reject valid coexisting mdBook tables (non-quoted values, inline comments, escaping), so config fidelity is not met.
 - 2026-04-20T15:27:17Z [reviewer-claude] [CHUNK-002] CHANGES_REQUIRED - handwritten line parser misreads valid TOML (inline comments, non-string values in `[book]`/`[output.html]`); switch to serde+`toml`.
+- 2026-04-20T15:34:35Z [developer] [CHUNK-002] [DONE] Replaced line parsing with serde-plus-toml deserialization, added TOML-semantics regressions, and revalidated offline.
+- 2026-04-20T15:36:49Z [reviewer-subagent] [CHUNK-002] APPROVED - Parser now uses serde+toml with TOML-semantics regression coverage while preserving required structural validation gates.
+- 2026-04-20T15:37:04Z [reviewer-claude] [CHUNK-002] APPROVED - serde+toml parser satisfies config fidelity alongside standard mdBook tables and meets all acceptance criteria.
 - 2026-04-20T15:18:45Z [developer] [CHUNK-002] [DONE] Added strict typed config loader/validation and passing parse tests for valid, duplicate-id, missing-root, and empty-catalog cases.
 - 2026-04-20T15:32:00Z [reviewer-subagent] [CHUNK-002] CHANGES_REQUIRED - Handwritten line parser is not TOML-compliant and can reject valid coexisting mdBook tables (non-quoted values, inline comments, escaping), so config fidelity is not met.
 - 2026-04-20T15:24:29Z [developer] [CHUNK-002] [STARTED] Began review-fix to replace line parsing with TOML deserialization and add regression coverage for comments and quoting semantics.
 - 2026-04-20T15:26:30Z [developer] [CHUNK-002] [DONE] Replaced config parsing with serde+toml, added TOML semantics regressions, and reran required offline checks.
+- 2026-04-20T15:41:00Z [reviewer-subagent] [CHUNK-002] APPROVED - Parser now uses serde+toml with TOML-semantics regression coverage while preserving required structural validation gates.
+- 2026-04-20T15:30:07Z [planner] [CHUNK-003] [DONE] Selected minimal next chunk: derive validated multi-book input catalog and enforce canonical per-book `SUMMARY.md` ownership before site-model work.
+- 2026-04-20T15:31:47Z [developer] [CHUNK-003] [STARTED] Began input catalog builder implementation with canonical per-book SUMMARY ownership checks and fixture-backed tests.
+- 2026-04-20T15:33:18Z [developer] [CHUNK-003] [DONE] Added input catalog builder with canonical per-book summary ownership checks and passing fixture-based catalog tests.

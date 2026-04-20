@@ -1,5 +1,7 @@
 pub mod config;
+pub mod catalog;
 
+pub use catalog::{InputBook, InputCatalog, build_input_catalog};
 pub use config::{BookshelfBook, BookshelfConfig, load_bookshelf_config};
 
 use anyhow::{Context, Result, bail};

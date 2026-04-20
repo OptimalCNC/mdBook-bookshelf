@@ -1,0 +1,12 @@
+[bookshelf]
+root_book = "root"
+
+[[bookshelf.book]]
+id = "root"
+title = "Root Book"
+summary = "root-book/src/SUMMARY.md"
+
+[[bookshelf.book]]
+id = "child"
+title = "Child Book"
+summary = "child-book/src/SUMMARY.md"
