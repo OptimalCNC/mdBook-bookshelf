@@ -10,7 +10,18 @@ fn builds_the_generated_bookshelf_page_for_the_self_contained_example() {
     let site_model = build_site_model(&input_catalog).expect("site model should build");
     let config_dir = config_path.parent().unwrap();
 
-    assert_eq!(site_model.root_entry, SiteRoot::BookshelfPage);
+    assert_eq!(
+        site_model.root_entry,
+        SiteRoot::BookshelfPage {
+            page_id: "bookshelf".to_owned()
+        }
+    );
+    assert_eq!(site_model.bookshelf_page.page_id, "bookshelf");
+    assert_eq!(site_model.bookshelf_page.title, "Bookshelf");
+    assert_eq!(
+        site_model.bookshelf_page.route_path,
+        PathBuf::from("bookshelf")
+    );
     assert_eq!(site_model.bookshelf_page.owner_book_id, "meta");
     assert_eq!(site_model.bookshelf_page.shelf_items.len(), 3);
     assert_eq!(site_model.authored_pages.len(), 9);

@@ -146,6 +146,9 @@ pub struct AuthoredPage {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BookshelfPage {
+    pub page_id: String,
+    pub title: String,
+    pub route_path: PathBuf,
     pub owner_book_id: String,
     pub shelf_items: Vec<ShelfItem>,
 }
@@ -160,7 +163,7 @@ pub struct ShelfItem {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SiteRoot {
-    BookshelfPage,
+    BookshelfPage { page_id: String },
 }
 
 pub fn build_site_model(input_catalog: &InputCatalog) -> Result<SiteModel, BuildSiteModelError> {
@@ -215,6 +218,9 @@ pub fn build_site_model(input_catalog: &InputCatalog) -> Result<SiteModel, Build
     }
 
     let bookshelf_page = synthesize_bookshelf_page(input_catalog, &books)?;
+    let root_entry = SiteRoot::BookshelfPage {
+        page_id: bookshelf_page.page_id.clone(),
+    };
 
     Ok(SiteModel {
         config_path: input_catalog.config_path.clone(),
@@ -222,7 +228,7 @@ pub fn build_site_model(input_catalog: &InputCatalog) -> Result<SiteModel, Build
         books,
         authored_pages,
         bookshelf_page,
-        root_entry: SiteRoot::BookshelfPage,
+        root_entry,
     })
 }
 
@@ -265,6 +271,9 @@ fn synthesize_bookshelf_page(
     }
 
     Ok(BookshelfPage {
+        page_id: "bookshelf".to_owned(),
+        title: "Bookshelf".to_owned(),
+        route_path: PathBuf::from("bookshelf"),
         owner_book_id: input_catalog.root_book.clone(),
         shelf_items,
     })
@@ -440,6 +449,13 @@ mod tests {
 
     #[test]
     fn exposes_bookshelf_page_as_the_site_root() {
-        assert_eq!(SiteRoot::BookshelfPage, SiteRoot::BookshelfPage);
+        assert_eq!(
+            SiteRoot::BookshelfPage {
+                page_id: "bookshelf".to_owned()
+            },
+            SiteRoot::BookshelfPage {
+                page_id: "bookshelf".to_owned()
+            }
+        );
     }
 }

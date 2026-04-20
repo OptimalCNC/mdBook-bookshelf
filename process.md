@@ -20,9 +20,9 @@
 
 ## Current State
 - Status: IN_PROGRESS
-- Current iteration: 3
+- Current iteration: 4
 - Current chunk: C03
-- Next action: Implement the synthetic Bookshelf page and root entrypoint modeling.
+- Next action: Implement the C03 review fix that adds first-class synthetic Bookshelf page identity metadata to the site model.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
@@ -116,3 +116,7 @@ review_focus:
 - 2026-04-20T06:02:19Z [planner] [C03] [PLANNED] Chose in-memory Bookshelf page synthesis and root entrypoint modeling as the next chunk after authored page modeling.
 - 2026-04-20T06:02:19Z [coordinator] [C03] [ACCEPTED] Accepted the planner artifact and activated C03 for implementation.
 - 2026-04-20T06:04:52Z [developer] [C03] [STARTED] Synthesizing the Bookshelf page and root entrypoint metadata on top of the authored site model.
+- 2026-04-20T06:06:57Z [developer] [C03] [FINISHED] Added the synthetic Bookshelf page, root entry metadata, and the required C03 verification coverage.
+- 2026-04-20T06:09:20Z [reviewer-subagent] [C03] [CHANGES_REQUIRED] The site model adds shelf items but still lacks first-class synthetic Bookshelf page identity such as route/title metadata, so later rendering would have to invent page data outside the model.
+- 2026-04-20T06:10:09Z [coordinator] [C03] [CHANGES_REQUIRED] Synthesized a same-chunk fix request: add first-class Bookshelf page route/title identity to the site model and verify it directly in tests.
+- 2026-04-20T06:10:49Z [developer] [C03] [STARTED] Applying the C03 review fix to add first-class Bookshelf page identity metadata and direct verification coverage.
