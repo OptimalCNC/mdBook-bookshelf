@@ -12,6 +12,28 @@ fn rejects_missing_config_file() {
 }
 
 #[test]
+fn accepts_hashes_inside_valid_quoted_values() {
+    let root = make_fixture(
+        "quoted_hash_values",
+        r#"[bookshelf]
+root_book = "meta"
+
+[[bookshelf.book]]
+id = "meta"
+title = "Guide #1" # trailing comment
+description = "Docs #1"
+summary = "docs/SUMMARY.md"
+"#,
+        &[("docs/SUMMARY.md", "# Summary\n\n- [Meta](index.md)\n")],
+    );
+
+    let catalog = load_input_catalog(root.join("bookshelf.toml")).unwrap();
+    assert_eq!(catalog.books.len(), 1);
+    assert_eq!(catalog.books[0].title, "Guide #1");
+    assert_eq!(catalog.books[0].description.as_deref(), Some("Docs #1"));
+}
+
+#[test]
 fn rejects_missing_root_book() {
     let root = make_fixture(
         "missing_root_book",

@@ -251,10 +251,32 @@ fn unescape_basic_string(
 }
 
 fn strip_comment(line: &str) -> &str {
-    match line.find('#') {
-        Some(index) => &line[..index],
-        None => line,
+    let mut in_string = false;
+    let mut escaped = false;
+
+    for (index, ch) in line.char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+
+            match ch {
+                '\\' => escaped = true,
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+
+        match ch {
+            '"' => in_string = true,
+            '#' => return &line[..index],
+            _ => {}
+        }
     }
+
+    line
 }
 
 fn invalid_config(
@@ -303,5 +325,24 @@ summary = "docs/SUMMARY.md"
             error,
             LoadInputCatalogError::MissingBookshelfSection { .. }
         ));
+    }
+
+    #[test]
+    fn accepts_hashes_inside_quoted_values_with_inline_comments() {
+        let config = r#"
+[bookshelf]
+root_book = "meta"
+
+[[bookshelf.book]]
+id = "meta"
+title = "Guide #1" # trailing comment
+description = "Docs #1"
+summary = "docs/SUMMARY.md"
+"#;
+
+        let parsed = parse_bookshelf_config(Path::new("bookshelf.toml"), config).unwrap();
+        assert_eq!(parsed.books.len(), 1);
+        assert_eq!(parsed.books[0].title, "Guide #1");
+        assert_eq!(parsed.books[0].description.as_deref(), Some("Docs #1"));
     }
 }

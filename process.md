@@ -20,11 +20,11 @@
 
 ## Current State
 - Status: IN_PROGRESS
-- Current iteration: 1
+- Current iteration: 2
 - Current chunk: C01
-- Next action: Implement validated bookshelf input loading and its tests.
+- Next action: Implement the minimal C01 review fix for TOML-compliant quoted strings and add a regression test for `#` inside valid values.
 - Blockers:
-  - None currently; implementation will be bootstrapped from scratch in this repository.
+  - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
 ## Active Chunk
 ```yaml
@@ -87,3 +87,9 @@ review_focus:
 - 2026-04-20T05:16:18Z [planner] [C01] [PLANNED] Chose validated bookshelf input loading from bookshelf.toml and canonical SUMMARY.md as the first implementation chunk.
 - 2026-04-20T05:17:33Z [coordinator] [C01] [ACCEPTED] Accepted the planner artifact and activated C01 for implementation.
 - 2026-04-20T05:19:07Z [developer] [C01] [STARTED] Bootstrapping the Rust crate and validated input-catalog loader from bookshelf.toml plus canonical summaries.
+- 2026-04-20T05:31:11Z [coordinator] [C01] [VERIFIED] Re-ran `cargo test --test input_catalog_example`, `cargo test --test input_catalog_negative`, and `cargo test` successfully in the coordinator workspace.
+- 2026-04-20T05:37:44Z [coordinator] [C01] [COMMITTED] Created checkpoint commit `621f5f2` with message `bookshelf: C01 iteration 1` after the developer worker hit a sandbox git-lock restriction.
+- 2026-04-20T05:40:56Z [reviewer-subagent] [C01] [CHANGES_REQUIRED] Hand-rolled config parsing rejects valid TOML strings containing `#`, so the human-owned `bookshelf.toml` is not reliably loadable.
+- 2026-04-20T05:46:09Z [coordinator] [C01] [CHANGES_REQUIRED] Synthesized a same-chunk fix request: replace the ad hoc config parser with TOML-compliant parsing and add a `#`-in-string regression test.
+- 2026-04-20T05:46:09Z [coordinator] [C01] [REVIEW_BLOCKED] Claude CLI reviewer returned `API Error: Unable to connect to API (ConnectionRefused)` and did not emit a verdict.
+- 2026-04-20T05:46:54Z [developer] [C01] [STARTED] Applying the C01 review fix for quoted `#` TOML values and adding regression coverage.
