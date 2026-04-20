@@ -21,60 +21,61 @@
 ## Current State
 - Status: IN_PROGRESS
 - Current iteration: 8
-- Current chunk: C10
-- Next action: Implement the C10 review fix that normalizes relative `bookshelf.toml` paths in the top-level build workflow.
+- Current chunk: C11
+- Next action: Implement the top-level serve workflow.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
 ## Active Chunk
 ```yaml
-chunk_id: C10
-title: Add the top-level build workflow and CLI entrypoint
-objective: Provide one top-level build command that reads `bookshelf.toml`, runs the full bookshelf pipeline, and writes one complete multi-book site to an output directory.
-why_now: The rendering pipeline now exists in library form, and the smallest remaining acceptance gap is exposing it as the single build workflow authors and CI can actually run.
+chunk_id: C11
+title: Add the top-level serve workflow
+objective: Provide one top-level `serve` command that builds the canonical multi-book site and serves it over HTTP from a single workflow.
+why_now: The build workflow is complete, and the smallest remaining acceptance gap is exposing that output through one author-facing serve command before tackling repo-scale coverage or final whole-system validation.
 depends_on:
-  - C07
-  - C08
-  - C09
+  - C10
 scope_in:
-  - Add a binary CLI entrypoint for the bookshelf implementation.
-  - Add a single top-level `build` command that takes a `bookshelf.toml` path and an output directory.
-  - Orchestrate the full existing pipeline from config loading through HTML rendering and search-index emission.
-  - Ensure the build command produces the canonical root `index.html`, authored `.html` outputs, and root-level `searchindex.json` in one run.
-  - Add integration tests that invoke the top-level build workflow against the self-contained example.
+  - Add a `serve` subcommand to the existing CLI.
+  - Reuse the existing canonical build pipeline to materialize the site before serving it.
+  - Start a static HTTP server over the built output directory with configurable bind address.
+  - Print the actual listening address when binding to an ephemeral port so tests can connect deterministically.
+  - Serve the canonical root `index.html`, authored `.html` outputs, and root-level `searchindex.json` with no extra bookshelf alias routes.
+  - Add integration tests that exercise the top-level serve workflow against the self-contained example.
 scope_out:
-  - Serve workflow or watch mode.
+  - Watch mode or live rebuilds.
   - Repo-scale scenario rendering coverage.
+  - Feature-specific validation command suite.
   - Final whole-system validation.
-  - Asset/theme bundling beyond what the current renderer already emits.
-  - Additional authoring config changes.
+  - Asset/theme work beyond serving the current built output.
 target_files:
   - Cargo.toml
   - src/main.rs
   - src/lib.rs
-  - tests/build_cli_example.rs
-  - tests/build_cli_invariants.rs
+  - src/serve.rs
+  - tests/serve_cli_example.rs
+  - tests/serve_cli_invariants.rs
 implementation_tasks:
-  - Add a binary target and argument parsing for a `build` subcommand.
-  - Implement a single library-facing orchestration function that runs input loading, site modeling, sidebar derivation, reader context, manifest generation, HTML rendering, and search-index emission.
-  - Wire the CLI `build` command to that orchestration function.
-  - Define clear CLI errors for missing arguments, unreadable config, and build failures from the underlying pipeline.
-  - Add integration tests that exercise the CLI against the self-contained example and inspect the produced output tree.
+  - Add CLI argument parsing for a `serve` subcommand with config path and bind address inputs.
+  - Implement a library-facing serve entrypoint that runs the existing build pipeline and then serves the resulting output directory.
+  - Expose the resolved listen address from the server so ephemeral-port tests are reliable.
+  - Serve static files from the built output with canonical path mapping for `/`, authored `.html` paths, and `/searchindex.json`.
+  - Add tests that start the server, fetch representative pages, and verify canonical routing behavior.
 acceptance_criteria:
-  - Running `cargo run -- build bookshelf/handoffs/examples/self-contained/bookshelf.toml <out-dir>` succeeds and produces one complete site in `<out-dir>` from a single command.
-  - The build output contains `index.html`, `searchindex.json`, and all 9 authored `.html` files at their canonical manifest-defined paths, including `docs/index.html`, `docs/onboarding.html`, `docs/architecture.html`, `modules/parser/docs/index.html`, `modules/parser/docs/grammar.html`, `modules/parser/docs/runtime.html`, `modules/ui/docs/index.html`, `modules/ui/docs/navigation.html`, and `modules/ui/docs/diagnostics.html`.
-  - The build output does not contain `bookshelf/index.html` or any authored `.md` outputs.
-  - The generated `index.html` remains the canonical root Bookshelf page, and the generated `searchindex.json` remains root-level and site-wide.
-  - Running the CLI with missing required arguments fails with a non-zero exit and a concise usage/error message instead of panicking.
+  - Running `cargo run -- serve bookshelf/handoffs/examples/self-contained/bookshelf.toml --bind 127.0.0.1:0` starts one top-level serve workflow, prints the resolved listening address, and serves the generated site from a single command.
+  - An HTTP GET to `/` returns `200` and serves the canonical Bookshelf page with visible `Bookshelf` content and shelf links to `docs/index.html`, `modules/parser/docs/index.html`, and `modules/ui/docs/index.html`.
+  - An HTTP GET to `/docs/onboarding.html` returns `200` and serves the authored page with its rendered content and bookshelf navigation chrome.
+  - An HTTP GET to `/searchindex.json` returns `200` and serves the root-level site-wide search index with owning-book labels.
+  - An HTTP GET to `/bookshelf/` or `/bookshelf/index.html` does not act as a canonical alias for the Bookshelf page.
+  - The serve workflow preserves source-relative authored `.html` routes and does not expose authored `.md` paths as served pages.
 verification:
-  - command: "cargo test --test build_cli_example"
-    expect: "The self-contained example builds successfully from the single top-level CLI command and produces the expected canonical output tree."
-  - command: "cargo test --test build_cli_invariants"
-    expect: "CLI error handling, root-only Bookshelf routing, and manifest-defined output invariants all pass under the top-level build workflow."
+  - command: "cargo test --test serve_cli_example"
+    expect: "The self-contained example can be served from the single top-level command, and `/`, one authored page, and `/searchindex.json` all return the expected content."
+  - command: "cargo test --test serve_cli_invariants"
+    expect: "Serve routing preserves root-only Bookshelf canonicals, authored `.html` paths, and no bookshelf alias or raw `.md` route is served."
 review_focus:
-  - The CLI must be a thin entrypoint over the existing bookshelf-owned pipeline rather than a parallel implementation path.
-  - The single build command must preserve canonical root-only Bookshelf routing and source-relative authored `.html` outputs.
-  - Error handling should stay actionable and deterministic for automation and future serve/validation commands.
+  - The serve command must remain a thin wrapper over the existing build pipeline rather than a second rendering path.
+  - HTTP path handling must preserve the user’s canonical root-only Bookshelf routing and source-relative authored `.html` outputs.
+  - Ephemeral-port bind handling and server startup signaling must be deterministic enough for integration tests.
 ```
 
 ## Chunk Ledger
@@ -96,6 +97,8 @@ review_focus:
   commits `1c244fa`, `e34e1d6`; verification passed (`cargo test --test authored_page_html_example`, `cargo test --test authored_page_html_invariants`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
 - C09 `Emit site-wide search index with owning-book labels`:
   commit `0384f15`; verification passed (`cargo test --test search_index_example`, `cargo test --test search_index_invariants`, `cargo test`); reviewer-subagent approved; Claude CLI review remains environment-blocked.
+- C10 `Add the top-level build workflow and CLI entrypoint`:
+  commits `a3e3408`, `f0de595`; verification passed (`cargo test --test build_cli_example`, `cargo test --test build_cli_invariants`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
 
 ## Final Validation
 - Pending
@@ -181,17 +184,29 @@ review_focus:
 - 2026-04-20T07:59:29Z [planner] [C09] [PLANNED] Chose site-wide search index emission with owning-book labels as the next chunk after content-page rendering.
 - 2026-04-20T08:29:28Z [planner] [C10] [PLANNED] Chose a single top-level build workflow and CLI entrypoint as the next chunk before serve orchestration or repo-scale validation.
 - 2026-04-20T08:29:28Z [coordinator] [C10] [ACCEPTED] Accepted the planner artifact and activated C10 for implementation.
+- 2026-04-20T08:42:35Z [coordinator] [C10] [VERIFIED] Re-ran `cargo test --test build_cli_example`, `cargo test --test build_cli_invariants`, and `cargo test` successfully in the coordinator workspace.
+- 2026-04-20T08:42:35Z [coordinator] [C10] [COMMITTED] Developer worker created checkpoint commit `a3e3408` with message `bookshelf: C10 iteration 1`.
+- 2026-04-20T08:44:16Z [reviewer-subagent] [C10] [CHANGES_REQUIRED] The top-level build command failed for the documented relative `bookshelf.toml` path because the pipeline mixed relative config paths with canonical authored source paths.
+- 2026-04-20T08:38:54Z [coordinator] [C10] [CHANGES_REQUIRED] Synthesized a same-chunk fix request: normalize relative `bookshelf.toml` paths before the build pipeline compares them to canonical authored source paths and add relative-path CLI regression coverage.
+- 2026-04-20T08:49:02Z [reviewer-subagent] [C10] [APPROVED] The top-level build command now succeeds with the acceptance-criteria relative config path form, and regression coverage confirms the CLI stays a thin wrapper over the canonical pipeline.
+- 2026-04-20T08:49:02Z [coordinator] [C10] [CLOSED] Moved C10 to the ledger after verification passed and the strict subagent reviewer approved the review-fix iteration.
 - 2026-04-20T08:38:54Z [coordinator] [C10] [CHANGES_REQUIRED] Synthesized a same-chunk fix request: normalize relative `bookshelf.toml` paths before the build pipeline compares them to canonical authored source paths and add relative-path CLI regression coverage.
 - 2026-04-20T07:59:29Z [coordinator] [C09] [ACCEPTED] Accepted the planner artifact and activated C09 for implementation.
 - 2026-04-20T08:06:09Z [coordinator] [C09] [VERIFIED] Re-ran `cargo test --test search_index_example`, `cargo test --test search_index_invariants`, and `cargo test` successfully in the coordinator workspace.
 - 2026-04-20T08:06:09Z [coordinator] [C09] [COMMITTED] Developer worker created checkpoint commit `0384f15` with message `bookshelf: C09 iteration 1`.
 - 2026-04-20T08:09:08Z [reviewer-subagent] [C09] [APPROVED] Search index emission stays root-level and site-wide, uses canonical manifest `.html` hrefs, excludes the synthetic Bookshelf page, and carries owning-book labels from the existing page context.
+- 2026-04-20T08:44:20Z [planner] [C11] [PLANNED] Chose a single top-level serve workflow over the canonical build output as the next chunk before repo-scale coverage or final validation.
 - 2026-04-20T08:09:08Z [coordinator] [C09] [CLOSED] Moved C09 to the ledger after verification passed and the strict subagent reviewer approved the initial iteration.
 - 2026-04-20T08:03:15Z [developer] [C09] [STARTED] Building the site-wide search index with canonical manifest hrefs and owning-book labels.
 - 2026-04-20T08:05:43Z [developer] [C09] [FINISHED] Emitted the site-wide search index, verified canonical hrefs and owning-book labels, and re-ran the required C09 tests.
 - 2026-04-20T08:07:39Z [reviewer-subagent] [C09] [APPROVED] Search index emission stays root-level and site-wide, uses canonical manifest `.html` hrefs, excludes the synthetic Bookshelf page, and carries owning-book labels from the existing page context.
 2026-04-20T08:29:28Z [planner] [C10] [PLANNED] Chose a single top-level build workflow and CLI entrypoint as the next chunk before serve orchestration or repo-scale validation.
+- 2026-04-20T08:50:58Z [planner] [C11] [PLANNED] Chose the top-level serve workflow as the next smallest user-facing workflow gap after the build command.
+- 2026-04-20T08:50:58Z [coordinator] [C11] [ACCEPTED] Accepted the planner artifact and activated C11 for implementation.
+- 2026-04-20T08:48:35Z [developer] [C11] [STARTED] Wiring the top-level serve workflow over the existing canonical build output and static file routes.
 - 2026-04-20T08:33:55Z [developer] [C10] [STARTED] Wiring the single top-level build pipeline and CLI entrypoint over the existing bookshelf-owned library flow.
 - 2026-04-20T08:35:32Z [developer] [C10] [FINISHED] Added the top-level build command, verified canonical output generation, and re-ran the required C10 tests.
 - 2026-04-20T08:37:53Z [reviewer-subagent] [C10] [CHANGES_REQUIRED] The CLI build command fails for the relative `bookshelf.toml` path shown in the chunk acceptance criteria because the pipeline mixes relative config paths with canonical authored source paths.
 - 2026-04-20T08:39:52Z [developer] [C10] [STARTED] Applying the C10 review fix to normalize relative config paths and add relative-path CLI coverage.
+- 2026-04-20T08:40:58Z [developer] [C10] [FINISHED] Normalized relative config paths in the build pipeline, added relative-path CLI coverage, and re-ran the required C10 tests.
+- 2026-04-20T08:42:24Z [reviewer-subagent] [C10] [APPROVED] The top-level build command now succeeds with the acceptance-criteria relative config path form, and regression coverage confirms the CLI stays a thin wrapper over the canonical pipeline.

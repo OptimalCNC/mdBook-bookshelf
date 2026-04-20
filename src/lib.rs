@@ -7,6 +7,7 @@ pub mod reader_context;
 pub mod render_manifest;
 pub mod renderer;
 pub mod search;
+pub mod serve;
 pub mod sidebar;
 pub mod site_model;
 
@@ -28,6 +29,7 @@ pub use renderer::{
 pub use search::{
     build_search_index, write_search_index, SearchDocument, SearchIndex, SearchIndexError,
 };
+pub use serve::{serve_site, start_site_server, ServeSiteError, SiteServer};
 pub use sidebar::{
     build_sidebar_model, BookSidebar, SidebarAffixEntry, SidebarChapter, SidebarModel,
 };
