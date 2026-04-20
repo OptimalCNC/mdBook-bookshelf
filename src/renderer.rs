@@ -201,6 +201,10 @@ pub fn render_site(
             render_manifest,
             manifest_entry,
             &reader_context.bookshelf_page_context.page_id,
+            site_model
+                .config_path
+                .parent()
+                .unwrap_or_else(|| Path::new(".")),
         )?;
         fs::write(&output_path, html).map_err(|source| RenderSiteError::Io {
             path: output_path.clone(),
@@ -253,13 +257,20 @@ fn render_authored_page_html(
     render_manifest: &RenderManifest,
     current_entry: &RenderedPageManifestEntry,
     bookshelf_page_id: &str,
+    config_dir: &Path,
 ) -> Result<String, RenderSiteError> {
     let markdown =
         fs::read_to_string(&context.source_path).map_err(|source| RenderSiteError::Io {
             path: context.source_path.clone(),
             source,
         })?;
-    let content_html = render_markdown(&markdown);
+    let content_html = render_markdown(
+        &markdown,
+        &context.source_path,
+        &current_entry.output_path,
+        render_manifest,
+        config_dir,
+    );
 
     let bookshelf_entry = render_manifest
         .entry_for_page_id(bookshelf_page_id)
@@ -380,7 +391,13 @@ fn render_sidebar_chapters(
     Ok(markup)
 }
 
-fn render_markdown(markdown: &str) -> String {
+fn render_markdown(
+    markdown: &str,
+    current_source_path: &Path,
+    current_output_path: &Path,
+    render_manifest: &RenderManifest,
+    config_dir: &Path,
+) -> String {
     let lines: Vec<&str> = markdown.lines().collect();
     let mut index = 0;
     let mut html = String::new();
@@ -393,13 +410,31 @@ fn render_markdown(markdown: &str) -> String {
         }
 
         if let Some(text) = line.strip_prefix("# ") {
-            html.push_str(&format!("<h1>{}</h1>", render_inline_markdown(text)));
+            html.push_str(&format!(
+                "<h1>{}</h1>",
+                render_inline_markdown(
+                    text,
+                    current_source_path,
+                    current_output_path,
+                    render_manifest,
+                    config_dir,
+                )
+            ));
             index += 1;
             continue;
         }
 
         if let Some(text) = line.strip_prefix("## ") {
-            html.push_str(&format!("<h2>{}</h2>", render_inline_markdown(text)));
+            html.push_str(&format!(
+                "<h2>{}</h2>",
+                render_inline_markdown(
+                    text,
+                    current_source_path,
+                    current_output_path,
+                    render_manifest,
+                    config_dir,
+                )
+            ));
             index += 1;
             continue;
         }
@@ -411,7 +446,16 @@ fn render_markdown(markdown: &str) -> String {
                 let Some(item_text) = item.strip_prefix("- ") else {
                     break;
                 };
-                html.push_str(&format!("<li>{}</li>", render_inline_markdown(item_text)));
+                html.push_str(&format!(
+                    "<li>{}</li>",
+                    render_inline_markdown(
+                        item_text,
+                        current_source_path,
+                        current_output_path,
+                        render_manifest,
+                        config_dir,
+                    )
+                ));
                 index += 1;
             }
             html.push_str("</ul>");
@@ -430,13 +474,28 @@ fn render_markdown(markdown: &str) -> String {
             paragraph.push_str(current);
             index += 1;
         }
-        html.push_str(&format!("<p>{}</p>", render_inline_markdown(&paragraph)));
+        html.push_str(&format!(
+            "<p>{}</p>",
+            render_inline_markdown(
+                &paragraph,
+                current_source_path,
+                current_output_path,
+                render_manifest,
+                config_dir,
+            )
+        ));
     }
 
     html
 }
 
-fn render_inline_markdown(input: &str) -> String {
+fn render_inline_markdown(
+    input: &str,
+    current_source_path: &Path,
+    current_output_path: &Path,
+    render_manifest: &RenderManifest,
+    config_dir: &Path,
+) -> String {
     let mut rendered = String::new();
     let chars: Vec<char> = input.chars().collect();
     let mut index = 0;
@@ -454,9 +513,16 @@ fn render_inline_markdown(input: &str) -> String {
                             let label: String = chars[index + 1..close_label].iter().collect();
                             let target: String =
                                 chars[close_label + 2..close_target].iter().collect();
+                            let href = resolve_inline_href(
+                                &target,
+                                current_source_path,
+                                current_output_path,
+                                render_manifest,
+                                config_dir,
+                            );
                             rendered.push_str(&format!(
                                 "<a href=\"{href}\">{label}</a>",
-                                href = escape_html(&target),
+                                href = escape_html(&href),
                                 label = escape_html(&label)
                             ));
                             index = close_target + 1;
@@ -488,6 +554,83 @@ fn render_inline_markdown(input: &str) -> String {
     }
 
     rendered
+}
+
+fn resolve_inline_href(
+    target: &str,
+    current_source_path: &Path,
+    current_output_path: &Path,
+    render_manifest: &RenderManifest,
+    config_dir: &Path,
+) -> String {
+    if target.starts_with("http://")
+        || target.starts_with("https://")
+        || target.starts_with("mailto:")
+        || target.starts_with('#')
+    {
+        return target.to_owned();
+    }
+
+    let (path_part, suffix) = split_target_suffix(target);
+    if !path_part.ends_with(".md") && !path_part.ends_with(".markdown") {
+        return target.to_owned();
+    }
+
+    let candidate_source = if let Some(stripped) = path_part.strip_prefix('/') {
+        config_dir.join(stripped)
+    } else {
+        current_source_path
+            .parent()
+            .unwrap_or_else(|| Path::new("."))
+            .join(path_part)
+    };
+
+    let candidate_source = normalize_path(&candidate_source);
+
+    match authored_manifest_entry_for_path(render_manifest, &candidate_source) {
+        Some(entry) => format!(
+            "{}{}",
+            relative_href(current_output_path, &entry.output_path),
+            suffix
+        ),
+        None => target.to_owned(),
+    }
+}
+
+fn split_target_suffix(target: &str) -> (&str, &str) {
+    match target.find(['#', '?']) {
+        Some(index) => (&target[..index], &target[index..]),
+        None => (target, ""),
+    }
+}
+
+fn authored_manifest_entry_for_path<'a>(
+    render_manifest: &'a RenderManifest,
+    source_path: &Path,
+) -> Option<&'a RenderedPageManifestEntry> {
+    render_manifest.entries.iter().find(|entry| {
+        matches!(
+            &entry.identity,
+            RenderedPageIdentity::AuthoredPage { source_path: entry_source_path }
+                if entry_source_path == source_path
+        )
+    })
+}
+
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            other => normalized.push(other.as_os_str()),
+        }
+    }
+
+    normalized
 }
 
 fn render_href(manifest_entry: &RenderedPageManifestEntry) -> String {
@@ -544,8 +687,9 @@ fn escape_html(input: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{relative_href, render_markdown};
-    use std::path::Path;
+    use super::{normalize_path, relative_href, render_markdown, split_target_suffix};
+    use crate::render_manifest::{RenderManifest, RenderedPageIdentity, RenderedPageManifestEntry};
+    use std::path::{Path, PathBuf};
 
     #[test]
     fn computes_relative_hrefs_between_outputs() {
@@ -572,12 +716,46 @@ mod tests {
     #[test]
     fn renders_basic_markdown_blocks_and_inline_markup() {
         let markdown = "# Title\n\nParagraph with [link](./next.md) and `code`.\n\n- One\n- Two\n";
-        let html = render_markdown(markdown);
+        let manifest = RenderManifest {
+            entries: vec![RenderedPageManifestEntry {
+                identity: RenderedPageIdentity::AuthoredPage {
+                    source_path: PathBuf::from("/tmp/docs/next.md"),
+                },
+                title: "Next".to_owned(),
+                route_path: PathBuf::from("docs/next.html"),
+                output_path: PathBuf::from("docs/next.html"),
+            }],
+        };
+        let html = render_markdown(
+            markdown,
+            Path::new("/tmp/docs/index.md"),
+            Path::new("docs/index.html"),
+            &manifest,
+            Path::new("/tmp"),
+        );
 
         assert!(html.contains("<h1>Title</h1>"));
         assert!(html.contains(
-            "<p>Paragraph with <a href=\"./next.md\">link</a> and <code>code</code>.</p>"
+            "<p>Paragraph with <a href=\"next.html\">link</a> and <code>code</code>.</p>"
         ));
         assert!(html.contains("<ul><li>One</li><li>Two</li></ul>"));
+    }
+
+    #[test]
+    fn splits_link_targets_from_suffixes() {
+        assert_eq!(
+            split_target_suffix("./page.md#part"),
+            ("./page.md", "#part")
+        );
+        assert_eq!(split_target_suffix("./page.md?x=1"), ("./page.md", "?x=1"));
+        assert_eq!(split_target_suffix("./page.md"), ("./page.md", ""));
+    }
+
+    #[test]
+    fn normalizes_paths_lexically_without_filesystem_access() {
+        assert_eq!(
+            normalize_path(Path::new("/tmp/docs/./nested/../page.md")),
+            PathBuf::from("/tmp/docs/page.md")
+        );
     }
 }

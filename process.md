@@ -20,9 +20,9 @@
 
 ## Current State
 - Status: IN_PROGRESS
-- Current iteration: 6
+- Current iteration: 7
 - Current chunk: C08
-- Next action: Render authored content pages with bookshelf navigation chrome.
+- Next action: Implement the C08 review fix that resolves authored markdown body links through the render manifest.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
@@ -161,8 +161,14 @@ review_focus:
 - 2026-04-20T07:12:08Z [coordinator] [C07] [ACCEPTED] Accepted the planner artifact and activated C07 for implementation.
 - 2026-04-20T07:14:31Z [developer] [C07] [STARTED] Rendering the synthetic Bookshelf root page with manifest-derived shelf links and a reusable shell structure.
 - 2026-04-20T07:16:11Z [developer] [C07] [FINISHED] Emitted the synthetic root HTML page, verified canonical shelf links, and re-ran the required C07 tests.
+- 2026-04-20T07:41:12Z [developer] [C08] [STARTED] Extending the renderer to emit authored page HTML with scoped sidebar, breadcrumb, and within-book navigation chrome.
+- 2026-04-20T07:47:27Z [developer] [C08] [FINISHED] Emitted authored page HTML with scoped navigation chrome, verified canonical outputs, and re-ran the required C08 tests.
 - 2026-04-20T07:18:22Z [reviewer-subagent] [C07] [APPROVED] Renderer writes only the canonical root Bookshelf page, uses manifest-aligned shelf links, and preserves the bookshelf-owned architecture without emitting authored-page HTML yet.
 - 2026-04-20T07:18:22Z [coordinator] [C07] [CLOSED] Moved C07 to the ledger after verification passed and the strict subagent reviewer approved the initial iteration.
 - 2026-04-20T07:18:07Z [reviewer-subagent] [C07] [APPROVED] Renderer writes only the canonical root Bookshelf page, uses manifest-aligned shelf links, and preserves the bookshelf-owned architecture without emitting authored-page HTML yet.
 - 2026-04-20T07:19:36Z [planner] [C08] [PLANNED] Chose authored page HTML rendering with mdBook-style chrome and existing navigation data as the next chunk after the synthetic root page.
 - 2026-04-20T07:41:48Z [coordinator] [C08] [ACCEPTED] Accepted the planner artifact and activated C08 for implementation.
+- 2026-04-20T07:45:12Z [coordinator] [C08] [VERIFIED] Re-ran `cargo test --test authored_page_html_example`, `cargo test --test authored_page_html_invariants`, and `cargo test` successfully in the coordinator workspace.
+- 2026-04-20T07:45:12Z [coordinator] [C08] [COMMITTED] Developer worker created checkpoint commit `1c244fa` with message `bookshelf: C08 iteration 1`.
+- 2026-04-20T07:49:46Z [reviewer-subagent] [C08] [CHANGES_REQUIRED] Authored markdown body links are emitted as raw `.md` targets instead of manifest-resolved `.html` outputs, so rendered content pages still contain broken in-body navigation.
+- 2026-04-20T07:50:36Z [coordinator] [C08] [CHANGES_REQUIRED] Synthesized a same-chunk fix request: resolve inline authored markdown links through the render manifest and add regression coverage for relative and absolute cross-book links.

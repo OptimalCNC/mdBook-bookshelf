@@ -53,6 +53,21 @@ fn renders_only_manifest_defined_outputs_without_bookshelf_aliases() {
     assert!(docs_index.contains("class=\"affix\" href=\"../index.html\">Bookshelf</a>"));
     assert!(!docs_index.contains("href=\"../bookshelf/\""));
     assert!(!docs_index.contains("href=\"../bookshelf/index.html\""));
+
+    for relative_path in files {
+        let html = fs::read_to_string(output_dir.join(&relative_path))
+            .expect("rendered html should exist");
+        assert!(
+            !html.contains(".md\""),
+            "rendered html should not contain raw .md hrefs: {}",
+            relative_path.display()
+        );
+        assert!(
+            !html.contains(".markdown\""),
+            "rendered html should not contain raw .markdown hrefs: {}",
+            relative_path.display()
+        );
+    }
 }
 
 fn collect_files(root: &PathBuf) -> Vec<PathBuf> {

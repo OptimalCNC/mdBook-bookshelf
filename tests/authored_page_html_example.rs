@@ -63,10 +63,26 @@ fn renders_representative_authored_pages_with_navigation_chrome() {
     assert!(
         onboarding_html.contains("Readers start here before they jump into parser or UI details.")
     );
+    assert!(onboarding_html.contains("href=\"../modules/parser/docs/index.html\""));
+    assert!(!onboarding_html.contains("/modules/parser/docs/index.md"));
+
+    let parser_index_html = fs::read_to_string(output_dir.join("modules/parser/docs/index.html"))
+        .expect("parser index html should exist");
+    assert!(parser_index_html.contains("href=\"grammar.html\""));
+    assert!(parser_index_html.contains("href=\"runtime.html\""));
+    assert!(!parser_index_html.contains("./grammar.md"));
+    assert!(!parser_index_html.contains("./runtime.md"));
+
+    let runtime_html = fs::read_to_string(output_dir.join("modules/parser/docs/runtime.html"))
+        .expect("runtime html should exist");
+    assert!(runtime_html.contains("href=\"../../ui/docs/index.html\""));
+    assert!(!runtime_html.contains("/modules/ui/docs/index.md"));
 }
 
 fn sidebar_region(html: &str) -> &str {
-    let start = html.find("<nav id=\"sidebar\"").expect("sidebar should exist");
+    let start = html
+        .find("<nav id=\"sidebar\"")
+        .expect("sidebar should exist");
     let end = html[start..]
         .find("</nav>")
         .map(|offset| start + offset)
