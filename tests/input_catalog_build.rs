@@ -17,20 +17,24 @@ fn input_catalog_build() {
         Path::new("root-book"),
         catalog.books[0].book_root_rel.as_path()
     );
-    assert_eq!(Path::new("src"), catalog.books[0].book_src_rel.as_path());
+    assert_eq!(Path::new("root-book/docs"), catalog.books[0].book_src_rel.as_path());
     assert_eq!(
-        fixtures.join("valid/root-book/src/SUMMARY.md"),
+        fixtures.join("valid/root-book/docs/SUMMARY.md"),
         catalog.books[0].summary_abs
     );
 
     assert_eq!("child", catalog.books[1].id);
     assert!(!catalog.books[1].is_root_book);
     assert_eq!(
-        Path::new("child-book"),
+        Path::new("modules/child-book"),
         catalog.books[1].book_root_rel.as_path()
     );
     assert_eq!(
-        fixtures.join("valid/child-book/src/SUMMARY.md"),
+        Path::new("modules/child-book/docs"),
+        catalog.books[1].book_src_rel.as_path()
+    );
+    assert_eq!(
+        fixtures.join("valid/modules/child-book/docs/SUMMARY.md"),
         catalog.books[1].summary_abs
     );
 
@@ -38,9 +42,9 @@ fn input_catalog_build() {
     let missing_err = build_input_catalog(&missing_config).expect_err("must fail");
     assert_eq!(
         format!(
-            "book 'root' missing canonical summary at {}",
+            "book 'root' missing configured canonical summary 'docs/SUMMARY.md' at {}",
             fixtures
-                .join("invalid-missing-summary/root-book/src/SUMMARY.md")
+                .join("invalid-missing-summary/docs/SUMMARY.md")
                 .display()
         ),
         missing_err.to_string()
@@ -49,7 +53,10 @@ fn input_catalog_build() {
     let invalid_location_config = fixtures.join("invalid-summary-location/bookshelf.toml");
     let location_err = build_input_catalog(&invalid_location_config).expect_err("must fail");
     assert_eq!(
-        "book 'root' summary must be at '<book-root>/src/SUMMARY.md': 'root-book/docs/SUMMARY.md'",
+        format!(
+            "book 'root' missing configured canonical summary 'docs/SUMMARY.md' at {}",
+            fixtures.join("invalid-summary-location/docs/SUMMARY.md").display()
+        ),
         location_err.to_string()
     );
 }

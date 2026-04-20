@@ -33,57 +33,36 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
 
     for book in &config.books {
         let summary_rel = &book.summary_rel;
-        let summary_parent = summary_rel.parent().ok_or_else(|| {
+        let book_src_rel = summary_rel.parent().ok_or_else(|| {
             anyhow::anyhow!(
-                "book '{}' has invalid summary path '{}'",
+                "book '{}' has invalid configured summary path '{}'",
                 book.id,
                 summary_rel.display()
             )
-        })?;
-        let src_dir_name = summary_parent.file_name().and_then(|v| v.to_str());
-
-        if src_dir_name != Some("src") {
-            bail!(
-                "book '{}' summary must be at '<book-root>/src/SUMMARY.md': '{}'",
-                book.id,
-                summary_rel.display()
-            );
-        }
-
-        let book_root_rel = summary_parent
+        })?
+        .to_path_buf();
+        let book_root_rel = book_src_rel
             .parent()
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "book '{}' summary must be at '<book-root>/src/SUMMARY.md': '{}'",
-                    book.id,
-                    summary_rel.display()
-                )
-            })?
-            .to_path_buf();
-        if book_root_rel.as_os_str().is_empty() {
-            bail!(
-                "book '{}' summary must be at '<book-root>/src/SUMMARY.md': '{}'",
-                book.id,
-                summary_rel.display()
-            );
-        }
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."));
 
         let book_root_abs = config.config_dir.join(&book_root_rel);
-        let book_src_rel = PathBuf::from("src");
-        let book_src_abs = book_root_abs.join(&book_src_rel);
-        let summary_abs = book_src_abs.join("SUMMARY.md");
+        let book_src_abs = config.config_dir.join(&book_src_rel);
+        let summary_abs = config.config_dir.join(summary_rel);
 
         let metadata = std::fs::metadata(&summary_abs).with_context(|| {
             format!(
-                "book '{}' missing canonical summary at {}",
+                "book '{}' missing configured canonical summary '{}' at {}",
                 book.id,
+                summary_rel.display(),
                 summary_abs.display()
             )
         })?;
         if !metadata.is_file() {
             bail!(
-                "book '{}' missing canonical summary at {}",
+                "book '{}' missing configured canonical summary '{}' at {}",
                 book.id,
+                summary_rel.display(),
                 summary_abs.display()
             );
         }
