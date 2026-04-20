@@ -21,61 +21,62 @@
 ## Current State
 - Status: IN_PROGRESS
 - Current iteration: 8
-- Current chunk: C11
-- Next action: Implement the top-level serve workflow.
+- Current chunk: C12
+- Next action: Add concrete repo-scale fixture coverage and integration validation.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
 ## Active Chunk
 ```yaml
-chunk_id: C11
-title: Add the top-level serve workflow
-objective: Provide one top-level `serve` command that builds the canonical multi-book site and serves it over HTTP from a single workflow.
-why_now: The build workflow is complete, and the smallest remaining acceptance gap is exposing that output through one author-facing serve command before tackling repo-scale coverage or final whole-system validation.
+chunk_id: C12
+title: Add concrete repo-scale fixture coverage
+objective: Add a concrete repo-scale source fixture and integration tests that validate the existing top-level build workflow against the larger multi-book scenario described in the handoff.
+why_now: The smallest remaining acceptance gap is proving the implemented pipeline works on the repo-scale scenario before running final whole-system acceptance review.
 depends_on:
   - C10
 scope_in:
-  - Add a `serve` subcommand to the existing CLI.
-  - Reuse the existing canonical build pipeline to materialize the site before serving it.
-  - Start a static HTTP server over the built output directory with configurable bind address.
-  - Print the actual listening address when binding to an ephemeral port so tests can connect deterministically.
-  - Serve the canonical root `index.html`, authored `.html` outputs, and root-level `searchindex.json` with no extra bookshelf alias routes.
-  - Add integration tests that exercise the top-level serve workflow against the self-contained example.
+  - Add a concrete repo-scale fixture with one root book and two peer books matching the handoff catalog.
+  - Exercise the existing top-level build command against that fixture.
+  - Assert root shelf behavior, one root-book page, one parser page, one HMI page, and site-wide search labeling on the built output.
+  - Verify root-book sidebar affix behavior and active-book sidebar scoping at repo scale.
+  - Add repo-scale integration tests and invariants coverage.
 scope_out:
-  - Watch mode or live rebuilds.
-  - Repo-scale scenario rendering coverage.
-  - Feature-specific validation command suite.
-  - Final whole-system validation.
-  - Asset/theme work beyond serving the current built output.
+  - New serve-mode coverage for the repo-scale fixture.
+  - Final whole-system acceptance review against all handoff criteria.
+  - New CLI subcommands beyond the existing build and serve workflows.
+  - Watch/live-rebuild behavior.
 target_files:
-  - Cargo.toml
-  - src/main.rs
-  - src/lib.rs
-  - src/serve.rs
-  - tests/serve_cli_example.rs
-  - tests/serve_cli_invariants.rs
+  - tests/fixtures/repo-scale/bookshelf.toml
+  - tests/fixtures/repo-scale/docs/SUMMARY.md
+  - tests/fixtures/repo-scale/docs/index.md
+  - tests/fixtures/repo-scale/modules/parser/docs/SUMMARY.md
+  - tests/fixtures/repo-scale/modules/parser/docs/acceptance-reference.md
+  - tests/fixtures/repo-scale/modules/hmi/docs/SUMMARY.md
+  - tests/fixtures/repo-scale/modules/hmi/docs/index.md
+  - tests/repo_scale_example.rs
+  - tests/repo_scale_invariants.rs
 implementation_tasks:
-  - Add CLI argument parsing for a `serve` subcommand with config path and bind address inputs.
-  - Implement a library-facing serve entrypoint that runs the existing build pipeline and then serves the resulting output directory.
-  - Expose the resolved listen address from the server so ephemeral-port tests are reliable.
-  - Serve static files from the built output with canonical path mapping for `/`, authored `.html` paths, and `/searchindex.json`.
-  - Add tests that start the server, fetch representative pages, and verify canonical routing behavior.
+  - Create a concrete repo-scale fixture that models `MetaNC`, `G-code Parser`, and `HMI` as separate books under one `bookshelf.toml`.
+  - Add an integration test that runs the existing top-level build workflow on the repo-scale fixture and inspects the built output tree.
+  - Assert the root shelf page, one MetaNC page, one parser page, and one HMI page for the required reader-facing behaviors.
+  - Assert root-book affix separation and active-book-only sidebar scope on built HTML at repo scale.
+  - Assert search index entries include canonical `.html` hrefs and owning-book labels for parser and HMI pages.
 acceptance_criteria:
-  - Running `cargo run -- serve bookshelf/handoffs/examples/self-contained/bookshelf.toml --bind 127.0.0.1:0` starts one top-level serve workflow, prints the resolved listening address, and serves the generated site from a single command.
-  - An HTTP GET to `/` returns `200` and serves the canonical Bookshelf page with visible `Bookshelf` content and shelf links to `docs/index.html`, `modules/parser/docs/index.html`, and `modules/ui/docs/index.html`.
-  - An HTTP GET to `/docs/onboarding.html` returns `200` and serves the authored page with its rendered content and bookshelf navigation chrome.
-  - An HTTP GET to `/searchindex.json` returns `200` and serves the root-level site-wide search index with owning-book labels.
-  - An HTTP GET to `/bookshelf/` or `/bookshelf/index.html` does not act as a canonical alias for the Bookshelf page.
-  - The serve workflow preserves source-relative authored `.html` routes and does not expose authored `.md` paths as served pages.
+  - Running the existing top-level build workflow against `tests/fixtures/repo-scale/bookshelf.toml` succeeds and produces one complete site with root `index.html`, root-level `searchindex.json`, and authored `.html` outputs for the MetaNC, parser, and HMI books.
+  - The built root `index.html` contains shelf items for `MetaNC`, `G-code Parser`, and `HMI`, and those shelf items link to `docs/index.html`, `modules/parser/docs/index.html`, and `modules/hmi/docs/index.html`.
+  - The built `docs/index.html` shows the root-book `Bookshelf` affix in a dedicated affix region and does not include parser or HMI sidebar chapters.
+  - The built `modules/parser/docs/acceptance-reference.html` shows parser context with breadcrumbs `G-code Parser / Acceptance Reference`, a visible `Bookshelf` return control, parser-only sidebar entries, and no previous/next link that crosses into another book.
+  - The built `modules/hmi/docs/index.html` shows HMI context with HMI-only sidebar entries and a visible `Bookshelf` return control.
+  - The built `searchindex.json` contains labeled results for `MetaNC`, `G-code Parser`, and `HMI`, and all result hrefs use canonical `.html` outputs with no `/bookshelf/` alias or raw `.md` paths.
 verification:
-  - command: "cargo test --test serve_cli_example"
-    expect: "The self-contained example can be served from the single top-level command, and `/`, one authored page, and `/searchindex.json` all return the expected content."
-  - command: "cargo test --test serve_cli_invariants"
-    expect: "Serve routing preserves root-only Bookshelf canonicals, authored `.html` paths, and no bookshelf alias or raw `.md` route is served."
+  - command: "cargo test --test repo_scale_example"
+    expect: "The repo-scale fixture builds successfully and the required root, MetaNC, parser, HMI, and search behaviors are present in the generated site."
+  - command: "cargo test --test repo_scale_invariants"
+    expect: "Repo-scale output preserves root-only Bookshelf canonicals, root-book affix separation, active-book sidebar scoping, and canonical search hrefs."
 review_focus:
-  - The serve command must remain a thin wrapper over the existing build pipeline rather than a second rendering path.
-  - HTTP path handling must preserve the user’s canonical root-only Bookshelf routing and source-relative authored `.html` outputs.
-  - Ephemeral-port bind handling and server startup signaling must be deterministic enough for integration tests.
+  - The repo-scale fixture should faithfully encode the handoff scenario instead of introducing ad hoc behaviors not covered by the spec.
+  - Coverage must exercise the existing top-level build path rather than a special test-only rendering path.
+  - Assertions should focus on cross-book context, root-book affix behavior, and canonical routing/search outputs at larger scale.
 ```
 
 ## Chunk Ledger
@@ -99,6 +100,8 @@ review_focus:
   commit `0384f15`; verification passed (`cargo test --test search_index_example`, `cargo test --test search_index_invariants`, `cargo test`); reviewer-subagent approved; Claude CLI review remains environment-blocked.
 - C10 `Add the top-level build workflow and CLI entrypoint`:
   commits `a3e3408`, `f0de595`; verification passed (`cargo test --test build_cli_example`, `cargo test --test build_cli_invariants`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
+- C11 `Add the top-level serve workflow`:
+  commit `421e323`; verification passed (`cargo test --test serve_cli_example`, `cargo test --test serve_cli_invariants`, `cargo test` with local socket binding permissions); reviewer-subagent approved; Claude CLI review remains environment-blocked.
 
 ## Final Validation
 - Pending
@@ -203,10 +206,22 @@ review_focus:
 2026-04-20T08:29:28Z [planner] [C10] [PLANNED] Chose a single top-level build workflow and CLI entrypoint as the next chunk before serve orchestration or repo-scale validation.
 - 2026-04-20T08:50:58Z [planner] [C11] [PLANNED] Chose the top-level serve workflow as the next smallest user-facing workflow gap after the build command.
 - 2026-04-20T08:50:58Z [coordinator] [C11] [ACCEPTED] Accepted the planner artifact and activated C11 for implementation.
+- 2026-04-20T08:58:32Z [coordinator] [C11] [VERIFIED] Re-ran `cargo test --test serve_cli_example`, `cargo test --test serve_cli_invariants`, and `cargo test` successfully with local socket binding permissions in the coordinator workspace.
+- 2026-04-20T08:58:32Z [coordinator] [C11] [COMMITTED] Developer worker created checkpoint commit `421e323` with message `bookshelf: C11 iteration 1`.
+- 2026-04-20T09:00:42Z [reviewer-subagent] [C11] [APPROVED] The serve workflow stays a thin wrapper over the canonical build pipeline, serves the expected root/authored/search routes, and preserves root-only Bookshelf canonicals without exposing bookshelf aliases or authored `.md` paths.
+- 2026-04-20T09:00:42Z [coordinator] [C11] [CLOSED] Moved C11 to the ledger after verification passed and the strict subagent reviewer approved the initial iteration.
 - 2026-04-20T08:48:35Z [developer] [C11] [STARTED] Wiring the top-level serve workflow over the existing canonical build output and static file routes.
+- 2026-04-20T08:51:57Z [developer] [C11] [FINISHED] Added the top-level serve command, verified canonical HTTP routing, and re-ran the required C11 tests.
+- 2026-04-20T09:15:13Z [reviewer-subagent] [C11] [APPROVED] The serve workflow stays a thin wrapper over the canonical build pipeline, serves the expected root/authored/search routes, and preserves root-only Bookshelf canonicals without exposing bookshelf aliases or authored `.md` paths.
 - 2026-04-20T08:33:55Z [developer] [C10] [STARTED] Wiring the single top-level build pipeline and CLI entrypoint over the existing bookshelf-owned library flow.
 - 2026-04-20T08:35:32Z [developer] [C10] [FINISHED] Added the top-level build command, verified canonical output generation, and re-ran the required C10 tests.
 - 2026-04-20T08:37:53Z [reviewer-subagent] [C10] [CHANGES_REQUIRED] The CLI build command fails for the relative `bookshelf.toml` path shown in the chunk acceptance criteria because the pipeline mixes relative config paths with canonical authored source paths.
 - 2026-04-20T08:39:52Z [developer] [C10] [STARTED] Applying the C10 review fix to normalize relative config paths and add relative-path CLI coverage.
 - 2026-04-20T08:40:58Z [developer] [C10] [FINISHED] Normalized relative config paths in the build pipeline, added relative-path CLI coverage, and re-ran the required C10 tests.
 - 2026-04-20T08:42:24Z [reviewer-subagent] [C10] [APPROVED] The top-level build command now succeeds with the acceptance-criteria relative config path form, and regression coverage confirms the CLI stays a thin wrapper over the canonical pipeline.
+ - 2026-04-20T08:50:58Z [planner] [C11] [PLANNED] Chose the top-level serve workflow as the next smallest user-facing workflow gap after the build command.
+ - 2026-04-20T08:50:58Z [coordinator] [C11] [ACCEPTED] Accepted the planner artifact and activated C11 for implementation.
+ - 2026-04-20T09:17:26Z [planner] [C12] [PLANNED] Chose concrete repo-scale fixture coverage and integration validation as the next chunk before final whole-system acceptance review.
+ - 2026-04-20T09:17:26Z [coordinator] [C12] [ACCEPTED] Accepted the planner artifact and activated C12 for implementation.
+2026-04-20T09:17:26Z [planner] [C12] [PLANNED] Chose concrete repo-scale fixture coverage and integration validation as the next chunk before final whole-system acceptance review.
+- 2026-04-20T09:20:49Z [developer] [C12] [STARTED] Adding the concrete repo-scale fixture and validating it through the existing top-level build workflow.
