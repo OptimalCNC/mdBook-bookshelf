@@ -28,11 +28,11 @@
 - Coordinator: orchestrates and may commit on behalf of the developer when needed.
 
 ## Current State
-- Status: CHUNK_IN_REVIEW
-- Current iteration: CHUNK-001 review
-- Current chunk: CHUNK-001 at commit `007cca2`
-- Next action: complete both review gates for CHUNK-001 and return any required fixes to the developer.
-- Blockers: none; review is focused on correctness and completeness of the seam bootstrap, including whether the generated `Cargo.lock` belongs in the chunk commit.
+- Status: CHUNK_READY
+- Current iteration: CHUNK-002 implementation
+- Current chunk: CHUNK-002
+- Next action: implement strict `bookshelf.toml` parsing and structural validation ahead of multi-book catalog loading.
+- Blockers: none recorded.
 
 ## Open Risks
 - The repo has no active implementation code under `src/`, so the first chunk must establish the initial mdBook-first scaffold without drifting into a clean-room generator.
@@ -42,51 +42,55 @@
 
 ## Active Chunk
 ```yaml
-chunk_id: CHUNK-001
-title: Bootstrap mdBook seam with dependency wiring and single-book load smoke test
-objective: Add the minimal crate scaffold and Cargo dependencies needed to prove the confirmed startup seam can load one authored book in-process without invoking stock HTML build/render.
-why_now: The repo currently has no `src/` and no mdBook crate deps, so no implementation can start until the mdBook-first loading seam is executable in this crate.
-depends_on: []
+chunk_id: CHUNK-002
+title: Add `bookshelf.toml` typed parser with structural validation
+objective: Introduce a strict in-crate `bookshelf.toml` loader that parses into typed Rust structs and validates minimal structural invariants required before multi-book catalog loading.
+why_now: Multi-book loading cannot be implemented safely until the human-owned top-level config is reliably parsed and rejected on invalid topology.
+depends_on:
+  - CHUNK-001
 mdbook_touchpoints:
-  - reuse: `mdbook_summary::parse_summary` + `mdbook_driver::MDBook::load_with_config_and_summary` for single-book load
-  - avoid: `MDBook::build()` and `mdbook_html::HtmlHandlebars` rendering path
+  - avoid: no `MDBook` load calls in this chunk; config validation is completed before invoking mdBook seams
+  - prepare_for_reuse: produce validated per-book roots/src inputs that the next chunk can pass to `parse_summary` + `load_with_config_and_summary`
 scope_in:
-  - add mdBook crates as Cargo dependencies in `Cargo.toml`
-  - create minimal `src/lib.rs` and `src/main.rs` that compile
-  - add one focused test that parses `SUMMARY.md` and loads one book via the seam
+  - define `bookshelf.toml` schema structs for site-level settings and declared books
+  - implement parse-from-path API with actionable validation errors
+  - validate required structural rules: non-empty catalog, unique book IDs, configured root book present in the declared books, and path normalization checks
+  - add focused tests for valid config and representative failure modes
 scope_out:
-  - no multi-book composition
-  - no bookshelf page generation
-  - no serve/watch workflow
-  - no HTML output generation
+  - no per-book `SUMMARY.md` parsing yet
+  - no `MDBook` loading yet
+  - no rendering/site-model logic
 target_files:
-  - Cargo.toml
   - src/lib.rs
-  - src/main.rs
-  - tests/seam_single_book_load.rs
+  - src/config.rs
+  - tests/bookshelf_config_parse.rs
+  - tests/fixtures/bookshelf-config/valid/bookshelf.toml
+  - tests/fixtures/bookshelf-config/invalid-duplicate-id/bookshelf.toml
+  - tests/fixtures/bookshelf-config/invalid-missing-root/bookshelf.toml
 implementation_tasks:
-  - declare published mdBook crate dependencies needed by the seam (`mdbook-driver`, `mdbook-summary`, and required error/path utilities)
-  - implement a tiny library function that accepts book root/src paths and returns a loaded `MDBook` via parsed summary + `load_with_config_and_summary`
-  - add a smoke test fixture usage against existing example docs in-repo to validate seam behavior end-to-end
-  - ensure binary entrypoint exists but does not perform rendering logic yet
+  - add a public `load_bookshelf_config(path)` entrypoint returning typed config plus validation
+  - encode validation rules with deterministic error messages for reviewable assertions
+  - ensure relative paths are resolved against config directory without workspace copying
+  - add table-driven tests for valid config and each invalid topology case
 acceptance_criteria:
-  - `cargo check` succeeds with new mdBook dependencies
-  - a dedicated test proves `parse_summary` + `load_with_config_and_summary` loads one book successfully from disk
-  - test assertions confirm loaded book contains at least one chapter item from canonical `SUMMARY.md`
-  - no code path in this chunk calls `MDBook::build()` or stock HTML renderer APIs
+  - valid fixture config parses successfully into typed structs
+  - duplicate book IDs fail validation with a specific deterministic error
+  - missing root book membership fails validation with a specific deterministic error
+  - empty book catalog fails validation
+  - chunk introduces no `MDBook::build()` or stock HTML rendering usage
 verification:
-  - command: `cargo check`
+  - command: `cargo test bookshelf_config_parse -- --exact`
+    expect: exits 0 and covers one valid plus multiple invalid config cases
+  - command: `cargo check --offline`
     expect: exits 0
-  - command: `cargo test seam_single_book_load -- --exact`
-    expect: exits 0 and runs the seam smoke test
 review_focus:
-  - dependency choices use published mdBook crates, not local `mdBook-repo` internals
-  - seam usage is explicit and minimal, with no hidden render/build invocation
-  - test is deterministic, small, and anchored to canonical `SUMMARY.md` semantics
+  - config schema fidelity to `bookshelf.toml` as the single human-owned source
+  - validation strictness is sufficient to gate next chunk for catalog + summary ownership checks
+  - error outputs are stable and assertion-friendly for future review loops
 ```
 
 ## Chunk Ledger
-- none yet
+- CHUNK-001 approved via commits `007cca2` and `55866ca`: added published mdBook crate dependencies, a minimal `load_single_book_with_summary()` seam around `parse_summary` + `load_with_config_and_summary`, and a passing deterministic seam smoke test. Verified with `cargo check --offline` and `cargo test seam_single_book_load -- --exact`.
 
 ## Final Validation
 - Pending
@@ -102,3 +106,9 @@ review_focus:
 - 2026-04-20T13:42:27Z [reviewer-claude] [CHUNK-001] APPROVED - Minimal mdBook-first seam via published crates with deterministic single-book load test; commit Cargo.lock as a small follow-up.
 - 2026-04-20T15:12:14Z [developer] [CHUNK-001] [STARTED] Began review-fix iteration to include generated Cargo.lock and rerun offline seam verification.
 - 2026-04-20T15:12:30Z [developer] [CHUNK-001] [DONE] Added Cargo.lock to chunk scope and revalidated offline cargo check plus exact seam smoke test.
+- 2026-04-20T15:13:52Z [reviewer-subagent] [CHUNK-001] APPROVED - Prior blocker is fixed by committing Cargo.lock, and CHUNK-001 seam checks pass offline with exact test selection.
+- 2026-04-20T15:13:56Z [reviewer-claude] [CHUNK-001] APPROVED - minimal published-crate seam with deterministic single-book load test and no build/HTML invocation.
+- 2026-04-20T15:20:00Z [reviewer-subagent] [CHUNK-001] APPROVED - Prior blocker is fixed by committing Cargo.lock, and CHUNK-001 seam checks pass offline with exact test selection.
+- 2026-04-20T15:14:40Z [planner] [CHUNK-002] [DONE] Selected minimal next chunk: implement `bookshelf.toml` typed parsing plus structural validation as the gate before multi-book catalog loading.
+- 2026-04-20T15:16:43Z [developer] [CHUNK-002] [STARTED] Began typed `bookshelf.toml` parser/validator implementation and focused config topology tests.
+- 2026-04-20T15:18:45Z [developer] [CHUNK-002] [DONE] Added strict typed config loader/validation and passing parse tests for valid, duplicate-id, missing-root, and empty-catalog cases.

@@ -1,0 +1,13 @@
+[bookshelf]
+root_book = "meta"
+
+[[bookshelf.book]]
+id = "meta"
+title = "Core Docs"
+description = "Root book."
+summary = "docs/SUMMARY.md"
+
+[[bookshelf.book]]
+id = "parser"
+title = "Parser Docs"
+summary = "modules/parser/docs/SUMMARY.md"

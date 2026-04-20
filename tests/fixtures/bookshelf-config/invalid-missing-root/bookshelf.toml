@@ -1,0 +1,7 @@
+[bookshelf]
+root_book = "meta"
+
+[[bookshelf.book]]
+id = "parser"
+title = "Parser Docs"
+summary = "modules/parser/docs/SUMMARY.md"

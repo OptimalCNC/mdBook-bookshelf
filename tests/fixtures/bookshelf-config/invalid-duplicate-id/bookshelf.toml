@@ -1,0 +1,12 @@
+[bookshelf]
+root_book = "meta"
+
+[[bookshelf.book]]
+id = "meta"
+title = "Core Docs"
+summary = "docs/SUMMARY.md"
+
+[[bookshelf.book]]
+id = "meta"
+title = "Duplicate"
+summary = "modules/parser/docs/SUMMARY.md"

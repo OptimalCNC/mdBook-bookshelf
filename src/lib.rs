@@ -1,3 +1,7 @@
+pub mod config;
+
+pub use config::{BookshelfBook, BookshelfConfig, load_bookshelf_config};
+
 use anyhow::{Context, Result, bail};
 use mdbook_driver::{MDBook, config::Config};
 use mdbook_summary::parse_summary;
