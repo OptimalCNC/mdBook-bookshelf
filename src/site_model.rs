@@ -32,6 +32,10 @@ pub enum BuildSiteModelError {
         first_book_id: String,
         second_book_id: String,
     },
+    MissingBookshelfRootLink {
+        book_id: String,
+        content_root: PathBuf,
+    },
 }
 
 impl fmt::Display for BuildSiteModelError {
@@ -89,6 +93,15 @@ impl fmt::Display for BuildSiteModelError {
                 first_book_id,
                 second_book_id
             ),
+            Self::MissingBookshelfRootLink {
+                book_id,
+                content_root,
+            } => write!(
+                f,
+                "configured bookshelf book `{}` could not be linked to its root authored page {}",
+                book_id,
+                content_root.display()
+            ),
         }
     }
 }
@@ -108,6 +121,8 @@ pub struct SiteModel {
     pub root_book: String,
     pub books: Vec<SiteBook>,
     pub authored_pages: Vec<AuthoredPage>,
+    pub bookshelf_page: BookshelfPage,
+    pub root_entry: SiteRoot,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -127,6 +142,25 @@ pub struct AuthoredPage {
     pub book_id: String,
     pub order: usize,
     pub summary_depth: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BookshelfPage {
+    pub owner_book_id: String,
+    pub shelf_items: Vec<ShelfItem>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShelfItem {
+    pub book_id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub target_source_path: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SiteRoot {
+    BookshelfPage,
 }
 
 pub fn build_site_model(input_catalog: &InputCatalog) -> Result<SiteModel, BuildSiteModelError> {
@@ -180,11 +214,59 @@ pub fn build_site_model(input_catalog: &InputCatalog) -> Result<SiteModel, Build
         });
     }
 
+    let bookshelf_page = synthesize_bookshelf_page(input_catalog, &books)?;
+
     Ok(SiteModel {
         config_path: input_catalog.config_path.clone(),
         root_book: input_catalog.root_book.clone(),
         books,
         authored_pages,
+        bookshelf_page,
+        root_entry: SiteRoot::BookshelfPage,
+    })
+}
+
+fn synthesize_bookshelf_page(
+    input_catalog: &InputCatalog,
+    books: &[SiteBook],
+) -> Result<BookshelfPage, BuildSiteModelError> {
+    let mut shelf_items = Vec::with_capacity(input_catalog.books.len());
+
+    for input_book in &input_catalog.books {
+        let normalized_content_root = normalize_bookshelf_root(input_book)?;
+        let site_book = books
+            .iter()
+            .find(|book| book.id == input_book.id)
+            .ok_or_else(|| BuildSiteModelError::MissingBookshelfRootLink {
+                book_id: input_book.id.clone(),
+                content_root: input_book.content_root.clone(),
+            })?;
+
+        let root_authored_page = site_book.authored_page_order.first().ok_or_else(|| {
+            BuildSiteModelError::MissingBookshelfRootLink {
+                book_id: input_book.id.clone(),
+                content_root: input_book.content_root.clone(),
+            }
+        })?;
+
+        if *root_authored_page != normalized_content_root {
+            return Err(BuildSiteModelError::MissingBookshelfRootLink {
+                book_id: input_book.id.clone(),
+                content_root: input_book.content_root.clone(),
+            });
+        }
+
+        shelf_items.push(ShelfItem {
+            book_id: input_book.id.clone(),
+            title: input_book.title.clone(),
+            description: input_book.description.clone(),
+            target_source_path: root_authored_page.clone(),
+        });
+    }
+
+    Ok(BookshelfPage {
+        owner_book_id: input_catalog.root_book.clone(),
+        shelf_items,
     })
 }
 
@@ -257,6 +339,15 @@ fn resolve_summary_target(
     Ok(source_path)
 }
 
+fn normalize_bookshelf_root(book: &InputBook) -> Result<PathBuf, BuildSiteModelError> {
+    book.content_root
+        .canonicalize()
+        .map_err(|_| BuildSiteModelError::MissingBookshelfRootLink {
+            book_id: book.id.clone(),
+            content_root: book.content_root.clone(),
+        })
+}
+
 fn extract_links(line: &str) -> Vec<(String, String)> {
     let mut links = Vec::new();
     let bytes = line.as_bytes();
@@ -322,7 +413,7 @@ fn is_markdown_path(path: &Path) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{is_markdown_path, parse_summary_entries};
+    use super::{is_markdown_path, parse_summary_entries, SiteRoot};
     use std::path::Path;
 
     #[test]
@@ -345,5 +436,10 @@ mod tests {
         assert!(is_markdown_path(Path::new("index.md")));
         assert!(is_markdown_path(Path::new("guide.markdown")));
         assert!(!is_markdown_path(Path::new("index.txt")));
+    }
+
+    #[test]
+    fn exposes_bookshelf_page_as_the_site_root() {
+        assert_eq!(SiteRoot::BookshelfPage, SiteRoot::BookshelfPage);
     }
 }

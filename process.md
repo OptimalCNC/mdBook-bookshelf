@@ -21,63 +21,68 @@
 ## Current State
 - Status: IN_PROGRESS
 - Current iteration: 3
-- Current chunk: C02
-- Next action: Implement the C02 review fix that rejects non-markdown SUMMARY targets and adds a regression test.
+- Current chunk: C03
+- Next action: Implement the synthetic Bookshelf page and root entrypoint modeling.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
 ## Active Chunk
 ```yaml
-chunk_id: C02
-title: Build the authored page catalog and per-book reading order
-objective: Transform the validated input catalog into a site-owned authored page model with stable page ownership, summary hierarchy metadata, and per-book reading order for all authored markdown pages.
-why_now: The renderer-oriented architecture now needs a concrete page model; without resolved page ownership and reading order, sidebar, breadcrumbs, previous and next, and direct rendering remain speculative.
+chunk_id: C03
+title: Synthesize the in-memory Bookshelf page
+objective: Extend the site model with the generated Bookshelf page and root entrypoint metadata so the renderer has a first-class chooser page to render.
+why_now: The authored page model exists, but the architecture still lacks the synthetic root-book page that the site must open first and that later header and navigation rendering must reference.
 depends_on:
   - C01
+  - C02
 scope_in:
-  - Add a page-model API that consumes the C01 input catalog.
-  - Parse every canonical SUMMARY.md link into authored page records for each book.
-  - Preserve summary nesting metadata needed for later sidebar generation.
-  - Resolve every authored page target to an existing markdown source file.
-  - Record stable page ownership by book id and reject duplicate ownership of the same source page across books.
-  - Expose each book's authored page order starting at that book's content root.
+  - Add generated Bookshelf page data to the site model as a synthetic page owned by the configured root book.
+  - Build shelf items from configured books using each book's title, description, and root authored page from the existing site model.
+  - Expose the site's default/root entry as the generated Bookshelf page.
+  - Enforce the root-book special case so its shelf item targets the root book's content root page, not the Bookshelf page itself.
+  - Keep the generated Bookshelf page out of authored page ownership and authored reading-order collections.
+  - Add tests that verify the self-contained example and one targeted invariant failure.
 scope_out:
-  - Synthesizing the in-memory Bookshelf page.
   - HTML rendering, templates, assets, and theming.
-  - Breadcrumb rendering, sidebar HTML, header controls, and previous/next link output.
-  - Search index output and search result labels.
+  - Sidebar affix injection and sidebar tree generation.
+  - Breadcrumb computation and rendering.
+  - Previous and next computation.
+  - Search index and search-label generation.
   - Serve and watch workflows.
 target_files:
   - src/site_model.rs
   - src/lib.rs
-  - tests/site_model_example.rs
-  - tests/site_model_negative.rs
+  - tests/bookshelf_page_example.rs
+  - tests/bookshelf_page_negative.rs
 implementation_tasks:
-  - Define site-model structs for books and authored pages, including source path, owning book id, title, order position, and summary depth.
-  - Implement a builder that walks each canonical SUMMARY.md and collects all authored page entries in declared order.
-  - Validate that each referenced markdown page exists on disk and that no authored page path is claimed by more than one book.
-  - Expose a public API that builds the authored site model from the C01 input catalog.
-  - Add example and negative tests that exercise page ownership and per-book order.
+  - Define site-model structs for the generated Bookshelf page and its shelf items.
+  - Update the site-model builder to synthesize the Bookshelf page from configured books after authored pages are loaded.
+  - Link each shelf item to that book's root authored page using the same normalized page identity used by authored pages.
+  - Add a public accessor or field that marks the generated Bookshelf page as the model's root entry.
+  - Add tests covering self-contained shelf data and the failure path when a configured book cannot be linked to its root authored page.
 acceptance_criteria:
-  - A new public API can build a site model from `bookshelf/handoffs/examples/self-contained/bookshelf.toml` and returns authored page orders `meta:[docs/index.md,docs/onboarding.md,docs/architecture.md]`, `parser:[modules/parser/docs/index.md,modules/parser/docs/grammar.md,modules/parser/docs/runtime.md]`, and `ui:[modules/ui/docs/index.md,modules/ui/docs/navigation.md,modules/ui/docs/diagnostics.md]` relative to the example config directory.
-  - The site model records exactly nine authored pages for the self-contained example, and every authored page is owned by exactly one book.
-  - Each authored page record includes the resolved markdown source path and the summary depth needed to reconstruct later sidebar trees.
-  - Building the site model fails with explicit errors when a summary references a missing markdown file or when two books claim the same authored page path.
-  - The chunk introduces no HTML post-processing step and no temp-workspace-copy step.
+  - Building the site model from `bookshelf/handoffs/examples/self-contained/bookshelf.toml` produces exactly one generated Bookshelf page owned by root book `meta`.
+  - The site model exposes the generated Bookshelf page as the default/root site entry.
+  - The generated Bookshelf page contains exactly three shelf items with book ids `meta`, `parser`, and `ui`, titles from `bookshelf.toml`, and descriptions matching the example config.
+  - Each shelf item targets that book's authored content root page from C02; specifically, the `meta` shelf item targets `docs/index.md` relative to the example config directory and does not self-target the generated Bookshelf page.
+  - The generated Bookshelf page is synthetic only: it is not added to `authored_pages`, does not change any `authored_page_order`, and does not require a canonical `SUMMARY.md` entry.
+  - Building fails with an explicit error if a configured book cannot be linked to a root authored page while synthesizing the Bookshelf page.
 verification:
-  - command: "cargo test --test site_model_example"
-    expect: "The self-contained example builds into an authored site model with the expected page ownership and per-book order."
-  - command: "cargo test --test site_model_negative"
-    expect: "Negative fixtures fail with targeted errors for missing page targets and duplicate page ownership."
+  - command: "cargo test --test bookshelf_page_example"
+    expect: "The self-contained example builds a site model with one generated Bookshelf page, the correct shelf items, and the Bookshelf page as the site root."
+  - command: "cargo test --test bookshelf_page_negative"
+    expect: "An inconsistent root-page linkage fails with a targeted error instead of silently producing a broken shelf item."
 review_focus:
-  - Summary traversal must preserve authored order exactly as declared in each canonical SUMMARY.md.
-  - Page ownership must be normalized by resolved path so duplicate claims are caught reliably.
-  - The model must represent authored pages only; the generated Bookshelf page stays out of this chunk.
+  - The generated Bookshelf page must live in the site model as synthetic data, not as an authored page or a hidden summary mutation.
+  - Shelf items must use normalized page identity so root authored pages match reliably even when source paths differ in representation.
+  - The root-book special case must preserve chooser behavior by linking the root-book shelf item to the root book content page, not back to the Bookshelf page.
 ```
 
 ## Chunk Ledger
 - C01 `Bootstrap validated bookshelf input loading`:
   commits `621f5f2`, `d8088d2`; verification passed (`cargo test --test input_catalog_example`, `cargo test --test input_catalog_negative`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
+- C02 `Build the authored page catalog and per-book reading order`:
+  commits `7199aef`, `d0a0442`; verification passed (`cargo test --test site_model_example`, `cargo test --test site_model_negative`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
 
 ## Final Validation
 - Pending
@@ -105,3 +110,9 @@ review_focus:
 - 2026-04-20T05:57:00Z [reviewer-subagent] [C02] [CHANGES_REQUIRED] Site-model page resolution accepts any existing file path from SUMMARY links, so C02 does not yet enforce authored markdown-page ownership.
 - 2026-04-20T05:57:46Z [coordinator] [C02] [CHANGES_REQUIRED] Synthesized a same-chunk fix request: reject non-markdown SUMMARY targets explicitly and add regression coverage for existing non-markdown files.
 - 2026-04-20T05:58:21Z [developer] [C02] [STARTED] Applying the C02 review fix to reject non-markdown SUMMARY targets and add regression coverage.
+- 2026-04-20T05:59:09Z [developer] [C02] [FINISHED] Rejected non-markdown SUMMARY targets explicitly, added regression coverage, and re-ran the required C02 tests.
+- 2026-04-20T06:00:40Z [reviewer-subagent] [C02] [APPROVED] Site-model resolution now rejects non-markdown SUMMARY targets explicitly, and regression coverage plus direct repro verification pass.
+- 2026-04-20T06:01:21Z [coordinator] [C02] [CLOSED] Moved C02 to the ledger after verification passed and the strict subagent reviewer approved the review-fix iteration.
+- 2026-04-20T06:02:19Z [planner] [C03] [PLANNED] Chose in-memory Bookshelf page synthesis and root entrypoint modeling as the next chunk after authored page modeling.
+- 2026-04-20T06:02:19Z [coordinator] [C03] [ACCEPTED] Accepted the planner artifact and activated C03 for implementation.
+- 2026-04-20T06:04:52Z [developer] [C03] [STARTED] Synthesizing the Bookshelf page and root entrypoint metadata on top of the authored site model.
