@@ -103,7 +103,16 @@ pub fn build_site(
     config_path: impl AsRef<Path>,
     output_dir: impl AsRef<Path>,
 ) -> Result<Vec<PathBuf>, BuildSiteCommandError> {
-    let input_catalog = load_input_catalog(config_path)?;
+    let config_path = config_path.as_ref();
+    let normalized_config_path = if config_path.exists() {
+        config_path
+            .canonicalize()
+            .unwrap_or_else(|_| config_path.to_path_buf())
+    } else {
+        config_path.to_path_buf()
+    };
+
+    let input_catalog = load_input_catalog(&normalized_config_path)?;
     let site_model = build_site_model(&input_catalog)?;
     let sidebar_model = build_sidebar_model(&site_model);
     let reader_context = build_reader_context_model(&site_model, &sidebar_model)?;

@@ -20,9 +20,9 @@
 
 ## Current State
 - Status: IN_PROGRESS
-- Current iteration: 7
+- Current iteration: 8
 - Current chunk: C10
-- Next action: Implement the top-level build workflow and CLI entrypoint.
+- Next action: Implement the C10 review fix that normalizes relative `bookshelf.toml` paths in the top-level build workflow.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
@@ -181,6 +181,7 @@ review_focus:
 - 2026-04-20T07:59:29Z [planner] [C09] [PLANNED] Chose site-wide search index emission with owning-book labels as the next chunk after content-page rendering.
 - 2026-04-20T08:29:28Z [planner] [C10] [PLANNED] Chose a single top-level build workflow and CLI entrypoint as the next chunk before serve orchestration or repo-scale validation.
 - 2026-04-20T08:29:28Z [coordinator] [C10] [ACCEPTED] Accepted the planner artifact and activated C10 for implementation.
+- 2026-04-20T08:38:54Z [coordinator] [C10] [CHANGES_REQUIRED] Synthesized a same-chunk fix request: normalize relative `bookshelf.toml` paths before the build pipeline compares them to canonical authored source paths and add relative-path CLI regression coverage.
 - 2026-04-20T07:59:29Z [coordinator] [C09] [ACCEPTED] Accepted the planner artifact and activated C09 for implementation.
 - 2026-04-20T08:06:09Z [coordinator] [C09] [VERIFIED] Re-ran `cargo test --test search_index_example`, `cargo test --test search_index_invariants`, and `cargo test` successfully in the coordinator workspace.
 - 2026-04-20T08:06:09Z [coordinator] [C09] [COMMITTED] Developer worker created checkpoint commit `0384f15` with message `bookshelf: C09 iteration 1`.
@@ -191,3 +192,6 @@ review_focus:
 - 2026-04-20T08:07:39Z [reviewer-subagent] [C09] [APPROVED] Search index emission stays root-level and site-wide, uses canonical manifest `.html` hrefs, excludes the synthetic Bookshelf page, and carries owning-book labels from the existing page context.
 2026-04-20T08:29:28Z [planner] [C10] [PLANNED] Chose a single top-level build workflow and CLI entrypoint as the next chunk before serve orchestration or repo-scale validation.
 - 2026-04-20T08:33:55Z [developer] [C10] [STARTED] Wiring the single top-level build pipeline and CLI entrypoint over the existing bookshelf-owned library flow.
+- 2026-04-20T08:35:32Z [developer] [C10] [FINISHED] Added the top-level build command, verified canonical output generation, and re-ran the required C10 tests.
+- 2026-04-20T08:37:53Z [reviewer-subagent] [C10] [CHANGES_REQUIRED] The CLI build command fails for the relative `bookshelf.toml` path shown in the chunk acceptance criteria because the pipeline mixes relative config paths with canonical authored source paths.
+- 2026-04-20T08:39:52Z [developer] [C10] [STARTED] Applying the C10 review fix to normalize relative config paths and add relative-path CLI coverage.

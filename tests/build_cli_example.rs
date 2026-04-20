@@ -7,13 +7,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 #[test]
 fn build_cli_produces_the_expected_canonical_output_tree() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let config_path = repo_root.join("bookshelf/handoffs/examples/self-contained/bookshelf.toml");
+    let relative_config_path = PathBuf::from("bookshelf/handoffs/examples/self-contained/bookshelf.toml");
     let output_dir = temp_root().join(unique_dir_name("build-cli-example"));
 
     let binary = env!("CARGO_BIN_EXE_mdbook-bookshelf");
     let status = Command::new(binary)
+        .current_dir(&repo_root)
         .arg("build")
-        .arg(&config_path)
+        .arg(&relative_config_path)
         .arg(&output_dir)
         .status()
         .expect("build command should run");
