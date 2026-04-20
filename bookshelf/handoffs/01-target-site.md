@@ -4,12 +4,25 @@ This note defines the reader-facing target for the bookshelf feature.
 
 ## Goal
 
-Build one documentation site that lets readers:
+Build one documentation site on top of mdBook that lets readers:
 
 - choose a book before entering a deep chapter tree
 - read inside one book at a time with navigation scoped to that book
 - return to the cross-book chooser in one click
 - keep all books available through one site and one top-level build and serve workflow
+
+## mdBook Context
+
+This target is for a bookshelf feature layered on top of mdBook, not for a new
+standalone documentation system.
+
+That means:
+
+- the site should still feel like an mdBook site where practical
+- the build and serve story should remain mdBook-like from an author's
+  perspective
+- the bookshelf feature should solve multi-book behavior that stock mdBook does
+  not solve well by itself
 
 ## Terms
 
@@ -79,7 +92,10 @@ The site must behave predictably when moving between books:
 
 ### Search
 
-Search may remain site-wide, but search results must include enough context for cross-book reading.
+Search must remain site-wide across all books, and it must be presented as a
+reader-facing feature rather than only as emitted machine-readable data.
+
+Search results must include enough context for cross-book reading.
 
 Results should:
 
@@ -108,4 +124,5 @@ Do not implement:
 - one global merged sidebar tree
 - a separate chooser book
 - separate sites per content book
+- a standalone documentation generator that replaces mdBook's core build and serve model
 - a solution that depends on rewriting stock mdBook HTML as the primary architecture

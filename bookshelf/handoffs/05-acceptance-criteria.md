@@ -4,8 +4,8 @@ The bookshelf feature is accepted only when all items below are satisfied.
 
 ## Functional Criteria
 
-- one top-level build produces one multi-book site
-- one top-level serve workflow exists for the multi-book site
+- one top-level mdBook-like build workflow produces one multi-book site
+- one top-level mdBook-like serve workflow exists for the multi-book site
 - the site root opens the `Bookshelf` page
 - the `Bookshelf` page is owned by the configured root book
 - the `Bookshelf` page is not presented as a selectable content book
@@ -16,7 +16,7 @@ The bookshelf feature is accepted only when all items below are satisfied.
 - direct links into a page activate the correct book context automatically
 - previous and next never cross book boundaries
 - breadcrumbs render as `Book / Page`
-- search remains site-wide and shows the owning book label
+- search remains site-wide, exposes a reader-facing search flow, and shows the owning book label
 
 ## Authoring Criteria
 
@@ -27,7 +27,8 @@ The bookshelf feature is accepted only when all items below are satisfied.
 
 ## Architecture Criteria
 
-- the final site is rendered directly from the bookshelf-owned site model
+- the implementation remains mdBook-first and does not replace mdBook with a standalone documentation generator
+- the final site is rendered from the bookshelf-owned site model through an mdBook-centric integration path
 - the implementation does not depend on HTML post-processing over stock mdBook output as its primary architecture
 - the implementation does not rely on copying the full docs tree into a temporary workspace as its primary architecture
 
@@ -37,3 +38,4 @@ The bookshelf feature is accepted only when all items below are satisfied.
 - the repo-scale scenario passes all bookshelf-specific validation
 - the new bookshelf tests described in [04-test-plan.md](./04-test-plan.md) are implemented and passing
 - mdBook's stock tests still pass where applicable
+- the top-level build and serve workflows for the multi-book site are implemented and passing where applicable

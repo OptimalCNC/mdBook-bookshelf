@@ -4,10 +4,20 @@ This note records the recommended implementation direction.
 
 ## Recommendation
 
-Implement the bookshelf feature as a first-class renderer-oriented system, not as HTML post-processing over stock mdBook output.
+Implement the bookshelf feature as an mdBook-first, renderer-oriented system.
+
+That means:
+
+- stay close to mdBook's parsing, rendering, and serving path
+- build the bookshelf behavior as an extension/integration on top of mdBook
+- avoid HTML post-processing over stock mdBook output as the primary
+  architecture
+- avoid treating mdBook as a disposable preprocessing stage under a separate
+  standalone site generator
 
 Concretely:
 
+- Keep mdBook as the underlying documentation tooling model.
 - Keep `bookshelf.toml` as the human-owned config.
 - Keep one canonical `SUMMARY.md` per book.
 - Build one explicit in-memory site model:
@@ -18,7 +28,8 @@ Concretely:
   - sidebar trees
   - breadcrumbs
   - search labels
-- Render the final HTML directly from that model, instead of rewriting mdBook's generated HTML afterward.
+- Render the final HTML from that model within an mdBook-centric workflow,
+  instead of rewriting mdBook's generated HTML afterward.
 
 ## Config Shape
 
@@ -49,16 +60,23 @@ The hard parts of the feature are reader-shell concerns:
 
 Those are rendering problems.
 
-Trying to retrofit them after stock mdBook HTML generation is fragile and difficult to extend.
+Trying to retrofit them after stock mdBook HTML generation is fragile and
+difficult to extend.
+
+At the same time, rebuilding mdBook from scratch is the wrong target for this
+handoff. The implementation should reuse mdBook concepts, libraries, and
+workflows where practical, while solving the multi-book behavior that stock
+mdBook does not solve.
 
 ## Recommended Shape
 
 The implementation should have these phases:
 
 1. Load `bookshelf.toml`.
-2. Load each canonical `SUMMARY.md`.
+2. Load each canonical `SUMMARY.md` through an mdBook-compatible processing path.
 3. Build one in-memory site model that represents the final bookshelf site.
-4. Render final HTML, assets, navigation, and search metadata from that model.
+4. Render final HTML, navigation, and search outputs from that model inside one
+   mdBook-like build and serve workflow.
 
 The final HTML should already be the intended multi-book reader shell.
 
@@ -83,11 +101,19 @@ Keep these derived:
 Preferred direction:
 
 - implement the bookshelf feature in Rust, close to mdBook's rendering path
-- render final site output from the bookshelf-owned model
+- keep the implementation mdBook-first instead of building a clean-room
+  replacement for mdBook
+- render final site output from the bookshelf-owned model through an
+  mdBook-centric integration path
 
 Acceptable implementation styles:
 
-- a custom backend / renderer
+- a custom backend / renderer integrated with mdBook
 - a custom driver around mdBook libraries plus a bookshelf-specific renderer
+- targeted mdBook extension work that preserves mdBook's overall build/serve
+  model
 
-Avoid using HTML post-processing as the long-term architecture.
+Avoid:
+
+- HTML post-processing as the long-term architecture
+- a standalone multi-book generator that replaces mdBook's core role

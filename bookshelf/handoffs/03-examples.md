@@ -13,6 +13,8 @@ Use the bookshelf example at:
 - [examples/self-contained/modules/ui/docs/SUMMARY.md](./examples/self-contained/modules/ui/docs/SUMMARY.md)
 
 This example exists specifically to validate bookshelf behavior in a small tree.
+It should be treated as an mdBook-style fixture for the bookshelf feature, not
+as an abstract input for a standalone documentation engine.
 
 It also illustrates the intended config direction:
 
@@ -63,3 +65,6 @@ The implementation should be considered incomplete unless it works for:
 - the repo-scale scenario
 
 Do not treat success on only one of them as sufficient.
+
+Both examples should be exercised through the real bookshelf-on-mdBook
+workflows, especially the top-level build and serve paths once they exist.

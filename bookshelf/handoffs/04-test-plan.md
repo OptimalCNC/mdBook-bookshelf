@@ -2,7 +2,8 @@
 
 This note lists the tests that should be added beyond mdBook's stock tests.
 
-The bookshelf feature should have its own tests for multi-book behavior.
+The bookshelf feature should have its own tests for multi-book behavior while
+still being implemented on top of mdBook's build and serve model.
 
 ## Unit Tests
 
@@ -33,6 +34,7 @@ Add integration tests that render the small self-contained example and assert:
 - breadcrumbs render as `Book / Page`
 - direct links activate the correct book context
 - search results include the owning book label
+- the rendered site exposes a user-facing search flow that shows those labeled results
 
 ## Repo-Level Integration Tests
 
@@ -80,4 +82,12 @@ If the final implementation supports live rebuilds, add tests or scripted checks
 
 ## Validation Command Expectations
 
-The bookshelf implementation should ship with feature-specific validation commands that cover bookshelf invariants, not just mdBook's stock build success.
+The bookshelf implementation should ship with feature-specific validation
+commands that cover bookshelf invariants, not just mdBook's stock build
+success.
+
+It should also exercise the mdBook-first top-level workflows that the feature
+adds or extends, especially:
+
+- one top-level build workflow for the multi-book site
+- one top-level serve workflow for the multi-book site
