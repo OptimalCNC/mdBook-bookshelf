@@ -37,6 +37,7 @@ fn bookshelf_config_parse() {
                 assert_eq!("meta", config.root_book);
                 assert_eq!(2, config.books.len());
                 assert_eq!("meta", config.books[0].id);
+                assert_eq!("Root \"book\".", config.books[0].description.as_deref().unwrap());
                 assert_eq!(Path::new("docs"), config.books[0].book_src.as_path());
                 assert_eq!(
                     config.config_dir.join("docs/SUMMARY.md"),
@@ -46,9 +47,12 @@ fn bookshelf_config_parse() {
         }
     }
 
-    let empty_catalog_path = write_temp_bookshelf_toml(
-        &root,
+    let empty_catalog_dir = make_temp_dir(
         "chunk-002-empty-catalog",
+        &root,
+    );
+    let empty_catalog_path = write_temp_bookshelf_toml(
+        &empty_catalog_dir,
         "[bookshelf]\nroot_book = \"meta\"\n",
     );
     let empty_catalog_error = load_bookshelf_config(&empty_catalog_path).expect_err("must fail");
@@ -56,6 +60,33 @@ fn bookshelf_config_parse() {
         "bookshelf.book catalog cannot be empty",
         empty_catalog_error.to_string()
     );
+    fs::remove_dir_all(&empty_catalog_dir).expect("temp fixture directory should be removed");
+
+    let quoted_semantics_dir = make_temp_dir(
+        "chunk-002-quoted-semantics",
+        &root,
+    );
+    let quoted_semantics_path = write_temp_bookshelf_toml(
+        &quoted_semantics_dir,
+        r#"
+[book]
+authors = ["A", "B"]
+
+[output.html]
+no-section-label = false
+
+[bookshelf]
+root_book = "meta" # comment
+
+[[bookshelf.book]]
+id = "meta"
+title = "Core #1 = Intro"
+summary = "docs/SUMMARY.md"
+"#,
+    );
+    let quoted_semantics = load_bookshelf_config(&quoted_semantics_path).expect("must parse");
+    assert_eq!("Core #1 = Intro", quoted_semantics.books[0].title);
+    fs::remove_dir_all(&quoted_semantics_dir).expect("temp fixture directory should be removed");
 }
 
 struct Case {
@@ -63,13 +94,20 @@ struct Case {
     expected_error: Option<&'static str>,
 }
 
-fn write_temp_bookshelf_toml(root: &Path, tag: &str, content: &str) -> PathBuf {
+fn make_temp_dir(tag: &str, root: &Path) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("clock should be valid")
         .as_nanos();
-    let dir = root.join(".tmp").join(format!("{tag}-{nanos}"));
+    let dir = std::env::temp_dir()
+        .join("mdbook-bookshelf")
+        .join(root.file_name().unwrap_or_default())
+        .join(format!("{tag}-{nanos}"));
     fs::create_dir_all(&dir).expect("temp fixture directory should be created");
+    dir
+}
+
+fn write_temp_bookshelf_toml(dir: &Path, content: &str) -> PathBuf {
     let file = dir.join("bookshelf.toml");
     fs::write(&file, content).expect("temp fixture file should be written");
     file

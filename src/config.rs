@@ -1,4 +1,5 @@
 use anyhow::{Context, Result, bail};
+use serde::Deserialize;
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
@@ -22,25 +23,25 @@ pub struct BookshelfBook {
     pub book_src: PathBuf,
 }
 
-#[derive(Debug, Default)]
-struct RawConfig {
+#[derive(Debug, Deserialize, Default)]
+struct RawTopLevel {
+    #[serde(default)]
+    bookshelf: RawBookshelf,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct RawBookshelf {
     root_book: Option<String>,
+    #[serde(default, rename = "book")]
     books: Vec<RawBook>,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Deserialize, Default)]
 struct RawBook {
     id: Option<String>,
     title: Option<String>,
     description: Option<String>,
     summary: Option<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Section {
-    Other,
-    Bookshelf,
-    BookshelfBook,
 }
 
 pub fn load_bookshelf_config(path: impl AsRef<Path>) -> Result<BookshelfConfig> {
@@ -52,96 +53,13 @@ pub fn load_bookshelf_config(path: impl AsRef<Path>) -> Result<BookshelfConfig> 
     let content = fs::read_to_string(&config_path)
         .with_context(|| format!("failed to read {}", config_path.display()))?;
 
-    parse_bookshelf_config_text(&content, config_path, config_dir)
-}
-
-fn parse_bookshelf_config_text(
-    content: &str,
-    config_path: PathBuf,
-    config_dir: PathBuf,
-) -> Result<BookshelfConfig> {
-    let mut raw = RawConfig::default();
-    let mut section = Section::Other;
-    let mut pending_book: Option<RawBook> = None;
-
-    for (idx, line) in content.lines().enumerate() {
-        let line_number = idx + 1;
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-
-        if let Some(parsed_section) = parse_section(trimmed) {
-            if parsed_section == Section::BookshelfBook {
-                if let Some(book) = pending_book.take() {
-                    raw.books.push(book);
-                }
-                pending_book = Some(RawBook::default());
-            }
-            section = parsed_section;
-            continue;
-        }
-
-        let (key, value) = parse_key_value(trimmed, line_number)?;
-        match section {
-            Section::Bookshelf => {
-                if key == "root_book" {
-                    raw.root_book = Some(value);
-                }
-            }
-            Section::BookshelfBook => {
-                let book = pending_book.as_mut().ok_or_else(|| {
-                    anyhow::anyhow!("line {line_number}: internal parser state for [[bookshelf.book]]")
-                })?;
-                match key {
-                    "id" => book.id = Some(value),
-                    "title" => book.title = Some(value),
-                    "description" => book.description = Some(value),
-                    "summary" => book.summary = Some(value),
-                    _ => {}
-                }
-            }
-            Section::Other => {}
-        }
-    }
-
-    if let Some(book) = pending_book {
-        raw.books.push(book);
-    }
-
-    validate_and_build(raw, config_path, config_dir)
-}
-
-fn parse_section(line: &str) -> Option<Section> {
-    if line == "[bookshelf]" {
-        return Some(Section::Bookshelf);
-    }
-    if line == "[[bookshelf.book]]" {
-        return Some(Section::BookshelfBook);
-    }
-    if line.starts_with('[') && line.ends_with(']') {
-        return Some(Section::Other);
-    }
-    None
-}
-
-fn parse_key_value(line: &str, line_number: usize) -> Result<(&str, String)> {
-    let (key, raw_value) = line
-        .split_once('=')
-        .ok_or_else(|| anyhow::anyhow!("line {line_number}: expected key = \"value\""))?;
-    let key = key.trim();
-    let raw_value = raw_value.trim();
-
-    if !raw_value.starts_with('"') || !raw_value.ends_with('"') || raw_value.len() < 2 {
-        bail!("line {line_number}: value for '{key}' must be a quoted string");
-    }
-
-    let value = raw_value[1..raw_value.len() - 1].to_string();
-    Ok((key, value))
+    let raw: RawTopLevel = toml::from_str(&content)
+        .with_context(|| format!("failed to parse TOML in {}", config_path.display()))?;
+    validate_and_build(raw.bookshelf, config_path, config_dir)
 }
 
 fn validate_and_build(
-    raw: RawConfig,
+    raw: RawBookshelf,
     config_path: PathBuf,
     config_dir: PathBuf,
 ) -> Result<BookshelfConfig> {
