@@ -10,3 +10,8 @@ path = "src/lib.rs"
 [[bin]]
 name = "mdbook-bookshelf"
 path = "src/main.rs"
+
+[dependencies]
+anyhow = "1.0"
+mdbook-driver = "0.5.2"
+mdbook-summary = "0.5.2"
