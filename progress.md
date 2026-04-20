@@ -28,11 +28,11 @@
 - Coordinator: orchestrates and may commit on behalf of the developer when needed.
 
 ## Current State
-- Status: STARTUP_IN_PROGRESS
-- Current iteration: startup
-- Current chunk: CHUNK-001
-- Next action: execute CHUNK-001 to make the confirmed mdBook loading seam runnable and testable in this crate.
-- Blockers: implementation crate paths exist in `Cargo.toml` but `src/` is absent; mdBook crate dependencies still need to be added and validated locally.
+- Status: CHUNK_IN_REVIEW
+- Current iteration: CHUNK-001 review
+- Current chunk: CHUNK-001 at commit `007cca2`
+- Next action: complete both review gates for CHUNK-001 and return any required fixes to the developer.
+- Blockers: none; review is focused on correctness and completeness of the seam bootstrap, including whether the generated `Cargo.lock` belongs in the chunk commit.
 
 ## Open Risks
 - The repo has no active implementation code under `src/`, so the first chunk must establish the initial mdBook-first scaffold without drifting into a clean-room generator.
@@ -96,3 +96,9 @@ review_focus:
 - 2026-04-20T13:14:46Z [researcher] [STARTUP] [DONE] Confirmed minimal mdBook seam: load single authored book via `MDBook::load_with_config_and_summary` from driver-owned config/summary and avoid stock HTML by not invoking `MDBook::build()`.
 - 2026-04-20T13:16:34Z [planner] [STARTUP] [DONE] Selected next chunk: add mdBook Cargo dependencies and a seam-proof single-book load smoke test around `parse_summary` + `load_with_config_and_summary`.
 - 2026-04-20T13:18:33Z [developer] [CHUNK-001] [STARTED] Began dependency wiring and seam smoke-test implementation for single-book `parse_summary` + `load_with_config_and_summary`.
+- 2026-04-20T13:21:25Z [developer] [CHUNK-001] [DONE] Added mdBook seam scaffold, single-book load API, and deterministic seam smoke test with passing checks.
+- 2026-04-20T13:24:21Z [coordinator] [CHUNK-001] [REVIEWING] Recorded developer commit `007cca2`; offline verification regenerated `Cargo.lock`, which is being treated as a review focus item.
+- 2026-04-20T13:37:00Z [reviewer-subagent] [CHUNK-001] CHANGES_REQUIRED - Seam/test acceptance is met, but dependency changes were committed without the corresponding tracked `Cargo.lock` update.
+- 2026-04-20T13:42:27Z [reviewer-claude] [CHUNK-001] APPROVED - Minimal mdBook-first seam via published crates with deterministic single-book load test; commit Cargo.lock as a small follow-up.
+- 2026-04-20T15:12:14Z [developer] [CHUNK-001] [STARTED] Began review-fix iteration to include generated Cargo.lock and rerun offline seam verification.
+- 2026-04-20T15:12:30Z [developer] [CHUNK-001] [DONE] Added Cargo.lock to chunk scope and revalidated offline cargo check plus exact seam smoke test.
