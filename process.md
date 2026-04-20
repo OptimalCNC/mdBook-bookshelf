@@ -21,61 +21,59 @@
 ## Current State
 - Status: IN_PROGRESS
 - Current iteration: 5
-- Current chunk: C06
-- Next action: Reconcile the synthetic Bookshelf page route across site model, reader context, and render manifest so the canonical route is the site root only.
+- Current chunk: C07
+- Next action: Implement first HTML emission for the synthetic Bookshelf root page.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
 ## Active Chunk
 ```yaml
-chunk_id: C06
-title: Build the renderer route and output manifest
-objective: Derive deterministic rendered routes and output paths for the synthetic Bookshelf page and all authored pages so later HTML rendering can emit stable links and files from the bookshelf-owned model.
-why_now: The model layers are complete enough for rendering, but the renderer still lacks canonical page addresses and output targets for site root, shelf links, deep links, and future page emission.
+chunk_id: C07
+title: Render the synthetic Bookshelf root page
+objective: Implement the first HTML output step by rendering and writing the synthetic Bookshelf page to `index.html` at the site root using the existing model and manifest layers.
+why_now: The addressing and navigation models are now stable, so the smallest meaningful renderer step is to emit the canonical root page that proves the bookshelf-owned architecture can produce real reader-facing HTML.
 depends_on:
   - C03
-  - C05
+  - C06
 scope_in:
-  - Add renderer-owned manifest types for rendered pages and output targets.
-  - Derive one canonical rendered target for the synthetic Bookshelf page.
-  - Derive one canonical rendered target for every authored page from its normalized source path relative to the bookshelf.toml directory.
-  - Expose lookups by synthetic page id and authored source path for later HTML rendering and link generation.
-  - Enforce uniqueness of rendered output paths across synthetic and authored pages.
-  - Add tests for the self-contained example and output-path invariants.
+  - Add a renderer API that writes the synthetic Bookshelf page to a caller-provided output directory.
+  - Render the Bookshelf page from the existing site model and render manifest without markdown conversion or HTML post-processing.
+  - Resolve each shelf item href from the authored-page render manifest entries so links match canonical output paths.
+  - Use mdBook-style shell structure where practical for the root page markup so later authored-page rendering can reuse the same shell direction.
+  - Add tests for the self-contained example and root-page output invariants.
 scope_out:
-  - HTML rendering and templating.
   - Markdown-to-HTML conversion.
-  - Asset copying and static file emission.
-  - Search index generation and search result labeling.
+  - Rendering authored markdown pages.
+  - Asset copying, CSS/JS/theme extraction, or full mdBook theme bundling.
+  - Search output and search result labeling.
   - Build CLI and serve workflow.
 target_files:
-  - src/render_manifest.rs
+  - src/renderer.rs
   - src/lib.rs
-  - tests/render_manifest_example.rs
-  - tests/render_manifest_invariants.rs
+  - tests/bookshelf_root_html_example.rs
+  - tests/bookshelf_root_html_invariants.rs
 implementation_tasks:
-  - Define manifest structs for rendered page identity, route path, and output path.
-  - Implement a builder that consumes the existing site model and reader-context data to produce one manifest entry per rendered page.
-  - Map the synthetic Bookshelf page to the site root output target `index.html`.
-  - Map authored markdown pages to stable `.html` output paths derived from normalized paths relative to the config directory.
-  - Add lookup helpers for authored pages by source path and for the synthetic Bookshelf page by page id.
-  - Add validation and tests for unique output paths and root-entry ownership.
+  - Define a renderer entry point that consumes the existing site model and render manifest and writes the synthetic Bookshelf page output.
+  - Generate HTML for the Bookshelf page with a stable root shell and visible Bookshelf heading.
+  - Populate shelf items with the configured book titles, descriptions, and manifest-derived hrefs to each book root page.
+  - Ensure the root-book shelf item links to its content root output, not back to `/`.
+  - Add test coverage for emitted root HTML, link targets, and root-only output behavior.
 acceptance_criteria:
-  - A new public API builds a render manifest from the self-contained example and returns exactly 10 rendered entries: 9 authored pages and 1 synthetic Bookshelf page.
-  - The synthetic Bookshelf page is the only entry with output path `index.html`, and manifest lookup by page id resolves that root output to the `bookshelf` page.
-  - In the self-contained example, authored source paths map to deterministic output paths relative to the site root: `docs/index.md` -> `docs/index.html`, `docs/architecture.md` -> `docs/architecture.html`, `modules/parser/docs/grammar.md` -> `modules/parser/docs/grammar.html`, and `modules/ui/docs/index.md` -> `modules/ui/docs/index.html`.
-  - Every authored page has exactly one rendered output path ending in `.html`, and no authored page claims `index.html`.
-  - Building the manifest fails with an explicit error if two rendered pages would collide on the same output path.
-  - The chunk introduces no HTML post-processing step and no temp-workspace-copy step.
+  - A new public API renders the self-contained example into a temporary output directory and creates exactly one file: `index.html`.
+  - The rendered `index.html` contains a visible `Bookshelf` heading and exactly three shelf links targeting `docs/index.html`, `modules/parser/docs/index.html`, and `modules/ui/docs/index.html`.
+  - The rendered root page includes the titles `Example Core`, `Example Parser`, and `Example UI`, and includes each configured description from `bookshelf.toml`.
+  - The `Example Core` shelf item links to `docs/index.html` and does not link to `/`, `index.html`, or any `bookshelf/` alias.
+  - The rendered root page uses mdBook-style structural shell markers that later authored-page rendering can reuse, including a `page-wrapper` container and a `content` region.
+  - Rendering this chunk does not create `bookshelf/index.html` and does not emit any authored page HTML yet.
 verification:
-  - command: "cargo test --test render_manifest_example"
-    expect: "The self-contained example produces the expected root Bookshelf output plus deterministic authored-page output paths."
-  - command: "cargo test --test render_manifest_invariants"
-    expect: "Rendered output paths remain unique, root ownership is preserved, and collisions fail with targeted errors."
+  - command: "cargo test --test bookshelf_root_html_example"
+    expect: "The self-contained example renders a root `index.html` containing the expected shelf titles, descriptions, and manifest-aligned hrefs."
+  - command: "cargo test --test bookshelf_root_html_invariants"
+    expect: "The renderer writes only the canonical root Bookshelf page, preserves root-book shelf linking, and does not emit any alias or authored-page outputs."
 review_focus:
-  - Output addressing must be renderer-owned and derived deterministically from the existing bookshelf model, not from ad hoc file writes.
-  - The site root must resolve only to the synthetic Bookshelf page.
-  - Authored output paths must be normalized relative to the bookshelf.toml directory so deep links stay stable and reviewable.
+  - The renderer must consume the bookshelf-owned model and manifest directly rather than inventing routes or post-processing HTML.
+  - Root-page links must come from canonical manifest outputs so future authored-page rendering stays consistent.
+  - The HTML shell should track mdBook structural conventions where practical without dragging full asset/theme work into this chunk.
 ```
 
 ## Chunk Ledger
@@ -89,6 +87,8 @@ review_focus:
   commit `b3f8726`; verification passed (`cargo test --test sidebar_model_example`, `cargo test --test sidebar_model_invariants`, `cargo test`); reviewer-subagent approved; Claude CLI review remains environment-blocked.
 - C05 `Build per-page reader context`:
   commit `81a46ca`; verification passed (`cargo test --test reader_context_example`, `cargo test --test reader_context_invariants`, `cargo test`); reviewer-subagent approved; Claude CLI review remains environment-blocked.
+- C06 `Build the renderer route and output manifest`:
+  commits `70e1d7c`, `a81d747`; verification passed (`cargo test --test render_manifest_example`, `cargo test --test render_manifest_invariants`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
 
 ## Final Validation
 - Pending
@@ -148,3 +148,9 @@ review_focus:
 - 2026-04-20T06:43:08Z [reviewer-subagent] [C06] [CHANGES_REQUIRED] Render manifest makes the synthetic Bookshelf page live at the site root, but site-model and reader-context metadata still point to `bookshelf`, leaving conflicting canonical routes for the same page.
 - 2026-04-20T07:07:05Z [coordinator] [C06] [CHANGES_REQUIRED] User confirmed the Bookshelf page is canonical only at the site root; synthesized a same-chunk fix request to align site-model, reader-context, and render-manifest routing on `/`.
 - 2026-04-20T07:08:05Z [developer] [C06] [STARTED] Applying the C06 review fix to make the Bookshelf page canonical only at the site root across all model layers.
+- 2026-04-20T07:09:04Z [developer] [C06] [FINISHED] Aligned synthetic Bookshelf routing on the site root across model layers and re-ran the required C06 tests.
+- 2026-04-20T07:11:11Z [reviewer-subagent] [C06] [APPROVED] Synthetic Bookshelf routing is now root-only and consistent across the site model, reader context, and render manifest, with regression coverage and direct verification passing.
+- 2026-04-20T07:11:11Z [coordinator] [C06] [CLOSED] Moved C06 to the ledger after verification passed and the strict subagent reviewer approved the review-fix iteration.
+- 2026-04-20T07:12:08Z [planner] [C07] [PLANNED] Chose first HTML emission for the synthetic Bookshelf root page using mdBook-style shell conventions and manifest links as the next chunk.
+- 2026-04-20T07:12:08Z [coordinator] [C07] [ACCEPTED] Accepted the planner artifact and activated C07 for implementation.
+- 2026-04-20T07:14:31Z [developer] [C07] [STARTED] Rendering the synthetic Bookshelf root page with manifest-derived shelf links and a reusable shell structure.
