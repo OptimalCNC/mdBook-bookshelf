@@ -1,3 +1,0 @@
-# Summary
-
-- [HMI](index.md)
