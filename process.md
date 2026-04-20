@@ -21,62 +21,60 @@
 ## Current State
 - Status: IN_PROGRESS
 - Current iteration: 7
-- Current chunk: C09
-- Next action: Emit a site-wide search index with owning-book labels.
+- Current chunk: C10
+- Next action: Implement the top-level build workflow and CLI entrypoint.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
 ## Active Chunk
 ```yaml
-chunk_id: C09
-title: Emit site-wide search index with owning-book labels
-objective: Generate a root-level search index file from the rendered bookshelf site so search remains site-wide across authored pages and every result carries owning-book context.
-why_now: Search context is the smallest remaining reader-facing functional gap after content-page rendering, and it can be added without coupling in top-level CLI or serve orchestration.
+chunk_id: C10
+title: Add the top-level build workflow and CLI entrypoint
+objective: Provide one top-level build command that reads `bookshelf.toml`, runs the full bookshelf pipeline, and writes one complete multi-book site to an output directory.
+why_now: The rendering pipeline now exists in library form, and the smallest remaining acceptance gap is exposing it as the single build workflow authors and CI can actually run.
 depends_on:
-  - C06
+  - C07
   - C08
+  - C09
 scope_in:
-  - Add a search-index model and emission API for the rendered bookshelf site.
-  - Generate one search document per authored page using canonical `.html` hrefs from the render manifest.
-  - Include owning-book label metadata for every search document.
-  - Extract searchable plain-text body content from authored page source or rendered content without indexing the synthetic Bookshelf page.
-  - Write a root-level `searchindex.json` file using mdBook-style placement and a stable bookshelf-owned schema.
-  - Add tests for the self-contained example and search-index invariants.
+  - Add a binary CLI entrypoint for the bookshelf implementation.
+  - Add a single top-level `build` command that takes a `bookshelf.toml` path and an output directory.
+  - Orchestrate the full existing pipeline from config loading through HTML rendering and search-index emission.
+  - Ensure the build command produces the canonical root `index.html`, authored `.html` outputs, and root-level `searchindex.json` in one run.
+  - Add integration tests that invoke the top-level build workflow against the self-contained example.
 scope_out:
-  - Build CLI and serve workflow.
-  - Client-side search UI wiring or JavaScript integration.
+  - Serve workflow or watch mode.
   - Repo-scale scenario rendering coverage.
-  - Asset/theme bundling changes beyond writing the search index file.
   - Final whole-system validation.
+  - Asset/theme bundling beyond what the current renderer already emits.
+  - Additional authoring config changes.
 target_files:
-  - src/search.rs
-  - src/renderer.rs
+  - Cargo.toml
+  - src/main.rs
   - src/lib.rs
-  - tests/search_index_example.rs
-  - tests/search_index_invariants.rs
+  - tests/build_cli_example.rs
+  - tests/build_cli_invariants.rs
 implementation_tasks:
-  - Define search document structs for title, href, book label, and searchable body text.
-  - Implement a builder that derives search documents from authored pages, reader context, and render-manifest entries.
-  - Normalize every search href to the manifest-defined authored `.html` output path.
-  - Exclude the synthetic Bookshelf page from indexed documents while keeping all authored books in one site-wide index.
-  - Write `searchindex.json` to the site root alongside `index.html`.
-  - Add verification coverage for example content, owning-book labels, and canonical href invariants.
+  - Add a binary target and argument parsing for a `build` subcommand.
+  - Implement a single library-facing orchestration function that runs input loading, site modeling, sidebar derivation, reader context, manifest generation, HTML rendering, and search-index emission.
+  - Wire the CLI `build` command to that orchestration function.
+  - Define clear CLI errors for missing arguments, unreadable config, and build failures from the underlying pipeline.
+  - Add integration tests that exercise the CLI against the self-contained example and inspect the produced output tree.
 acceptance_criteria:
-  - A new public API renders the self-contained example into a temporary output directory and writes a root-level `searchindex.json` file alongside `index.html`.
-  - The emitted `searchindex.json` contains exactly 9 search documents, one for each authored page in the self-contained example, and contains no synthetic `Bookshelf` page entry.
-  - The search document for `modules/parser/docs/grammar.html` has title `Grammar`, href `modules/parser/docs/grammar.html`, owning-book label `Example Parser`, and searchable body text containing fixture content from the Grammar page.
-  - The search document for `docs/onboarding.html` has title `Onboarding`, href `docs/onboarding.html`, owning-book label `Example Core`, and searchable body text containing fixture content from the Onboarding page.
-  - The emitted search index is site-wide across all three books in the example and includes at least one labeled document for `Example Core`, `Example Parser`, and `Example UI`.
-  - No search document href ends in `.md`, points to `/`, or points to any `bookshelf/` alias; all hrefs use canonical manifest-defined `.html` outputs.
+  - Running `cargo run -- build bookshelf/handoffs/examples/self-contained/bookshelf.toml <out-dir>` succeeds and produces one complete site in `<out-dir>` from a single command.
+  - The build output contains `index.html`, `searchindex.json`, and all 9 authored `.html` files at their canonical manifest-defined paths, including `docs/index.html`, `docs/onboarding.html`, `docs/architecture.html`, `modules/parser/docs/index.html`, `modules/parser/docs/grammar.html`, `modules/parser/docs/runtime.html`, `modules/ui/docs/index.html`, `modules/ui/docs/navigation.html`, and `modules/ui/docs/diagnostics.html`.
+  - The build output does not contain `bookshelf/index.html` or any authored `.md` outputs.
+  - The generated `index.html` remains the canonical root Bookshelf page, and the generated `searchindex.json` remains root-level and site-wide.
+  - Running the CLI with missing required arguments fails with a non-zero exit and a concise usage/error message instead of panicking.
 verification:
-  - command: "cargo test --test search_index_example"
-    expect: "The self-contained example emits `searchindex.json` with 9 authored-page documents, canonical `.html` hrefs, and owning-book labels."
-  - command: "cargo test --test search_index_invariants"
-    expect: "The search index excludes the synthetic Bookshelf page, remains site-wide across books, and contains no raw markdown or non-canonical hrefs."
+  - command: "cargo test --test build_cli_example"
+    expect: "The self-contained example builds successfully from the single top-level CLI command and produces the expected canonical output tree."
+  - command: "cargo test --test build_cli_invariants"
+    expect: "CLI error handling, root-only Bookshelf routing, and manifest-defined output invariants all pass under the top-level build workflow."
 review_focus:
-  - Search entries must be derived from the bookshelf-owned render model and canonical manifest, not from ad hoc path rewriting.
-  - Owning-book labels must come from the existing book context so cross-book search results are unambiguous.
-  - The search index file should follow mdBook-style root placement while preserving the user’s root-only Bookshelf routing and source-relative authored `.html` outputs.
+  - The CLI must be a thin entrypoint over the existing bookshelf-owned pipeline rather than a parallel implementation path.
+  - The single build command must preserve canonical root-only Bookshelf routing and source-relative authored `.html` outputs.
+  - Error handling should stay actionable and deterministic for automation and future serve/validation commands.
 ```
 
 ## Chunk Ledger
@@ -96,6 +94,8 @@ review_focus:
   commit `cf036fb`; verification passed (`cargo test --test bookshelf_root_html_example`, `cargo test --test bookshelf_root_html_invariants`, `cargo test`); reviewer-subagent approved; Claude CLI review remains environment-blocked.
 - C08 `Render authored content pages with bookshelf navigation chrome`:
   commits `1c244fa`, `e34e1d6`; verification passed (`cargo test --test authored_page_html_example`, `cargo test --test authored_page_html_invariants`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
+- C09 `Emit site-wide search index with owning-book labels`:
+  commit `0384f15`; verification passed (`cargo test --test search_index_example`, `cargo test --test search_index_invariants`, `cargo test`); reviewer-subagent approved; Claude CLI review remains environment-blocked.
 
 ## Final Validation
 - Pending
@@ -179,5 +179,15 @@ review_focus:
 - 2026-04-20T07:59:57Z [coordinator] [C08] [CLOSED] Moved C08 to the ledger after verification passed and the strict subagent reviewer approved the review-fix iteration.
 - 2026-04-20T07:57:39Z [reviewer-subagent] [C08] [APPROVED] Inline authored-body links now resolve through the render manifest for both relative and absolute targets, and regression coverage plus direct verification confirm canonical `.html` hrefs with no raw markdown links left.
 - 2026-04-20T07:59:29Z [planner] [C09] [PLANNED] Chose site-wide search index emission with owning-book labels as the next chunk after content-page rendering.
+- 2026-04-20T08:29:28Z [planner] [C10] [PLANNED] Chose a single top-level build workflow and CLI entrypoint as the next chunk before serve orchestration or repo-scale validation.
+- 2026-04-20T08:29:28Z [coordinator] [C10] [ACCEPTED] Accepted the planner artifact and activated C10 for implementation.
 - 2026-04-20T07:59:29Z [coordinator] [C09] [ACCEPTED] Accepted the planner artifact and activated C09 for implementation.
+- 2026-04-20T08:06:09Z [coordinator] [C09] [VERIFIED] Re-ran `cargo test --test search_index_example`, `cargo test --test search_index_invariants`, and `cargo test` successfully in the coordinator workspace.
+- 2026-04-20T08:06:09Z [coordinator] [C09] [COMMITTED] Developer worker created checkpoint commit `0384f15` with message `bookshelf: C09 iteration 1`.
+- 2026-04-20T08:09:08Z [reviewer-subagent] [C09] [APPROVED] Search index emission stays root-level and site-wide, uses canonical manifest `.html` hrefs, excludes the synthetic Bookshelf page, and carries owning-book labels from the existing page context.
+- 2026-04-20T08:09:08Z [coordinator] [C09] [CLOSED] Moved C09 to the ledger after verification passed and the strict subagent reviewer approved the initial iteration.
 - 2026-04-20T08:03:15Z [developer] [C09] [STARTED] Building the site-wide search index with canonical manifest hrefs and owning-book labels.
+- 2026-04-20T08:05:43Z [developer] [C09] [FINISHED] Emitted the site-wide search index, verified canonical hrefs and owning-book labels, and re-ran the required C09 tests.
+- 2026-04-20T08:07:39Z [reviewer-subagent] [C09] [APPROVED] Search index emission stays root-level and site-wide, uses canonical manifest `.html` hrefs, excludes the synthetic Bookshelf page, and carries owning-book labels from the existing page context.
+2026-04-20T08:29:28Z [planner] [C10] [PLANNED] Chose a single top-level build workflow and CLI entrypoint as the next chunk before serve orchestration or repo-scale validation.
+- 2026-04-20T08:33:55Z [developer] [C10] [STARTED] Wiring the single top-level build pipeline and CLI entrypoint over the existing bookshelf-owned library flow.

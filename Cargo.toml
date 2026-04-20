@@ -6,3 +6,7 @@ edition = "2021"
 [lib]
 name = "mdbook_bookshelf"
 path = "src/lib.rs"
+
+[[bin]]
+name = "mdbook-bookshelf"
+path = "src/main.rs"
