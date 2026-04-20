@@ -17,7 +17,9 @@ pub use render_manifest::{
     build_render_manifest, BuildRenderManifestError, RenderManifest, RenderedPageIdentity,
     RenderedPageManifestEntry,
 };
-pub use renderer::{render_bookshelf_root_page, RenderBookshelfRootError};
+pub use renderer::{
+    render_bookshelf_root_page, render_site, RenderBookshelfRootError, RenderSiteError,
+};
 pub use sidebar::{
     build_sidebar_model, BookSidebar, SidebarAffixEntry, SidebarChapter, SidebarModel,
 };
