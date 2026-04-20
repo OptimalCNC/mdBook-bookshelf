@@ -21,63 +21,62 @@
 ## Current State
 - Status: IN_PROGRESS
 - Current iteration: 7
-- Current chunk: C08
-- Next action: Implement the C08 review fix that resolves authored markdown body links through the render manifest.
+- Current chunk: C09
+- Next action: Emit a site-wide search index with owning-book labels.
 - Blockers:
   - Claude CLI review is currently unavailable in this environment because the CLI exits with `API Error: Unable to connect to API (ConnectionRefused)`.
 
 ## Active Chunk
 ```yaml
-chunk_id: C08
-title: Render authored content pages with bookshelf navigation chrome
-objective: Extend the renderer to emit authored page HTML at manifest-defined `.html` outputs, with mdBook-style shell structure, rendered markdown bodies, scoped sidebar navigation, breadcrumbs, Bookshelf return control, and within-book previous/next links.
-why_now: The root Bookshelf page is already rendering, and the remaining reader-facing acceptance criteria now depend on real authored page output rather than more model work.
+chunk_id: C09
+title: Emit site-wide search index with owning-book labels
+objective: Generate a root-level search index file from the rendered bookshelf site so search remains site-wide across authored pages and every result carries owning-book context.
+why_now: Search context is the smallest remaining reader-facing functional gap after content-page rendering, and it can be added without coupling in top-level CLI or serve orchestration.
 depends_on:
-  - C04
-  - C05
   - C06
-  - C07
+  - C08
 scope_in:
-  - Extend the renderer to write authored page HTML files at all manifest-defined authored outputs.
-  - Render authored markdown source into page body HTML for the current example fixtures.
-  - Reuse mdBook-style shell structure where practical for authored pages, including sidebar, content region, and navigation wrapper markup.
-  - Render the active book's sidebar only, using the existing sidebar model.
-  - Render breadcrumbs, visible Bookshelf return control, and previous/next links from the existing reader-context model.
-  - Add tests for representative root-book and non-root authored pages plus output invariants.
+  - Add a search-index model and emission API for the rendered bookshelf site.
+  - Generate one search document per authored page using canonical `.html` hrefs from the render manifest.
+  - Include owning-book label metadata for every search document.
+  - Extract searchable plain-text body content from authored page source or rendered content without indexing the synthetic Bookshelf page.
+  - Write a root-level `searchindex.json` file using mdBook-style placement and a stable bookshelf-owned schema.
+  - Add tests for the self-contained example and search-index invariants.
 scope_out:
-  - CSS/JS/theme asset bundling or full mdBook theme extraction.
-  - Search output and search result labeling.
   - Build CLI and serve workflow.
-  - Live reload/watch behavior.
+  - Client-side search UI wiring or JavaScript integration.
   - Repo-scale scenario rendering coverage.
+  - Asset/theme bundling changes beyond writing the search index file.
+  - Final whole-system validation.
 target_files:
+  - src/search.rs
   - src/renderer.rs
   - src/lib.rs
-  - tests/authored_page_html_example.rs
-  - tests/authored_page_html_invariants.rs
+  - tests/search_index_example.rs
+  - tests/search_index_invariants.rs
 implementation_tasks:
-  - Add an authored-page rendering entry point that consumes the existing site model, reader context, and render manifest.
-  - Convert authored markdown files into HTML body content suitable for the example fixtures.
-  - Render authored pages into a shared shell with sidebar, breadcrumb trail, Bookshelf return control, and prev/next navigation.
-  - Resolve relative hrefs from each authored page to the root Bookshelf page and adjacent authored pages using the render manifest.
-  - Keep the root-book Bookshelf sidebar entry as a dedicated affix region separate from authored chapter entries.
-  - Add example and invariant tests covering emitted files, scoped navigation, and canonical root-link behavior.
+  - Define search document structs for title, href, book label, and searchable body text.
+  - Implement a builder that derives search documents from authored pages, reader context, and render-manifest entries.
+  - Normalize every search href to the manifest-defined authored `.html` output path.
+  - Exclude the synthetic Bookshelf page from indexed documents while keeping all authored books in one site-wide index.
+  - Write `searchindex.json` to the site root alongside `index.html`.
+  - Add verification coverage for example content, owning-book labels, and canonical href invariants.
 acceptance_criteria:
-  - A new public API renders the self-contained example into a temporary output directory and writes `index.html` plus all 9 authored outputs from the render manifest, including `docs/index.html`, `docs/onboarding.html`, `docs/architecture.html`, `modules/parser/docs/index.html`, `modules/parser/docs/grammar.html`, `modules/parser/docs/runtime.html`, `modules/ui/docs/index.html`, `modules/ui/docs/navigation.html`, and `modules/ui/docs/diagnostics.html`.
-  - The rendered `modules/parser/docs/grammar.html` contains visible breadcrumb text `Example Parser / Grammar`, a visible `Bookshelf` return control targeting `../../../index.html`, a parser-only sidebar containing `Example Parser`, `Grammar`, and `Runtime`, a previous link to `index.html`, and a next link to `runtime.html`.
-  - The rendered `docs/onboarding.html` contains a root-book sidebar with a dedicated `Bookshelf` affix link targeting `../index.html`, plus authored root-book chapter entries `Example Core`, `Onboarding`, and `Architecture`, and does not include parser or UI sidebar entries.
-  - The rendered authored-page body HTML contains converted page content from source markdown for the example fixtures, including the authored page heading text for `Grammar` and `Onboarding`.
-  - Authored page rendering uses mdBook-style structural shell markers that later theme work can reuse, including `page-wrapper`, `sidebar`, `content`, and a navigation wrapper for previous/next links.
-  - Rendering this chunk does not create `bookshelf/index.html` or any authored output outside the existing manifest-defined paths.
+  - A new public API renders the self-contained example into a temporary output directory and writes a root-level `searchindex.json` file alongside `index.html`.
+  - The emitted `searchindex.json` contains exactly 9 search documents, one for each authored page in the self-contained example, and contains no synthetic `Bookshelf` page entry.
+  - The search document for `modules/parser/docs/grammar.html` has title `Grammar`, href `modules/parser/docs/grammar.html`, owning-book label `Example Parser`, and searchable body text containing fixture content from the Grammar page.
+  - The search document for `docs/onboarding.html` has title `Onboarding`, href `docs/onboarding.html`, owning-book label `Example Core`, and searchable body text containing fixture content from the Onboarding page.
+  - The emitted search index is site-wide across all three books in the example and includes at least one labeled document for `Example Core`, `Example Parser`, and `Example UI`.
+  - No search document href ends in `.md`, points to `/`, or points to any `bookshelf/` alias; all hrefs use canonical manifest-defined `.html` outputs.
 verification:
-  - command: "cargo test --test authored_page_html_example"
-    expect: "The self-contained example renders authored pages with converted content, scoped sidebars, breadcrumbs, Bookshelf return links, and book-local prev/next hrefs."
-  - command: "cargo test --test authored_page_html_invariants"
-    expect: "Authored-page outputs stay within manifest-defined paths, root-book affix behavior is preserved, and no `bookshelf/` alias output is emitted."
+  - command: "cargo test --test search_index_example"
+    expect: "The self-contained example emits `searchindex.json` with 9 authored-page documents, canonical `.html` hrefs, and owning-book labels."
+  - command: "cargo test --test search_index_invariants"
+    expect: "The search index excludes the synthetic Bookshelf page, remains site-wide across books, and contains no raw markdown or non-canonical hrefs."
 review_focus:
-  - Authored page HTML must be rendered directly from the bookshelf-owned models and manifest, not by post-processing stock mdBook HTML.
-  - Relative href generation must respect canonical root-only Bookshelf routing while preserving source-relative authored `.html` outputs.
-  - Sidebar rendering must remain strictly active-book scoped, with the root-book Bookshelf entry kept separate from authored chapter nodes.
+  - Search entries must be derived from the bookshelf-owned render model and canonical manifest, not from ad hoc path rewriting.
+  - Owning-book labels must come from the existing book context so cross-book search results are unambiguous.
+  - The search index file should follow mdBook-style root placement while preserving the user’s root-only Bookshelf routing and source-relative authored `.html` outputs.
 ```
 
 ## Chunk Ledger
@@ -95,6 +94,8 @@ review_focus:
   commits `70e1d7c`, `a81d747`; verification passed (`cargo test --test render_manifest_example`, `cargo test --test render_manifest_invariants`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
 - C07 `Render the synthetic Bookshelf root page`:
   commit `cf036fb`; verification passed (`cargo test --test bookshelf_root_html_example`, `cargo test --test bookshelf_root_html_invariants`, `cargo test`); reviewer-subagent approved; Claude CLI review remains environment-blocked.
+- C08 `Render authored content pages with bookshelf navigation chrome`:
+  commits `1c244fa`, `e34e1d6`; verification passed (`cargo test --test authored_page_html_example`, `cargo test --test authored_page_html_invariants`, `cargo test`); reviewer-subagent approved after review fixes; Claude CLI review remains environment-blocked.
 
 ## Final Validation
 - Pending
@@ -172,3 +173,11 @@ review_focus:
 - 2026-04-20T07:45:12Z [coordinator] [C08] [COMMITTED] Developer worker created checkpoint commit `1c244fa` with message `bookshelf: C08 iteration 1`.
 - 2026-04-20T07:49:46Z [reviewer-subagent] [C08] [CHANGES_REQUIRED] Authored markdown body links are emitted as raw `.md` targets instead of manifest-resolved `.html` outputs, so rendered content pages still contain broken in-body navigation.
 - 2026-04-20T07:50:36Z [coordinator] [C08] [CHANGES_REQUIRED] Synthesized a same-chunk fix request: resolve inline authored markdown links through the render manifest and add regression coverage for relative and absolute cross-book links.
+- 2026-04-20T07:58:01Z [coordinator] [C08] [VERIFIED] Re-ran `cargo test --test authored_page_html_example`, `cargo test --test authored_page_html_invariants`, and `cargo test` successfully after reconciling the C08 review-fix expectation.
+- 2026-04-20T07:58:01Z [coordinator] [C08] [COMMITTED] Created checkpoint commit `e34e1d6` with message `bookshelf: C08 iteration 2 review fixes` after completing the same-chunk review fix in the coordinator workspace.
+- 2026-04-20T07:59:57Z [reviewer-subagent] [C08] [APPROVED] Inline authored-body links now resolve through the render manifest for both relative and absolute targets, and regression coverage plus direct verification confirm canonical `.html` hrefs with no raw markdown links left.
+- 2026-04-20T07:59:57Z [coordinator] [C08] [CLOSED] Moved C08 to the ledger after verification passed and the strict subagent reviewer approved the review-fix iteration.
+- 2026-04-20T07:57:39Z [reviewer-subagent] [C08] [APPROVED] Inline authored-body links now resolve through the render manifest for both relative and absolute targets, and regression coverage plus direct verification confirm canonical `.html` hrefs with no raw markdown links left.
+- 2026-04-20T07:59:29Z [planner] [C09] [PLANNED] Chose site-wide search index emission with owning-book labels as the next chunk after content-page rendering.
+- 2026-04-20T07:59:29Z [coordinator] [C09] [ACCEPTED] Accepted the planner artifact and activated C09 for implementation.
+- 2026-04-20T08:03:15Z [developer] [C09] [STARTED] Building the site-wide search index with canonical manifest hrefs and owning-book labels.

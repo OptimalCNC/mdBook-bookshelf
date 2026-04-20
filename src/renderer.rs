@@ -5,6 +5,7 @@ use std::path::{Component, Path, PathBuf};
 
 use crate::reader_context::{AuthoredPageReaderContext, ReaderContextModel};
 use crate::render_manifest::{RenderManifest, RenderedPageIdentity, RenderedPageManifestEntry};
+use crate::search::{build_search_index, write_search_index, SearchIndexError};
 use crate::sidebar::{BookSidebar, SidebarChapter, SidebarModel};
 use crate::site_model::SiteModel;
 
@@ -71,6 +72,7 @@ pub enum RenderSiteError {
     MissingBookshelfManifestEntry { page_id: String },
     MissingAdjacentManifestEntry { source_path: PathBuf },
     MissingSidebar { book_id: String },
+    SearchIndex(SearchIndexError),
 }
 
 impl fmt::Display for RenderSiteError {
@@ -107,6 +109,7 @@ impl fmt::Display for RenderSiteError {
                     book_id
                 )
             }
+            Self::SearchIndex(error) => error.fmt(f),
         }
     }
 }
@@ -116,6 +119,7 @@ impl std::error::Error for RenderSiteError {
         match self {
             Self::BookshelfRoot(error) => Some(error),
             Self::Io { source, .. } => Some(source),
+            Self::SearchIndex(error) => Some(error),
             _ => None,
         }
     }
@@ -124,6 +128,12 @@ impl std::error::Error for RenderSiteError {
 impl From<RenderBookshelfRootError> for RenderSiteError {
     fn from(value: RenderBookshelfRootError) -> Self {
         Self::BookshelfRoot(value)
+    }
+}
+
+impl From<SearchIndexError> for RenderSiteError {
+    fn from(value: SearchIndexError) -> Self {
+        Self::SearchIndex(value)
     }
 }
 
@@ -213,6 +223,27 @@ pub fn render_site(
         written_paths.push(output_path);
     }
 
+    Ok(written_paths)
+}
+
+pub fn render_site_with_search_index(
+    output_dir: impl AsRef<Path>,
+    site_model: &SiteModel,
+    sidebar_model: &SidebarModel,
+    reader_context: &ReaderContextModel,
+    render_manifest: &RenderManifest,
+) -> Result<Vec<PathBuf>, RenderSiteError> {
+    let output_dir = output_dir.as_ref();
+    let mut written_paths = render_site(
+        output_dir,
+        site_model,
+        sidebar_model,
+        reader_context,
+        render_manifest,
+    )?;
+    let search_index = build_search_index(reader_context, render_manifest)?;
+    let search_index_path = write_search_index(output_dir, &search_index)?;
+    written_paths.push(search_index_path);
     Ok(written_paths)
 }
 
