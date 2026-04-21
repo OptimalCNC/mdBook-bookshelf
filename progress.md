@@ -34,9 +34,9 @@
 
 ## Current State
 - Status: READY_FOR_NEXT_CHUNK
-- Current iteration: CHUNK-009 implementation
-- Current chunk: CHUNK-009
-- Next action: integrate mdBook preprocessing into the approved HTML build pipeline before emission.
+- Current iteration: CHUNK-010 implementation
+- Current chunk: CHUNK-010
+- Next action: add a minimal runnable `build` command so the user can generate and review the rough site from the real handoff example.
 - Blockers: none recorded.
 
 ## Open Risks
@@ -48,59 +48,50 @@
 
 ## Active Chunk
 ```yaml
-chunk_id: CHUNK-009
-title: Integrate mdBook preprocessing into `build_html_site()` before HTML emission
-objective: Improve build-path fidelity by running per-book mdBook preprocessing on loaded books, `MDBook::preprocess_book`, so rendered pages are generated from mdBook-transformed content, not raw chapter inputs.
-why_now: The website build path exists; preprocessing is the smallest mdBook-first fidelity upgrade that materially affects output without expanding into search or full renderer replacement.
+chunk_id: CHUNK-010
+title: Add minimal CLI build command for rough-site review
+objective: Provide a single runnable command-line build entrypoint that invokes existing `build_html_site()` with a `bookshelf.toml` input and output directory, enabling immediate local site generation for review.
+why_now: The user wants to pause once a concrete local build command works; this is the smallest step to expose current build capabilities without expanding CLI scope.
 depends_on:
-  - CHUNK-001
-  - CHUNK-002
-  - CHUNK-003
-  - CHUNK-004
-  - CHUNK-005
-  - CHUNK-006
   - CHUNK-007B
   - CHUNK-008
+  - CHUNK-009
 mdbook_touchpoints:
-  - reuse: `MDBook::preprocess_book` on each already-loaded in-memory book
-  - reuse: projected per-book mdBook `Config` from `bookshelf.toml` to control preprocessing behavior
-  - avoid: no top-level `MDBook::build()` and no direct `mdbook_html::HtmlHandlebars` final renderer
+  - reuse: existing bookshelf-owned build pipeline and mdBook-driven load or preprocess integration
+  - avoid: no `MDBook::build()` top-level orchestration and no serve or watch subcommands
 scope_in:
-  - wire preprocessing stage into `build_html_site()` between load and site-model or render stages
-  - ensure preprocessing is executed deterministically per configured book order
-  - propagate preprocessing failures with book-scoped context
-  - update tests or fixtures to assert HTML output reflects preprocessed content effects
+  - implement one narrow CLI command path, build only, in `src/main.rs`
+  - accept explicit config path and destination dir arguments
+  - call `build_html_site()` and return non-zero exit on failure
+  - print concise success output including resolved output directory
+  - add one integration-style CLI smoke test for the handoff example workflow
 scope_out:
-  - no search or index work
-  - no serve or watch integration
-  - no major template or theme redesign
+  - no serve or watch support
+  - no additional subcommands unrelated to build
+  - no search features
 target_files:
-  - src/build_html.rs
-  - src/loader.rs
+  - src/main.rs
   - src/lib.rs
-  - tests/build_html_preprocess.rs
-  - tests/fixtures/build-html-preprocess/valid/bookshelf.toml
+  - tests/cli_build_smoke.rs
 implementation_tasks:
-  - add explicit preprocessing call in the build pipeline after per-book load
-  - pass projected config and renderer context needed for mdBook preprocessors
-  - thread preprocessed book data into the site-model or HTML rendering path
-  - add deterministic failure mapping for preprocessing errors by book id
-  - add fixture-backed smoke or regression checks that verify output changed by preprocessing stage
+  - define CLI argument contract for build command, e.g. `build --config <path> --dest <dir>`
+  - wire CLI handler to existing `build_html_site(config, dest)`
+  - ensure error propagation with stable, reviewable stderr messages
+  - add smoke test that runs the binary against handoff example `bookshelf.toml` and asserts emitted site files
 acceptance_criteria:
-  - `build_html_site()` executes mdBook preprocessing for each loaded book before rendering
-  - generated HTML content reflects preprocessed chapter content, not solely raw chapter text
-  - preprocessing failures return deterministic book-scoped errors
-  - build still succeeds for valid multi-book fixtures and preserves existing navigation chrome behavior
-  - chunk does not add search functionality
+  - user can run one concrete command locally to build a rough site from `bookshelf.toml`
+  - command exits 0 on success and writes site files into requested output dir
+  - command exits non-zero with deterministic error message on invalid input
+  - implementation remains build-only and does not add serve or watch breadth
 verification:
-  - command: `cargo test build_html_preprocess -- --exact`
-    expect: exits 0 and validates preprocessing effects plus deterministic preprocessor failure handling
-  - command: `cargo check --offline`
-    expect: exits 0
+  - command: `cargo test cli_build_smoke -- --exact`
+    expect: exits 0 and verifies command builds site artifacts from a fixture `bookshelf.toml`
+  - command: `cargo run -- build --config bookshelf/handoffs/examples/self-contained/bookshelf.toml --dest /tmp/mdbook-bookshelf-review`
+    expect: exits 0 and writes reviewable html output under `/tmp/mdbook-bookshelf-review`
 review_focus:
-  - preprocessing stage is truly mdBook-driven and not reimplemented manually
-  - `bookshelf.toml` to mdBook `Config` mapping materially influences preprocessing behavior
-  - pipeline ordering is correct: load -> preprocess -> site model or navigation -> HTML write
+  - CLI scope is intentionally narrow and build-only
+  - command path uses existing `build_html_site()` rather than duplicating pipeline logic
+  - user experience is sufficient for handoff review flow: one command, clear output path, deterministic failures
 ```
 
 ## Chunk Ledger
@@ -112,6 +103,7 @@ review_focus:
 - CHUNK-006 approved via commit `4b2a949`: added deterministic navigation metadata with strict intra-book prev/next boundaries, exact `Book / Page` breadcrumbs for content pages, and page-id-keyed active-book resolution for content plus synthetic Bookshelf pages, all without rendering logic. Verified with `cargo test navigation_metadata -- --exact` and `cargo check --offline`.
 - CHUNK-007B approved via commits `259f3b7` and `e95bbd6`: added the first working `build_html_site()` orchestration from `bookshelf.toml` through catalog/load/site-model/navigation into emitted HTML files, with minimal but material mdBook-config projection affecting output via per-page language and default-theme markers while preserving bookshelf-owned per-book titles. Verified with `cargo test build_html_site_smoke -- --exact` and `cargo check --offline`.
 - CHUNK-008 approved via commits `959cc3a` and `c03e7b2`: upgraded built HTML pages to render acceptance-critical navigation chrome from existing metadata, including visible Bookshelf return control, active-book-only sidebar, exact `Book / Page` breadcrumbs, and intra-book prev/next links with page-relative hrefs. Verified with `cargo test build_html_navigation_chrome -- --exact` and `cargo check --offline`.
+- CHUNK-009 approved via commits `23dfbc0` and `724db7f`: integrated mdBook preprocessing into `build_html_site()` before site-model or HTML emission, using projected preprocessor config and HTML-oriented renderer identity with deterministic book-scoped failure reporting, while keeping search deferred. Verified with `cargo test build_html_preprocess -- --exact` and `cargo check --offline`.
 
 ## Final Validation
 - Pending
@@ -180,6 +172,15 @@ review_focus:
 - 2026-04-21T03:35:00Z [developer] [CHUNK-009] [DONE] Added mdBook preprocessing into the HTML build pipeline with fixture-backed checks for include resolution and deterministic preprocess failure handling.
 - 2026-04-21T05:22:42Z [reviewer-subagent] [CHUNK-009] CHANGES_REQUIRED - Preprocessing is wired, but using renderer context `markdown` and a manual unresolved-include heuristic is the wrong fidelity boundary for an HTML build pipeline.
 - 2026-04-21T05:22:42Z [reviewer-claude] [CHUNK-009] APPROVED - preprocessing wired through `MDBook::preprocess_book` with projected config and book-scoped errors; test proves include resolution reaches HTML output.
+- 2026-04-21T06:15:00Z [developer] [CHUNK-009] [DONE] Switched preprocessing to HTML-oriented renderer identity, removed manual include heuristic, and revalidated preprocessing effects plus failure reporting.
+- 2026-04-21T06:23:28Z [reviewer-subagent] [CHUNK-009] APPROVED - Preprocessing now uses HTML renderer context with projected preprocessor config and deterministic book-scoped failures, and emitted content reflects mdBook-preprocessed chapter transforms.
+- 2026-04-21T06:23:28Z [reviewer-claude] [CHUNK-009] APPROVED - mdBook preprocessing is now invoked via `preprocess_book` with HTML renderer identity and projected preprocessor config; escaped-markdown emission remains an acceptable later rendering follow-up.
+- 2026-04-21T03:35:00Z [developer] [CHUNK-009] [DONE] Added mdBook preprocessing into the HTML build pipeline with fixture-backed checks for include resolution and deterministic preprocess failure handling.
+- 2026-04-21T06:23:28Z [reviewer-subagent] [CHUNK-009] APPROVED - Preprocessing now uses HTML renderer context with projected preprocessor config and deterministic book-scoped failures, and emitted content reflects mdBook-preprocessed chapter transforms.
+- 2026-04-21T06:23:28Z [reviewer-claude] [CHUNK-009] APPROVED - mdBook preprocessing is now invoked via `preprocess_book` with HTML renderer identity and projected preprocessor config; escaped-markdown emission remains an acceptable later rendering follow-up.
+- 2026-04-21T03:35:00Z [developer] [CHUNK-009] [DONE] Added mdBook preprocessing into the HTML build pipeline with fixture-backed checks for include resolution and deterministic preprocess failure handling.
+- 2026-04-21T05:22:42Z [reviewer-subagent] [CHUNK-009] CHANGES_REQUIRED - Preprocessing is wired, but using renderer context `markdown` and a manual unresolved-include heuristic is the wrong fidelity boundary for an HTML build pipeline.
+- 2026-04-21T05:22:42Z [reviewer-claude] [CHUNK-009] APPROVED - preprocessing wired through `MDBook::preprocess_book` with projected config and book-scoped errors; test proves include resolution reaches HTML output.
 - 2026-04-20T15:18:45Z [developer] [CHUNK-002] [DONE] Added strict typed config loader/validation and passing parse tests for valid, duplicate-id, missing-root, and empty-catalog cases.
 - 2026-04-20T15:32:00Z [reviewer-subagent] [CHUNK-002] CHANGES_REQUIRED - Handwritten line parser is not TOML-compliant and can reject valid coexisting mdBook tables (non-quoted values, inline comments, escaping), so config fidelity is not met.
 - 2026-04-20T15:24:29Z [developer] [CHUNK-002] [STARTED] Began review-fix to replace line parsing with TOML deserialization and add regression coverage for comments and quoting semantics.
@@ -231,8 +232,12 @@ review_focus:
 - 2026-04-21T12:02:00Z [reviewer-subagent] [CHUNK-008] APPROVED - Navigation chrome is metadata-driven and acceptance-critical invariants pass; current root-relative hrefs are acceptable interim output-path links for this pre-base-url stage.
 - 2026-04-21T12:16:00Z [reviewer-subagent] [CHUNK-008] APPROVED - Navigation chrome now uses page-relative hrefs and removes debug-only content lines while preserving metadata-driven sidebar, breadcrumb, and intra-book prev/next behavior.
 - 2026-04-21T03:27:57Z [planner] [CHUNK-009] [DONE] Selected minimal next chunk: run mdBook preprocessing (`MDBook::preprocess_book`) per loaded book within `build_html_site()` so emitted HTML reflects mdBook-transformed content before rendering.
+- 2026-04-21T06:26:14Z [planner] [CHUNK-010] [DONE] Selected minimal next chunk: add a narrow CLI build entrypoint so users can run one concrete command to generate the rough review site from a handoff `bookshelf.toml`.
 - 2026-04-21T03:34:31Z [developer] [CHUNK-009] [STARTED] Began build-pipeline preprocessing integration using `MDBook::preprocess_book` with deterministic per-book error attribution.
 - 2026-04-21T03:34:31Z [developer] [CHUNK-009] [DONE] Wired deterministic load->preprocess->render flow, emitted preprocessed chapter content, and added preprocess success/failure fixture coverage.
 - 2026-04-21T05:23:39Z [developer] [CHUNK-009] [STARTED] Began review-fix to switch preprocess context to HTML renderer semantics and remove manual include-string failure heuristics.
 - 2026-04-21T05:27:11Z [developer] [CHUNK-009] [DONE] Switched to HTML renderer preprocess context, removed manual include heuristic, and kept deterministic book-scoped preprocess failure attribution.
 - 2026-04-21T12:30:00Z [reviewer-subagent] [CHUNK-009] CHANGES_REQUIRED - Preprocessing is wired, but using renderer context `markdown` (and a manual unresolved-include heuristic) is the wrong fidelity boundary for an HTML build pipeline; renderer context should be HTML-driven.
+- 2026-04-21T13:40:00Z [reviewer-subagent] [CHUNK-009] APPROVED - Preprocessing now uses HTML renderer context with projected preprocessor config and deterministic book-scoped failures, and emitted content reflects mdBook-preprocessed chapter transforms.
+- 2026-04-21T06:28:03Z [developer] [CHUNK-010] [STARTED] Began minimal build-only CLI implementation and handoff-example command smoke coverage.
+- 2026-04-21T06:30:11Z [developer] [CHUNK-010] [DONE] Added build-only CLI command path, validated handoff-example build command, and confirmed emitted review-site artifacts.
