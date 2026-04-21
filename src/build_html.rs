@@ -3,6 +3,9 @@ use crate::build_navigation_metadata;
 use crate::build_site_model;
 use crate::config_projection::project_book_configs;
 use crate::load_books_from_catalog;
+use crate::render_html::{
+    ContentPageRenderInput, RootBookLink, SidebarItem, render_content_page, render_root_page,
+};
 use anyhow::{Context, Result};
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -28,6 +31,16 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
         .iter()
         .map(|p| (p.book_id.as_str(), &p.config))
         .collect();
+    let books_by_id: BTreeMap<_, _> = site_model
+        .books
+        .iter()
+        .map(|book| (book.book_id.as_str(), book))
+        .collect();
+    let pages_by_id: BTreeMap<_, _> = site_model
+        .pages
+        .iter()
+        .map(|page| (page.page_id.as_str(), page))
+        .collect();
     let mut content_output_paths = BTreeMap::new();
     for page in &site_model.pages {
         if let Some(order) = page.order_in_book {
@@ -52,6 +65,9 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
         let nav_page = nav
             .for_page(&page.page_id)
             .ok_or_else(|| anyhow::anyhow!("missing navigation metadata for '{}'", page.page_id))?;
+        let active_book = books_by_id
+            .get(page.owning_book_id.as_str())
+            .ok_or_else(|| anyhow::anyhow!("missing active book '{}'", page.owning_book_id))?;
         let projected_cfg = projected_by_book
             .get(page.owning_book_id.as_str())
             .ok_or_else(|| anyhow::anyhow!("missing projected config for '{}'", page.owning_book_id))?;
@@ -65,33 +81,48 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
         let prev_link = nav_page.prev_page_id.as_ref().and_then(|id| {
             content_output_paths
                 .get(id)
-                .map(|path| format!("<a href=\"/{}\">Prev</a>", escape_html(path)))
+                .map(|path| format!("/{}", path))
         });
         let next_link = nav_page.next_page_id.as_ref().and_then(|id| {
             content_output_paths
                 .get(id)
-                .map(|path| format!("<a href=\"/{}\">Next</a>", escape_html(path)))
+                .map(|path| format!("/{}", path))
         });
 
-        let html = format!(
-            "<!doctype html><html lang=\"{}\"><head><meta charset=\"utf-8\"><title>{}</title></head>\
-             <body data-mdbook-default-theme=\"{}\"><h1>{}</h1><p>{}</p><p>Book {}</p><p>Order {}</p>\
-             <nav>{} {}</nav></body></html>",
-            escape_html(html_lang),
-            escape_html(&page.title),
-            escape_html(&default_theme),
-            escape_html(&page.title),
-            escape_html(nav_page.breadcrumb.as_deref().unwrap_or("")),
-            escape_html(&page.owning_book_id),
+        let mut sidebar_items = Vec::new();
+        for book_page_id in &active_book.page_ids_in_order {
+            let sidebar_rel = content_output_paths
+                .get(book_page_id)
+                .ok_or_else(|| anyhow::anyhow!("missing output path for '{}'", book_page_id))?;
+            let sidebar_page = pages_by_id
+                .get(book_page_id.as_str())
+                .ok_or_else(|| anyhow::anyhow!("missing site page '{}'", book_page_id))?;
+            sidebar_items.push(SidebarItem {
+                page_id: book_page_id.clone(),
+                href: format!("/{}", sidebar_rel),
+                title: sidebar_page.title.clone(),
+                is_active: *book_page_id == page.page_id,
+            });
+        }
+
+        let html = render_content_page(&ContentPageRenderInput {
+            html_lang: html_lang.to_string(),
+            default_theme,
+            page_title: page.title.clone(),
+            page_id: page.page_id.clone(),
+            owning_book_id: page.owning_book_id.clone(),
+            breadcrumb: nav_page.breadcrumb.clone().unwrap_or_default(),
             order,
-            prev_link.unwrap_or_default(),
-            next_link.unwrap_or_default(),
-        );
+            bookshelf_href: "/index.html".to_string(),
+            sidebar_items,
+            prev_href: prev_link,
+            next_href: next_link,
+        });
         std::fs::write(&file_path, html)
             .with_context(|| format!("failed to write {}", file_path.display()))?;
     }
 
-    let mut book_list_items = String::new();
+    let mut book_links = Vec::new();
     for book in &site_model.books {
         let first_link = book
             .page_ids_in_order
@@ -99,12 +130,11 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
             .and_then(|id| content_output_paths.get(id))
             .map(|path| format!("/{}", path))
             .unwrap_or_else(|| "/".to_string());
-        book_list_items.push_str(&format!(
-            "<li data-book-id=\"{}\"><a href=\"{}\">{}</a></li>",
-            escape_html(&book.book_id),
-            escape_html(&first_link),
-            escape_html(&book.title)
-        ));
+        book_links.push(RootBookLink {
+            book_id: book.book_id.clone(),
+            href: first_link,
+            title: book.title.clone(),
+        });
     }
     let root_projected_cfg = projected_by_book
         .get(site_model.root_book_id.as_str())
@@ -115,30 +145,9 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
         .ok()
         .flatten()
         .unwrap_or_else(|| "light".to_string());
-    let root_html = format!(
-        "<!doctype html><html lang=\"{}\"><head><meta charset=\"utf-8\"><title>Bookshelf</title></head>\
-         <body data-mdbook-default-theme=\"{}\"><h1>Bookshelf</h1><ul>{}</ul></body></html>",
-        escape_html(root_lang),
-        escape_html(&root_theme),
-        book_list_items
-    );
+    let root_html = render_root_page(root_lang, &root_theme, &book_links);
     std::fs::write(output_dir.join("index.html"), root_html)
         .with_context(|| format!("failed to write {}", output_dir.join("index.html").display()))?;
 
     Ok(())
-}
-
-fn escape_html(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    for ch in input.chars() {
-        match ch {
-            '&' => out.push_str("&amp;"),
-            '<' => out.push_str("&lt;"),
-            '>' => out.push_str("&gt;"),
-            '"' => out.push_str("&quot;"),
-            '\'' => out.push_str("&#39;"),
-            _ => out.push(ch),
-        }
-    }
-    out
 }

@@ -33,10 +33,10 @@
 - Coordinator: orchestrates and may commit on behalf of the developer when needed.
 
 ## Current State
-- Status: REPLANNING_PER_USER_PRIORITY
-- Current iteration: CHUNK-007B planning complete
-- Current chunk: CHUNK-007B
-- Next action: execute the first working HTML build path chunk and keep CHUNK-007 search-model work deferred until after website build exists.
+- Status: READY_FOR_NEXT_CHUNK
+- Current iteration: CHUNK-008 implementation
+- Current chunk: CHUNK-008
+- Next action: improve built HTML pages with acceptance-critical navigation chrome driven by existing metadata.
 - Blockers: none recorded.
 
 ## Open Risks
@@ -48,10 +48,10 @@
 
 ## Active Chunk
 ```yaml
-chunk_id: CHUNK-007B
-title: Add first working `build_html_site()` orchestration with mdBook-config projection
-objective: Implement the smallest end-to-end HTML build entrypoint that consumes `bookshelf.toml`, projects per-book minimal mdBook `Config`, and writes a basic multi-book website output from existing site/navigation models.
-why_now: User priority now requires a first working website build before search, and this chunk establishes the core build path analogous to mdBook flow without jumping to full renderer parity.
+chunk_id: CHUNK-008
+title: Render navigation chrome from existing metadata in built HTML pages
+objective: Improve website build fidelity by wiring current site/navigation metadata into generated page chrome: Bookshelf return control, active-book-scoped sidebar, `Book / Page` breadcrumbs, and book-bounded prev/next links.
+why_now: The first build path exists; this is the smallest high-impact step to make output behavior align with acceptance criteria without introducing search or full theme parity.
 depends_on:
   - CHUNK-001
   - CHUNK-002
@@ -59,48 +59,48 @@ depends_on:
   - CHUNK-004
   - CHUNK-005
   - CHUNK-006
+  - CHUNK-007B
 mdbook_touchpoints:
-  - reuse: `MDBook::load_with_config_and_summary` loaded outputs from the existing pipeline
-  - reuse: project `bookshelf.toml` overlays into per-book mdBook `Config` such as `book.src` and applicable optional tables
-  - reuse: mdBook-like html destination semantics via `build_dir_for("html")`-compatible convention
-  - avoid: no top-level `MDBook::build()` orchestration and no direct `mdbook_html::HtmlHandlebars` as the final site renderer
+  - reuse: existing bookshelf-owned `SiteModel` and `NavigationMetadata` as rendering inputs
+  - reuse: `build_html_site()` pipeline and mdBook-config projection already in place
+  - avoid: no top-level `MDBook::build()` and no direct `mdbook_html::HtmlHandlebars` final rendering
 scope_in:
-  - add `build_html_site()` API that runs config -> catalog -> load -> site-model -> navigation -> write-output orchestration
-  - implement minimal per-book config projection from `bookshelf.toml` into mdBook config structs
-  - write first working HTML artifacts: root `index.html` for the Bookshelf page and content page html files for loaded chapters
-  - ensure output directory layout is deterministic and cleanly reproducible
-  - add one integration-style test proving a non-empty HTML site is emitted from fixture input
+  - update HTML rendering layer to include a visible Bookshelf return control on every content page
+  - render sidebar entries scoped to active book only, excluding other books' chapter trees
+  - render breadcrumbs in exact `Book / Page` format on content pages
+  - render prev/next links from existing book-scoped navigation metadata
+  - add focused build-output assertions for these chrome elements
 scope_out:
-  - no search index or result-label implementation
-  - no full mdBook theme parity or advanced template system
-  - no serve/watch command integration yet
+  - no search model, index, or result labeling
+  - no serve/watch integration
+  - no full mdBook theme or assets parity
 target_files:
   - src/build_html.rs
-  - src/config_projection.rs
+  - src/render_html.rs
   - src/lib.rs
-  - tests/build_html_site_smoke.rs
-  - tests/fixtures/build-html/valid/bookshelf.toml
+  - tests/build_html_navigation_chrome.rs
+  - tests/fixtures/build-html-nav/valid/bookshelf.toml
 implementation_tasks:
-  - define `build_html_site(config_path, output_dir)` entrypoint and pipeline wiring
-  - map applicable `bookshelf.toml` sections into per-book minimal mdBook `Config`
-  - render minimal bookshelf-owned HTML shell pages from existing site/navigation data, root bookshelf plus chapter pages
-  - emit deterministic file paths and basic cross-links sufficient for a working website smoke check
-  - add smoke test asserting expected files exist and contain key markers
+  - thread active-page navigation context into page rendering
+  - emit Bookshelf return control markup on each content page
+  - emit active-book-only sidebar tree markup for each content page
+  - emit breadcrumb and prev/next markup using deterministic metadata from CHUNK-006
+  - add integration-style fixture test that inspects generated HTML files for required chrome semantics
 acceptance_criteria:
-  - running `build_html_site()` on a valid fixture produces an output directory with root `index.html`
-  - output includes at least one rendered content page per configured content book
-  - build path uses `bookshelf.toml` as source of truth and projects applicable config into mdBook config objects
-  - top-level orchestration does not invoke `MDBook::build()` and does not rely on stock `HtmlHandlebars` renderer
-  - chunk remains pre-search and does not add search model or index generation
+  - every generated content page contains a visible Bookshelf return control linking to root bookshelf page
+  - content-page sidebar shows only the active book's pages, with no cross-book sidebar pollution
+  - content pages render breadcrumbs exactly as `Book / Page`
+  - prev/next links exist only within the same book and respect first/last boundaries
+  - chunk introduces no search or index logic
 verification:
-  - command: `cargo test build_html_site_smoke -- --exact`
-    expect: exits 0 and verifies generated html files for root bookshelf page plus multiple content books
+  - command: `cargo test build_html_navigation_chrome -- --exact`
+    expect: exits 0 and validates return control, scoped sidebar, breadcrumb format, and intra-book prev/next behavior in generated HTML
   - command: `cargo check --offline`
     expect: exits 0
 review_focus:
-  - build orchestration is mdBook-first but bookshelf-owned at top level
-  - config projection fidelity from `bookshelf.toml` to per-book mdBook config is explicit and minimal
-  - emitted site is truly end-to-end working, files written and basically navigable, without overreaching into full rendering or search
+  - renderer fidelity improvements are strictly driven by existing metadata, not ad hoc HTML heuristics
+  - acceptance-critical navigation chrome now appears in built pages without cross-book leakage
+  - scope remains website-build fidelity only, with search still deferred
 ```
 
 ## Chunk Ledger
@@ -110,6 +110,7 @@ review_focus:
 - CHUNK-004 approved via commits `963f4bc` and `5d71ebd`: added deterministic multi-book loading into parsed canonical `Summary` plus in-memory `MDBook`, threading one parsed summary through `MDBook::load_with_config_and_summary`, and passing coverage for successful multi-book load, malformed-summary parse failure, and mdBook-load failure with book-scoped context. Verified with `cargo test multi_book_load -- --exact` and `cargo check --offline`.
 - CHUNK-005 approved via commits `66ca7d6` and `5dc7bb3`: added the first explicit bookshelf-owned site model with deterministic per-book ownership/order metadata and exactly one synthetic root `Bookshelf` page generated in memory, owned by the configured root book and excluded from content-book page order. Verified with `cargo test site_model_build -- --exact` and `cargo check --offline`.
 - CHUNK-006 approved via commit `4b2a949`: added deterministic navigation metadata with strict intra-book prev/next boundaries, exact `Book / Page` breadcrumbs for content pages, and page-id-keyed active-book resolution for content plus synthetic Bookshelf pages, all without rendering logic. Verified with `cargo test navigation_metadata -- --exact` and `cargo check --offline`.
+- CHUNK-007B approved via commits `259f3b7` and `e95bbd6`: added the first working `build_html_site()` orchestration from `bookshelf.toml` through catalog/load/site-model/navigation into emitted HTML files, with minimal but material mdBook-config projection affecting output via per-page language and default-theme markers while preserving bookshelf-owned per-book titles. Verified with `cargo test build_html_site_smoke -- --exact` and `cargo check --offline`.
 
 ## Final Validation
 - Pending
@@ -166,6 +167,9 @@ review_focus:
 - 2026-04-21T02:31:36Z [developer] [CHUNK-007B] [DONE] Added first working HTML build orchestration with config projection and fixture-backed smoke validation for root plus multi-book content pages.
 - 2026-04-21T02:36:57Z [reviewer-subagent] [CHUNK-007B] CHANGES_REQUIRED - Projected per-book mdBook `Config` is currently decorative rather than driving load/preprocess/build behavior, so config-projection fidelity is not materially realized.
 - 2026-04-21T02:36:57Z [reviewer-claude] [CHUNK-007B] CHANGES_REQUIRED - global `[book]` table is projected identically onto every book, breaking per-book titles on the Bookshelf landing page and masked by a too-lax smoke test.
+- 2026-04-21T02:40:20Z [developer] [CHUNK-007B] [DONE] Made projected mdBook config materially affect emitted HTML, preserved distinct per-book bookshelf titles, and tightened build smoke coverage.
+- 2026-04-21T02:43:46Z [reviewer-subagent] [CHUNK-007B] APPROVED - Projected mdBook config now materially affects emitted HTML (lang/theme) while preserving bookshelf-owned per-book titles; minimal projection scope is acceptable for this first build chunk.
+- 2026-04-21T02:43:46Z [reviewer-claude] [CHUNK-007B] APPROVED - minimal end-to-end HTML build is real, deterministic, and mdBook-first via projected Config while honoring declared scope and avoid constraints.
 - 2026-04-20T15:18:45Z [developer] [CHUNK-002] [DONE] Added strict typed config loader/validation and passing parse tests for valid, duplicate-id, missing-root, and empty-catalog cases.
 - 2026-04-20T15:32:00Z [reviewer-subagent] [CHUNK-002] CHANGES_REQUIRED - Handwritten line parser is not TOML-compliant and can reject valid coexisting mdBook tables (non-quoted values, inline comments, escaping), so config fidelity is not met.
 - 2026-04-20T15:24:29Z [developer] [CHUNK-002] [STARTED] Began review-fix to replace line parsing with TOML deserialization and add regression coverage for comments and quoting semantics.
@@ -198,6 +202,7 @@ review_focus:
 - 2026-04-21T01:48:02Z [planner] [CHUNK-006] [DONE] Selected minimal next chunk: derive deterministic navigation metadata (book-scoped prev/next, `Book / Page` breadcrumbs, and active-book context resolution) from the site model without rendering.
 - 2026-04-21T01:55:24Z [planner] [CHUNK-007] [DONE] Selected minimal next chunk: build renderer-agnostic site-wide search document model with required owning-book labels from the current site and navigation metadata.
 - 2026-04-21T02:24:51Z [planner] [CHUNK-007B] [DONE] Re-prioritized next chunk to first working HTML build path: implement bookshelf-owned `build_html_site()` orchestration and minimal per-book mdBook `Config` projection, deferring search.
+- 2026-04-21T02:44:51Z [planner] [CHUNK-008] [DONE] Selected minimal next chunk: upgrade HTML build fidelity by rendering navigation chrome from existing metadata (Bookshelf return control, scoped sidebar, breadcrumbs, and book-bounded prev/next).
 - 2026-04-21T01:49:25Z [developer] [CHUNK-006] [STARTED] Began navigation-metadata implementation for book-scoped prev/next, `Book / Page` breadcrumbs, and active-book target resolution.
 - 2026-04-21T01:52:14Z [developer] [CHUNK-006] [DONE] Added deterministic renderer-agnostic navigation metadata with book-scoped prev/next, `Book / Page` breadcrumbs, and active-book resolution.
 - 2026-04-21T11:18:00Z [reviewer-subagent] [CHUNK-006] APPROVED - Navigation metadata enforces book-scoped prev/next with exact `Book / Page` breadcrumbs; page-id keyed active-book resolution is sufficient at this pre-route stage.
@@ -209,3 +214,6 @@ review_focus:
 - 2026-04-21T11:35:00Z [reviewer-subagent] [CHUNK-007B] CHANGES_REQUIRED - Projected per-book mdBook `Config` is currently decorative (used mainly for root title text) rather than driving load/preprocess/build behavior, so config-projection fidelity is not materially realized.
 - 2026-04-21T02:38:04Z [developer] [CHUNK-007B] [STARTED] Began review-fix to make projected mdBook config materially drive emitted HTML behavior and preserve distinct bookshelf per-book titles.
 - 2026-04-21T02:40:11Z [developer] [CHUNK-007B] [DONE] Made projected config materially affect emitted HTML (lang/theme), preserved per-book bookshelf titles, and tightened smoke assertions.
+- 2026-04-21T11:48:00Z [reviewer-subagent] [CHUNK-007B] APPROVED - Projected mdBook config now materially affects emitted HTML (lang/theme) while preserving bookshelf-owned per-book titles; minimal projection scope is acceptable for this first build chunk.
+- 2026-04-21T02:46:19Z [developer] [CHUNK-008] [STARTED] Began HTML navigation chrome rendering upgrade using existing site/navigation metadata with active-book scoped output.
+- 2026-04-21T02:50:09Z [developer] [CHUNK-008] [DONE] Rendered navigation chrome from metadata (Bookshelf return, active-book sidebar, breadcrumbs, and book-bounded prev/next) with passing build output checks.

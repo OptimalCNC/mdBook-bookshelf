@@ -6,6 +6,7 @@ pub mod navigation;
 pub mod search_model;
 pub mod config_projection;
 pub mod build_html;
+pub mod render_html;
 
 pub use catalog::{InputBook, InputCatalog, build_input_catalog};
 pub use config::{BookshelfBook, BookshelfConfig, load_bookshelf_config};
