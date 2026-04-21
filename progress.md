@@ -29,9 +29,9 @@
 
 ## Current State
 - Status: READY_FOR_NEXT_CHUNK
-- Current iteration: CHUNK-005 implementation
-- Current chunk: CHUNK-005
-- Next action: build the first explicit bookshelf-owned site model on top of the approved multi-book loader.
+- Current iteration: CHUNK-006 implementation
+- Current chunk: CHUNK-006
+- Next action: derive deterministic navigation metadata from the approved bookshelf-owned site model.
 - Blockers: none recorded.
 
 ## Open Risks
@@ -42,54 +42,57 @@
 
 ## Active Chunk
 ```yaml
-chunk_id: CHUNK-005
-title: Build deterministic bookshelf-owned site model from loaded books
-objective: Create the first explicit bookshelf site model that captures book/page ownership and deterministic per-book reading-order metadata, including a synthetic root `Bookshelf` page placeholder generated in memory.
-why_now: This is the smallest bookshelf-owned layer required after loading, and it directly enables later navigation/breadcrumb/prev-next/search-label work without jumping to rendering.
+chunk_id: CHUNK-006
+title: Derive deterministic navigation metadata from the bookshelf site model
+objective: Add a navigation-metadata layer that computes book-scoped prev/next links, `Book / Page` breadcrumbs, and active-book context resolution for direct page targets using the existing site model.
+why_now: This is the smallest acceptance-critical step after site modeling and before search/rendering, and it encodes core reader behavior without introducing HTML concerns.
 depends_on:
   - CHUNK-001
   - CHUNK-002
   - CHUNK-003
   - CHUNK-004
+  - CHUNK-005
 mdbook_touchpoints:
-  - reuse: consume CHUNK-004 outputs (`Summary` + in-memory `MDBook`) as upstream mdBook-loaded inputs
-  - avoid: no `MDBook::build()`, no `mdbook_html::HtmlHandlebars`, no HTML emission
+  - reuse: consume bookshelf-owned site model built from mdBook-loaded book/page ownership/order metadata
+  - avoid: no `MDBook::build()`, no `mdbook_html` renderer usage, no template/HTML output
 scope_in:
-  - define typed site-model structs for books, pages, ownership, and deterministic intra-book reading order
-  - derive per-page records from loaded book chapters with stable book/page ids
-  - create synthetic root `Bookshelf` page node in memory and assign ownership to configured root book
-  - ensure model encodes that `Bookshelf` is not a selectable content book entry
-  - add focused tests for model shape and deterministic ordering
+  - define typed navigation metadata structs keyed by page identity
+  - compute prev/next strictly within each owning book's deterministic page order
+  - compute breadcrumbs in the exact shape `Book / Page` for content pages
+  - resolve active-book context for direct content-page targets and root synthetic Bookshelf target
+  - add focused tests for deterministic navigation invariants across multi-book fixtures
 scope_out:
-  - no navigation/breadcrumb/prev-next link computation
-  - no search indexing/labeling behavior
-  - no renderer/templates/build/serve commands
+  - no sidebar HTML generation
+  - no route/url rendering decisions
+  - no search index or result labeling
+  - no top-level build/serve workflow wiring
 target_files:
-  - src/site_model.rs
+  - src/navigation.rs
   - src/lib.rs
-  - tests/site_model_build.rs
-  - tests/fixtures/site-model/valid/bookshelf.toml
+  - tests/navigation_metadata.rs
+  - tests/fixtures/navigation/valid/bookshelf.toml
 implementation_tasks:
-  - add `build_site_model(...)` API that consumes validated config/catalog + loaded books
-  - map mdBook chapter data into normalized page descriptors keyed by owning book id
-  - record per-book linear page order metadata for later prev/next derivation
-  - inject synthetic root `Bookshelf` placeholder page with deterministic route/id and explicit root-book ownership
-  - add regression tests asserting deterministic book order, page ownership, and synthetic-page invariants
+  - add `build_navigation_metadata(site_model)` returning per-page nav context
+  - enforce per-book prev/next boundaries so transitions never cross books
+  - emit breadcrumb tokens/strings with exact `Book / Page` semantics from site-model metadata
+  - add active-book resolver for page lookups, including direct-link entry behavior
+  - add deterministic tests for first/last-page boundaries, cross-book isolation, and breadcrumb format
 acceptance_criteria:
-  - site model builds successfully from a valid multi-book loaded input set
-  - model includes exactly one synthetic root `Bookshelf` page generated in memory
-  - synthetic `Bookshelf` page is owned by configured root book and not represented as a content-book entry
-  - every loaded content page is assigned to exactly one owning book with deterministic intra-book order
-  - chunk introduces no rendering, HTML output, or build/serve behavior
+  - every content page receives navigation metadata with owning-book-scoped prev/next only
+  - first and last page in each book correctly produce missing prev or next, respectively
+  - no prev/next edge crosses book boundaries
+  - breadcrumbs for content pages are exactly `Book / Page`
+  - active-book context resolution is deterministic for direct content-page targets
+  - chunk introduces no rendering, HTML, or serve/build behavior
 verification:
-  - command: `cargo test site_model_build -- --exact`
-    expect: exits 0 and validates synthetic Bookshelf page plus deterministic ownership/order invariants
+  - command: `cargo test navigation_metadata -- --exact`
+    expect: exits 0 and validates book-scoped prev/next, breadcrumb format, and active-book resolution
   - command: `cargo check --offline`
     expect: exits 0
 review_focus:
-  - site model is bookshelf-owned and explicit, not implicit mdBook HTML assumptions
-  - synthetic root page semantics match acceptance constraints: `Bookshelf` in-memory, root-owned, non-content-book
-  - deterministic ordering and ownership metadata is sufficient for the next navigation chunk without over-design
+  - strict book-boundary enforcement for prev/next navigation
+  - breadcrumb shape matches acceptance requirement exactly: `Book / Page`
+  - navigation metadata is renderer-agnostic and remains pre-HTML
 ```
 
 ## Chunk Ledger
@@ -97,6 +100,7 @@ review_focus:
 - CHUNK-002 approved via commits `4473c11` and `e0aafec`: added typed `bookshelf.toml` loading with TOML-native deserialization, structural validation for catalog/root/path invariants, and passing regression coverage for standard mdBook tables, inline comments, escaped quotes, duplicate IDs, missing root membership, and empty catalogs. Verified with `cargo test bookshelf_config_parse -- --exact` and `cargo check --offline`.
 - CHUNK-003 approved via commits `55d1cb5`, `6181cd6`, and `5027c6c`: added a validated multi-book input catalog with canonical configured-summary ownership checks, deterministic root/src normalization including top-level `docs/` roots, and passing coverage for valid nested/top-level layouts plus missing or wrong-location summary cases. Verified with `cargo test input_catalog_build -- --exact` and `cargo check --offline`.
 - CHUNK-004 approved via commits `963f4bc` and `5d71ebd`: added deterministic multi-book loading into parsed canonical `Summary` plus in-memory `MDBook`, threading one parsed summary through `MDBook::load_with_config_and_summary`, and passing coverage for successful multi-book load, malformed-summary parse failure, and mdBook-load failure with book-scoped context. Verified with `cargo test multi_book_load -- --exact` and `cargo check --offline`.
+- CHUNK-005 approved via commits `66ca7d6` and `5dc7bb3`: added the first explicit bookshelf-owned site model with deterministic per-book ownership/order metadata and exactly one synthetic root `Bookshelf` page generated in memory, owned by the configured root book and excluded from content-book page order. Verified with `cargo test site_model_build -- --exact` and `cargo check --offline`.
 
 ## Final Validation
 - Pending
@@ -141,6 +145,9 @@ review_focus:
 - 2026-04-21T01:40:00Z [developer] [CHUNK-005] [DONE] Added deterministic bookshelf-owned site model with one synthetic root Bookshelf page and per-book ownership/order metadata plus passing site-model checks.
 - 2026-04-21T01:42:02Z [reviewer-subagent] [CHUNK-005] APPROVED - Site model is explicit and deterministic with exactly one root-owned synthetic Bookshelf page; current content route/id format is acceptable as internal placeholder metadata for this pre-navigation chunk.
 - 2026-04-21T01:42:02Z [reviewer-claude] [CHUNK-005] CHANGES_REQUIRED - `SitePage.route` adds out-of-scope URL semantics and a latent `/` collision with the synthetic Bookshelf; defer routing to the navigation chunk.
+- 2026-04-21T01:44:08Z [developer] [CHUNK-005] [DONE] Removed route metadata from the site model and revalidated synthetic-page plus ownership/order invariants.
+- 2026-04-21T01:46:45Z [reviewer-subagent] [CHUNK-005] APPROVED - Route metadata was removed as requested; model remains deterministic and focused on ownership/order plus synthetic Bookshelf invariants.
+- 2026-04-21T01:46:45Z [reviewer-claude] [CHUNK-005] APPROVED - model cleanly captures ownership plus deterministic order with synthetic root and no out-of-scope routing concerns.
 - 2026-04-20T15:18:45Z [developer] [CHUNK-002] [DONE] Added strict typed config loader/validation and passing parse tests for valid, duplicate-id, missing-root, and empty-catalog cases.
 - 2026-04-20T15:32:00Z [reviewer-subagent] [CHUNK-002] CHANGES_REQUIRED - Handwritten line parser is not TOML-compliant and can reject valid coexisting mdBook tables (non-quoted values, inline comments, escaping), so config fidelity is not met.
 - 2026-04-20T15:24:29Z [developer] [CHUNK-002] [STARTED] Began review-fix to replace line parsing with TOML deserialization and add regression coverage for comments and quoting semantics.
@@ -169,3 +176,7 @@ review_focus:
 - 2026-04-21T10:55:00Z [reviewer-subagent] [CHUNK-005] APPROVED - Site model is explicit and deterministic with exactly one root-owned synthetic Bookshelf page; current content route/id format is acceptable as internal placeholder metadata for this pre-navigation chunk.
 - 2026-04-21T01:42:43Z [developer] [CHUNK-005] [STARTED] Began review-fix to remove premature route metadata and keep CHUNK-005 model strictly ownership/order focused.
 - 2026-04-21T01:43:24Z [developer] [CHUNK-005] [DONE] Removed route metadata from site model/tests and revalidated CHUNK-005 ownership/order invariants.
+- 2026-04-21T11:02:00Z [reviewer-subagent] [CHUNK-005] APPROVED - Route metadata was removed as requested; model remains deterministic and focused on ownership/order plus synthetic Bookshelf invariants.
+- 2026-04-21T01:48:02Z [planner] [CHUNK-006] [DONE] Selected minimal next chunk: derive deterministic navigation metadata (book-scoped prev/next, `Book / Page` breadcrumbs, and active-book context resolution) from the site model without rendering.
+- 2026-04-21T01:49:25Z [developer] [CHUNK-006] [STARTED] Began navigation-metadata implementation for book-scoped prev/next, `Book / Page` breadcrumbs, and active-book target resolution.
+- 2026-04-21T01:52:14Z [developer] [CHUNK-006] [DONE] Added deterministic renderer-agnostic navigation metadata with book-scoped prev/next, `Book / Page` breadcrumbs, and active-book resolution.
