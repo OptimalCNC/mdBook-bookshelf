@@ -26,6 +26,34 @@ fn build_cli_emits_stock_mdbook_output_per_book() {
         );
     }
 
+    let chooser_html = assert_read_to_string(output_dir.join("index.html"));
+    assert_text_contains(&chooser_html, "<h1>Bookshelf</h1>");
+    assert_text_contains(&chooser_html, "Example Core");
+    assert_text_contains(
+        &chooser_html,
+        "Repository-wide onboarding and architecture notes.",
+    );
+    assert_text_contains(&chooser_html, "Example Parser");
+    assert_text_contains(
+        &chooser_html,
+        "Parser-specific reference pages with their own reading order.",
+    );
+    assert_text_contains(&chooser_html, "Example UI");
+    assert_text_contains(
+        &chooser_html,
+        "Interface and runtime guides for the UI book.",
+    );
+    assert_text_contains(&chooser_html, "href=\"books/meta/index.html\"");
+    assert_text_contains(&chooser_html, "href=\"books/parser/index.html\"");
+    assert_text_contains(&chooser_html, "href=\"books/ui/index.html\"");
+    assert_eq!(
+        chooser_html
+            .matches("class=\"bookshelf-card__link\"")
+            .count(),
+        3
+    );
+    assert_eq!(chooser_html.matches("href=\"").count(), 3);
+
     assert_exists(output_dir.join("books/meta/index.html"));
     assert_exists(output_dir.join("books/meta/onboarding.html"));
     assert_exists(output_dir.join("books/meta/toc.html"));
@@ -111,6 +139,19 @@ fn assert_file_contains(path: PathBuf, needle: &str) {
         content.contains(needle),
         "expected {} to contain {:?}",
         path.display(),
+        needle
+    );
+}
+
+fn assert_read_to_string(path: PathBuf) -> String {
+    fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()))
+}
+
+fn assert_text_contains(haystack: &str, needle: &str) {
+    assert!(
+        haystack.contains(needle),
+        "expected text to contain {:?}",
         needle
     );
 }
