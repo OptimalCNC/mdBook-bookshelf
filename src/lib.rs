@@ -3,12 +3,14 @@ pub mod catalog;
 pub mod loader;
 pub mod site_model;
 pub mod navigation;
+pub mod search_model;
 
 pub use catalog::{InputBook, InputCatalog, build_input_catalog};
 pub use config::{BookshelfBook, BookshelfConfig, load_bookshelf_config};
 pub use loader::{LoadedBook, LoadedBooks, load_books_from_catalog, load_books_from_config};
 pub use site_model::{SiteBook, SiteModel, SitePage, SitePageKind, build_site_model};
 pub use navigation::{NavigationMetadata, PageNavigation, build_navigation_metadata};
+pub use search_model::{SearchDocument, SearchDocuments, build_search_documents};
 
 use anyhow::{Context, Result, bail};
 use mdbook_driver::{MDBook, config::Config};
