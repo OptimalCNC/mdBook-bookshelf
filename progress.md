@@ -29,9 +29,9 @@
 
 ## Current State
 - Status: READY_FOR_NEXT_CHUNK
-- Current iteration: CHUNK-004 implementation
-- Current chunk: CHUNK-004
-- Next action: implement deterministic multi-book mdBook loading on top of the approved input catalog.
+- Current iteration: CHUNK-005 implementation
+- Current chunk: CHUNK-005
+- Next action: build the first explicit bookshelf-owned site model on top of the approved multi-book loader.
 - Blockers: none recorded.
 
 ## Open Risks
@@ -42,58 +42,61 @@
 
 ## Active Chunk
 ```yaml
-chunk_id: CHUNK-004
-title: Load catalog entries into canonical parsed summaries and in-memory mdBook instances
-objective: Implement a deterministic multi-book loader that takes the validated input catalog and, for each book, parses canonical `SUMMARY.md` and creates an in-memory `MDBook` via the approved seam.
-why_now: This is the smallest direct step from validated catalog metadata to real mdBook-backed book data, and it is required before any bookshelf-owned site model work.
+chunk_id: CHUNK-005
+title: Build deterministic bookshelf-owned site model from loaded books
+objective: Create the first explicit bookshelf site model that captures book/page ownership and deterministic per-book reading-order metadata, including a synthetic root `Bookshelf` page placeholder generated in memory.
+why_now: This is the smallest bookshelf-owned layer required after loading, and it directly enables later navigation/breadcrumb/prev-next/search-label work without jumping to rendering.
 depends_on:
   - CHUNK-001
   - CHUNK-002
   - CHUNK-003
+  - CHUNK-004
 mdbook_touchpoints:
-  - reuse: `mdbook_summary::parse_summary` and `load_single_book_with_summary` via `MDBook::load_with_config_and_summary`
-  - avoid: `MDBook::build()` and any stock HTML renderer invocation
+  - reuse: consume CHUNK-004 outputs (`Summary` + in-memory `MDBook`) as upstream mdBook-loaded inputs
+  - avoid: no `MDBook::build()`, no `mdbook_html::HtmlHandlebars`, no HTML emission
 scope_in:
-  - add multi-book loader API that iterates validated catalog entries
-  - parse each canonical summary file into `Summary`
-  - load each book into in-memory `MDBook` using the existing seam
-  - return deterministic per-book load results keyed by configured book id/order
-  - add focused tests for success and per-book failure propagation
+  - define typed site-model structs for books, pages, ownership, and deterministic intra-book reading order
+  - derive per-page records from loaded book chapters with stable book/page ids
+  - create synthetic root `Bookshelf` page node in memory and assign ownership to configured root book
+  - ensure model encodes that `Bookshelf` is not a selectable content book entry
+  - add focused tests for model shape and deterministic ordering
 scope_out:
-  - no bookshelf site model assembly
-  - no navigation/breadcrumb/prev-next behavior
-  - no HTML/render/search/build/serve implementation
+  - no navigation/breadcrumb/prev-next link computation
+  - no search indexing/labeling behavior
+  - no renderer/templates/build/serve commands
 target_files:
-  - src/loader.rs
+  - src/site_model.rs
   - src/lib.rs
-  - tests/multi_book_load.rs
-  - tests/fixtures/multi-book-load/valid/bookshelf.toml
-  - tests/fixtures/multi-book-load/invalid-summary-parse/bookshelf.toml
+  - tests/site_model_build.rs
+  - tests/fixtures/site-model/valid/bookshelf.toml
 implementation_tasks:
-  - define typed load result structs holding book id, parsed summary, and loaded `MDBook`
-  - implement `load_books_from_catalog(...)` with stable ordering matching catalog order
-  - map parse/load failures to deterministic error messages with owning book id context
-  - add tests covering happy path for multiple books and failure on malformed canonical summary
+  - add `build_site_model(...)` API that consumes validated config/catalog + loaded books
+  - map mdBook chapter data into normalized page descriptors keyed by owning book id
+  - record per-book linear page order metadata for later prev/next derivation
+  - inject synthetic root `Bookshelf` placeholder page with deterministic route/id and explicit root-book ownership
+  - add regression tests asserting deterministic book order, page ownership, and synthetic-page invariants
 acceptance_criteria:
-  - valid multi-book fixture loads all configured books via the seam and returns deterministic order
-  - each loaded entry includes parsed canonical `Summary` and in-memory `MDBook`
-  - malformed canonical summary in any configured book fails with a deterministic, book-scoped error
-  - no code path invokes `MDBook::build()` or stock HTML rendering APIs
+  - site model builds successfully from a valid multi-book loaded input set
+  - model includes exactly one synthetic root `Bookshelf` page generated in memory
+  - synthetic `Bookshelf` page is owned by configured root book and not represented as a content-book entry
+  - every loaded content page is assigned to exactly one owning book with deterministic intra-book order
+  - chunk introduces no rendering, HTML output, or build/serve behavior
 verification:
-  - command: `cargo test multi_book_load -- --exact`
-    expect: exits 0 and covers both successful multi-book load and malformed-summary failure
+  - command: `cargo test site_model_build -- --exact`
+    expect: exits 0 and validates synthetic Bookshelf page plus deterministic ownership/order invariants
   - command: `cargo check --offline`
     expect: exits 0
 review_focus:
-  - strict reuse of the approved mdBook loading seam per book
-  - deterministic ordering and error attribution by configured book id
-  - scope remains loader-only with no premature site-model or rendering logic
+  - site model is bookshelf-owned and explicit, not implicit mdBook HTML assumptions
+  - synthetic root page semantics match acceptance constraints: `Bookshelf` in-memory, root-owned, non-content-book
+  - deterministic ordering and ownership metadata is sufficient for the next navigation chunk without over-design
 ```
 
 ## Chunk Ledger
 - CHUNK-001 approved via commits `007cca2` and `55866ca`: added published mdBook crate dependencies, a minimal `load_single_book_with_summary()` seam around `parse_summary` + `load_with_config_and_summary`, and a passing deterministic seam smoke test. Verified with `cargo check --offline` and `cargo test seam_single_book_load -- --exact`.
 - CHUNK-002 approved via commits `4473c11` and `e0aafec`: added typed `bookshelf.toml` loading with TOML-native deserialization, structural validation for catalog/root/path invariants, and passing regression coverage for standard mdBook tables, inline comments, escaped quotes, duplicate IDs, missing root membership, and empty catalogs. Verified with `cargo test bookshelf_config_parse -- --exact` and `cargo check --offline`.
 - CHUNK-003 approved via commits `55d1cb5`, `6181cd6`, and `5027c6c`: added a validated multi-book input catalog with canonical configured-summary ownership checks, deterministic root/src normalization including top-level `docs/` roots, and passing coverage for valid nested/top-level layouts plus missing or wrong-location summary cases. Verified with `cargo test input_catalog_build -- --exact` and `cargo check --offline`.
+- CHUNK-004 approved via commits `963f4bc` and `5d71ebd`: added deterministic multi-book loading into parsed canonical `Summary` plus in-memory `MDBook`, threading one parsed summary through `MDBook::load_with_config_and_summary`, and passing coverage for successful multi-book load, malformed-summary parse failure, and mdBook-load failure with book-scoped context. Verified with `cargo test multi_book_load -- --exact` and `cargo check --offline`.
 
 ## Final Validation
 - Pending
@@ -132,6 +135,9 @@ review_focus:
 - 2026-04-21T01:28:00Z [developer] [CHUNK-004] [DONE] Added deterministic multi-book loader results with parsed summaries, in-memory mdBook loads, and fixture-backed success plus malformed-summary coverage.
 - 2026-04-21T01:30:33Z [reviewer-subagent] [CHUNK-004] APPROVED - Loader stays within seam-only scope, preserves catalog order, and provides deterministic book-scoped parse/load failures; duplicate summary parsing is acceptable in this chunk.
 - 2026-04-21T01:30:33Z [reviewer-claude] [CHUNK-004] CHANGES_REQUIRED - loader re-parses each canonical SUMMARY.md instead of threading the parsed Summary into the approved seam, violating the single-source-of-truth invariant.
+- 2026-04-21T01:32:44Z [developer] [CHUNK-004] [DONE] Removed summary double-parse by threading parsed Summary into seam-based loads and added mdBook-load failure propagation coverage.
+- 2026-04-21T01:34:50Z [reviewer-subagent] [CHUNK-004] APPROVED - Loader now threads one parsed Summary into the seam and includes deterministic coverage for both summary-parse and mdBook-load failures per book.
+- 2026-04-21T01:34:50Z [reviewer-claude] [CHUNK-004] APPROVED - parsed summary threaded through approved seam; deterministic per-book loading with book-id-scoped error context and no rendering work.
 - 2026-04-20T15:18:45Z [developer] [CHUNK-002] [DONE] Added strict typed config loader/validation and passing parse tests for valid, duplicate-id, missing-root, and empty-catalog cases.
 - 2026-04-20T15:32:00Z [reviewer-subagent] [CHUNK-002] CHANGES_REQUIRED - Handwritten line parser is not TOML-compliant and can reject valid coexisting mdBook tables (non-quoted values, inline comments, escaping), so config fidelity is not met.
 - 2026-04-20T15:24:29Z [developer] [CHUNK-002] [STARTED] Began review-fix to replace line parsing with TOML deserialization and add regression coverage for comments and quoting semantics.
@@ -153,3 +159,7 @@ review_focus:
 - 2026-04-21T10:28:00Z [reviewer-subagent] [CHUNK-004] APPROVED - Loader stays within seam-only scope, preserves catalog order, and provides deterministic book-scoped parse/load failures; duplicate summary parsing is acceptable in this chunk.
 - 2026-04-21T01:31:15Z [developer] [CHUNK-004] [STARTED] Began review-fix to remove summary double-parse and thread parsed Summary directly into the mdBook seam.
 - 2026-04-21T01:32:44Z [developer] [CHUNK-004] [DONE] Removed summary double-parse by threading parsed Summary into seam-based loads and added mdBook-load failure propagation coverage.
+- 2026-04-21T10:40:00Z [reviewer-subagent] [CHUNK-004] APPROVED - Loader now threads one parsed Summary into the seam and includes deterministic coverage for both summary-parse and mdBook-load failures per book.
+- 2026-04-21T01:35:37Z [planner] [CHUNK-005] [DONE] Selected minimal next chunk: construct a deterministic bookshelf-owned site model (books + owned pages + synthetic root Bookshelf placeholder) from loaded books, without rendering logic.
+- 2026-04-21T01:37:11Z [developer] [CHUNK-005] [STARTED] Began deterministic bookshelf-owned site-model implementation from loaded books with synthetic root Bookshelf page invariants.
+- 2026-04-21T01:39:05Z [developer] [CHUNK-005] [DONE] Added deterministic site-model builder with synthetic root Bookshelf page and verified ownership/order invariants from loaded books.
