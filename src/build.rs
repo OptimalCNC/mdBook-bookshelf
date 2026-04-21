@@ -11,9 +11,10 @@ pub fn build_bookshelf(config_path: impl AsRef<Path>, dest_dir: Option<PathBuf>)
     let catalog = build_input_catalog(config_path)?;
     let projected_config = project_mdbook_config(config_path)?;
     let site_dest_dir = resolve_site_dest_dir(&catalog.config_dir, &projected_config, dest_dir)?;
+    let config_root = catalog.config_dir.clone();
 
     for book in &catalog.books {
-        build_catalog_book(book, &projected_config, &site_dest_dir)?;
+        build_catalog_book(book, &projected_config, &config_root, &site_dest_dir)?;
     }
 
     Ok(())
@@ -45,6 +46,7 @@ pub fn project_mdbook_config(config_path: impl AsRef<Path>) -> Result<Config> {
 fn build_catalog_book(
     book: &InputBook,
     projected_config: &Config,
+    config_root: &Path,
     site_dest_dir: &Path,
 ) -> Result<()> {
     let summary_text = fs::read_to_string(&book.summary_abs).with_context(|| {
@@ -63,18 +65,18 @@ fn build_catalog_book(
     })?;
 
     let mut config = projected_config.clone();
-    config.book.src = book_src_from_root(book)?;
+    config.book.src = book.book_src_rel.clone();
     config.build.build_dir = site_dest_dir.join("books").join(&book.id);
 
-    let mdbook = MDBook::load_with_config_and_summary(book.book_root_abs.clone(), config, summary)
+    let mdbook = MDBook::load_with_config_and_summary(config_root.to_path_buf(), config, summary)
         .with_context(|| {
-            format!(
-                "book '{}' failed to load mdbook from root {} and source {}",
-                book.id,
-                book.book_root_abs.display(),
-                book.book_src_abs.display()
-            )
-        })?;
+        format!(
+            "book '{}' failed to load mdbook from root {} and source {}",
+            book.id,
+            config_root.display(),
+            book.book_src_abs.display()
+        )
+    })?;
 
     let html_build_dir = mdbook.build_dir_for("html");
     mdbook.build().with_context(|| {
@@ -84,20 +86,6 @@ fn build_catalog_book(
             html_build_dir.display()
         )
     })
-}
-
-fn book_src_from_root(book: &InputBook) -> Result<PathBuf> {
-    book.book_src_abs
-        .strip_prefix(&book.book_root_abs)
-        .map(Path::to_path_buf)
-        .with_context(|| {
-            format!(
-                "book '{}' source {} is not under root {}",
-                book.id,
-                book.book_src_abs.display(),
-                book.book_root_abs.display()
-            )
-        })
 }
 
 fn resolve_site_dest_dir(
