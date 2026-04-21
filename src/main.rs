@@ -1,11 +1,10 @@
-use std::path::PathBuf;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
-            eprintln!("build failed: {err}");
+            eprintln!("command failed: {err}");
             ExitCode::from(1)
         }
     }
@@ -13,24 +12,25 @@ fn main() -> ExitCode {
 
 fn run() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
+    let bin = args
+        .first()
+        .cloned()
+        .unwrap_or_else(|| "mdbook-bookshelf".to_string());
 
-    if args.len() != 6 || args[1] != "build" || args[2] != "--config" || args[4] != "--dest" {
-        print_usage(&args.first().cloned().unwrap_or_else(|| "mdbook-bookshelf".to_string()));
-        anyhow::bail!("invalid arguments")
+    if let Some(command) = args.get(1) {
+        if command == "build" || command == "serve" {
+            print_usage(&bin);
+            anyhow::bail!(
+                "subcommand '{}' is not implemented yet; the previous custom HTML pipeline was removed because it diverged from the mdBook-powered direction",
+                command
+            )
+        }
     }
 
-    let config = std::fs::canonicalize(&args[3])
-        .map_err(|e| anyhow::anyhow!("failed to resolve config path '{}': {e}", &args[3]))?;
-    let dest = PathBuf::from(&args[5]);
-
-    mdbook_bookshelf::build_html_site(&config, &dest)?;
-
-    let resolved = std::fs::canonicalize(&dest).unwrap_or(dest);
-    println!("Built site: {}", resolved.display());
-
-    Ok(())
+    print_usage(&bin);
+    anyhow::bail!("invalid arguments")
 }
 
 fn print_usage(bin: &str) {
-    eprintln!("Usage: {bin} build --config <path> --dest <dir>");
+    eprintln!("Usage: {bin} <build|serve> ...");
 }

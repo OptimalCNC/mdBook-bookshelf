@@ -1,10 +1,11 @@
 # Bookshelf mdBook-First Implementation Progress
 
 ## Objective
-- Implement the bookshelf feature on top of mdBook to satisfy the bookshelf handoff acceptance criteria and test plan.
+- Implement `mdbook-bookshelf` as an mdBook-powered multi-book integration layer with `build` and `serve` as the primary user-facing targets, satisfying the bookshelf handoff acceptance criteria and test plan.
 
 ## Global Constraints
 - mdBook-first integration.
+- `mdbook-bookshelf` is an mdBook-powered multi-book integration layer, not a conventional mdBook plugin and not a standalone generator.
 - No primary HTML post-processing architecture.
 - No primary temp-workspace-copy architecture.
 - No mdBook fork unless concretely blocked and explicitly approved.
@@ -12,86 +13,80 @@
 - `bookshelf.toml` is the single human-owned config.
 - One canonical `SUMMARY.md` per book.
 - `Bookshelf` page is generated in memory.
+- `build` and `serve` are the primary user-facing targets.
+- The bookshelf pipeline should stay as close as practical to stock mdBook's build and serve pipeline.
+- mdBook should remain responsible for the single-book heavy lifting wherever practical.
 
 ## Integration Strategy
-- Preferred path: build a Rust `mdbook-bookshelf` driver that loads bookshelf config, reuses mdBook-compatible book loading/parsing seams per source book, builds one explicit bookshelf-owned site model, and renders the final multi-book HTML shell directly instead of post-processing stock HTML.
-- Reused mdBook seams: `mdbook_summary::parse_summary`, `mdbook_driver::MDBook::load_with_config_and_summary` for single-book loading, optional `MDBook::preprocess_book` for mdBook-compatible preprocessing, and mdBook-like serve/watch flow patterns where practical. Avoid `MDBook::build()` and `mdbook_html::HtmlHandlebars` because they lock in single-book shell behavior.
-- Cargo mdBook dependencies: add published mdBook crates to this crate and treat them as the implementation boundary rather than copying mdBook internals or editing `mdBook-repo`.
-- User-guided priority:
-  - first priority is a working website HTML build path analogous to mdBook's core build flow
-  - preserve the bookshelf project layout with multiple canonical `SUMMARY.md` files
-  - treat `bookshelf.toml` as the human-owned source of truth and map the applicable pieces into mdBook `Config` rather than introducing a separate authoring model
-  - defer search work until after website build works; when search resumes, prefer reusing mdBook library support over custom search behavior
-- Explicit non-goals: modifying `mdBook-repo`, reviving the archived HTML post-processing prototype as the primary architecture, merging all books into one sidebar, or copying full book trees into a staged workspace as the core design.
+- Preferred path: build a Rust `mdbook-bookshelf` driver that keeps mdBook responsible for single-book loading, parsing, preprocessing, rendering, and stock-like output behavior wherever practical, while `mdbook-bookshelf` owns only the multi-book orchestration and composition layer.
+- Reused mdBook seams retained in the current baseline: `mdbook_summary::parse_summary` and `mdbook_driver::MDBook::load_with_config_and_summary` for per-book summary parsing and in-memory book loading.
+- Pipeline similarity target: keep the bookshelf `build` and `serve` flow structurally close to stock mdBook and diverge only where the multi-book data model requires it.
+- Cargo mdBook dependencies: use published mdBook crates as the implementation boundary rather than copying mdBook internals or editing `mdBook-repo`.
+- Retained foundations after the direction reset: typed `bookshelf.toml` parsing, multi-book input catalog validation, per-book mdBook loading, explicit site ownership/order modeling, and navigation metadata.
+- Removed due to direction drift: custom HTML emission, custom page shell rendering, synthetic public `pNNNN.html` routing, custom build CLI behavior, custom config projection for the bespoke renderer, and generator-specific tests/fixtures.
+- Explicit non-goals: modifying `mdBook-repo`, using mdBook merely as a parser/preprocessor feeding a separate site generator, reviving the archived HTML post-processing prototype as the primary architecture, merging all books into one sidebar, or copying full book trees into a staged workspace as the core design.
 
 ## Permissions
 - Planner: read repo, write only `progress.md`.
 - Researcher: read repo and mdBook source for reference only, write only `progress.md`, never edit `mdBook-repo`.
 - Developer: read/write repo, read `mdBook-repo` for reference only, run build/test/format/validation, update `progress.md`, create one commit per developer iteration, no destructive git ops, never edit `mdBook-repo`.
-- Reviewer-Subagent: read repo, run checks, write only `progress.md`.
+- Reviewer: read repo, run narrow direction checks, write only `progress.md`.
+- Reviewer-Subagent: read repo, run implementation checks, write only `progress.md`.
 - Reviewer-Claude: read-only; coordinator mirrors its `ProgressNote`.
 - Coordinator: orchestrates and may commit on behalf of the developer when needed.
 
 ## Current State
-- Status: READY_FOR_NEXT_CHUNK
-- Current iteration: CHUNK-010 implementation
-- Current chunk: CHUNK-010
-- Next action: add a minimal runnable `build` command so the user can generate and review the rough site from the real handoff example.
-- Blockers: none recorded.
+- Status: HALTED_FOR_REPLAN
+- Current iteration: DIRECTION-RESET
+- Current chunk: none; the custom HTML/generator path was removed
+- Next action: choose a new first implementation chunk that proves an mdBook-powered `build` / `serve` path without replacing mdBook's single-book rendering behavior.
+- Blockers: no approved mdBook-powered rendering/build seam has been selected yet for the multi-book shell; the prior custom-generator path has been intentionally removed.
 
 ## Open Risks
-- The repo has no active implementation code under `src/`, so the first chunk must establish the initial mdBook-first scaffold without drifting into a clean-room generator.
-- Mapping each `bookshelf.toml` entry to a valid mdBook `Config`/book root boundary may expose path assumptions that need careful tests.
-- Pulling in published mdBook crates may require network access or version adjustments before local verification works.
-- The archived prototype may contain useful domain logic, but its architecture cannot be adopted wholesale if it depends on HTML post-processing or staging copies.
-- The current HEAD includes CHUNK-007 search-model work (`4f090a4`) that is intentionally deferred from review while the build-to-HTML path is reprioritized.
+- The remaining baseline no longer provides any active `build` or `serve` implementation, so the next chunk must start with a real mdBook-powered rendering/build seam rather than another generator shortcut.
+- Preserving authored output paths and mdBook-like page structure may require a deeper integration seam than the retained loading/modeling code currently exercises.
+- The public mdBook crate APIs may prove insufficient for the required multi-book shell, in which case the gap must be documented explicitly before any replacement behavior is implemented.
+- Pulling in additional published mdBook crates or versions may require network access or version adjustments before local verification works.
 
 ## Active Chunk
 ```yaml
-chunk_id: CHUNK-010
-title: Add minimal CLI build command for rough-site review
-objective: Provide a single runnable command-line build entrypoint that invokes existing `build_html_site()` with a `bookshelf.toml` input and output directory, enabling immediate local site generation for review.
-why_now: The user wants to pause once a concrete local build command works; this is the smallest step to expose current build capabilities without expanding CLI scope.
-depends_on:
-  - CHUNK-007B
-  - CHUNK-008
-  - CHUNK-009
+chunk_id: DIRECTION-RESET
+title: Remove the custom generator path and re-establish an mdBook-powered baseline
+objective: Leave the repository with only the reusable mdBook-first foundations in place, remove the bespoke HTML/generator implementation, and reset planning before any further `build` / `serve` work proceeds.
+why_now: The user review concluded the implementation had drifted into a custom site generator path; continuing from that baseline would compound the wrong architecture.
+depends_on: []
 mdbook_touchpoints:
-  - reuse: existing bookshelf-owned build pipeline and mdBook-driven load or preprocess integration
-  - avoid: no `MDBook::build()` top-level orchestration and no serve or watch subcommands
+  - retain: `mdbook_summary::parse_summary`
+  - retain: `mdbook_driver::MDBook::load_with_config_and_summary`
+  - pending_research: mdBook-powered rendering/build/serve seam for the multi-book shell
 scope_in:
-  - implement one narrow CLI command path, build only, in `src/main.rs`
-  - accept explicit config path and destination dir arguments
-  - call `build_html_site()` and return non-zero exit on failure
-  - print concise success output including resolved output directory
-  - add one integration-style CLI smoke test for the handoff example workflow
+  - remove bespoke HTML generation and custom public routing code
+  - remove generator-specific CLI behavior and tests
+  - keep reusable mdBook-loading/modeling foundations compiling and tested
+  - record the reset in `progress.md`
 scope_out:
-  - no serve or watch support
-  - no additional subcommands unrelated to build
-  - no search features
+  - no new `build` or `serve` implementation yet
+  - no attempt to restore removed functionality through another custom renderer path
 target_files:
-  - src/main.rs
   - src/lib.rs
-  - tests/cli_build_smoke.rs
+  - src/main.rs
+  - progress.md
+  - src/
+  - tests/
 implementation_tasks:
-  - define CLI argument contract for build command, e.g. `build --config <path> --dest <dir>`
-  - wire CLI handler to existing `build_html_site(config, dest)`
-  - ensure error propagation with stable, reviewable stderr messages
-  - add smoke test that runs the binary against handoff example `bookshelf.toml` and asserts emitted site files
+  - delete custom HTML/generator modules and their tests/fixtures
+  - leave the binary as a stub that reports `build` / `serve` are not implemented yet
+  - update project status to halted-for-replan with retained foundations and removed drift
 acceptance_criteria:
-  - user can run one concrete command locally to build a rough site from `bookshelf.toml`
-  - command exits 0 on success and writes site files into requested output dir
-  - command exits non-zero with deterministic error message on invalid input
-  - implementation remains build-only and does not add serve or watch breadth
+  - no custom HTML generator code remains in `src/`
+  - no tests remain that assert synthetic `pNNNN.html` output or bespoke page-shell behavior
+  - the remaining repo still compiles and the retained foundational tests pass
 verification:
-  - command: `cargo test cli_build_smoke -- --exact`
-    expect: exits 0 and verifies command builds site artifacts from a fixture `bookshelf.toml`
-  - command: `cargo run -- build --config bookshelf/handoffs/examples/self-contained/bookshelf.toml --dest /tmp/mdbook-bookshelf-review`
-    expect: exits 0 and writes reviewable html output under `/tmp/mdbook-bookshelf-review`
+  - command: `cargo test`
+    expect: exits 0 with only the retained mdBook-first foundation tests
 review_focus:
-  - CLI scope is intentionally narrow and build-only
-  - command path uses existing `build_html_site()` rather than duplicating pipeline logic
-  - user experience is sufficient for handoff review flow: one command, clear output path, deterministic failures
+  - the wrong-direction generator path is fully removed
+  - the remaining baseline is honest about the missing `build` / `serve` implementation
 ```
 
 ## Chunk Ledger
@@ -101,12 +96,10 @@ review_focus:
 - CHUNK-004 approved via commits `963f4bc` and `5d71ebd`: added deterministic multi-book loading into parsed canonical `Summary` plus in-memory `MDBook`, threading one parsed summary through `MDBook::load_with_config_and_summary`, and passing coverage for successful multi-book load, malformed-summary parse failure, and mdBook-load failure with book-scoped context. Verified with `cargo test multi_book_load -- --exact` and `cargo check --offline`.
 - CHUNK-005 approved via commits `66ca7d6` and `5dc7bb3`: added the first explicit bookshelf-owned site model with deterministic per-book ownership/order metadata and exactly one synthetic root `Bookshelf` page generated in memory, owned by the configured root book and excluded from content-book page order. Verified with `cargo test site_model_build -- --exact` and `cargo check --offline`.
 - CHUNK-006 approved via commit `4b2a949`: added deterministic navigation metadata with strict intra-book prev/next boundaries, exact `Book / Page` breadcrumbs for content pages, and page-id-keyed active-book resolution for content plus synthetic Bookshelf pages, all without rendering logic. Verified with `cargo test navigation_metadata -- --exact` and `cargo check --offline`.
-- CHUNK-007B approved via commits `259f3b7` and `e95bbd6`: added the first working `build_html_site()` orchestration from `bookshelf.toml` through catalog/load/site-model/navigation into emitted HTML files, with minimal but material mdBook-config projection affecting output via per-page language and default-theme markers while preserving bookshelf-owned per-book titles. Verified with `cargo test build_html_site_smoke -- --exact` and `cargo check --offline`.
-- CHUNK-008 approved via commits `959cc3a` and `c03e7b2`: upgraded built HTML pages to render acceptance-critical navigation chrome from existing metadata, including visible Bookshelf return control, active-book-only sidebar, exact `Book / Page` breadcrumbs, and intra-book prev/next links with page-relative hrefs. Verified with `cargo test build_html_navigation_chrome -- --exact` and `cargo check --offline`.
-- CHUNK-009 approved via commits `23dfbc0` and `724db7f`: integrated mdBook preprocessing into `build_html_site()` before site-model or HTML emission, using projected preprocessor config and HTML-oriented renderer identity with deterministic book-scoped failure reporting, while keeping search deferred. Verified with `cargo test build_html_preprocess -- --exact` and `cargo check --offline`.
+- CHUNK-007 through CHUNK-010 were removed from the active baseline on 2026-04-21 after direction review concluded the repo had drifted into a custom HTML generator path. The removed work included search placeholders, config projection for the bespoke renderer, custom HTML emission, synthetic public routing, custom build CLI behavior, and all generator-specific tests/fixtures.
 
 ## Final Validation
-- Pending
+- Pending replan after the direction reset; the repo now contains only the retained mdBook-first foundations and no active `build` / `serve` implementation.
 
 ## Activity Log
 - 2026-04-20T13:12:26Z [coordinator] [INIT] [STARTED] Created progress.md and recorded startup constraints, tentative integration strategy, and initial risks.
@@ -241,3 +234,6 @@ review_focus:
 - 2026-04-21T13:40:00Z [reviewer-subagent] [CHUNK-009] APPROVED - Preprocessing now uses HTML renderer context with projected preprocessor config and deterministic book-scoped failures, and emitted content reflects mdBook-preprocessed chapter transforms.
 - 2026-04-21T06:28:03Z [developer] [CHUNK-010] [STARTED] Began minimal build-only CLI implementation and handoff-example command smoke coverage.
 - 2026-04-21T06:30:11Z [developer] [CHUNK-010] [DONE] Added build-only CLI command path, validated handoff-example build command, and confirmed emitted review-site artifacts.
+- 2026-04-21T11:59:43Z [external-authority] [DIRECTION-RESET] [STARTED] Recorded user-requested direction reset, marked the custom HTML/generator path as invalid, and moved the repo to a halted-for-replan state.
+- 2026-04-21T12:02:02Z [external-authority] [DIRECTION-RESET] [DONE] Removed custom HTML generation, bespoke renderer config plumbing, generator-specific CLI behavior, and associated tests/fixtures; retained only the mdBook-first foundations and revalidated them with `cargo test`.
+- 2026-04-21T12:14:10Z [external-authority] [DIRECTION-RESET] [DONE] Prepared a commit checkpoint for the mdBook-powered reset, prompt tightening, and wrong-direction code removal.
