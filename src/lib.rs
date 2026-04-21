@@ -1,8 +1,10 @@
 pub mod config;
 pub mod catalog;
+pub mod loader;
 
 pub use catalog::{InputBook, InputCatalog, build_input_catalog};
 pub use config::{BookshelfBook, BookshelfConfig, load_bookshelf_config};
+pub use loader::{LoadedBook, LoadedBooks, load_books_from_catalog, load_books_from_config};
 
 use anyhow::{Context, Result, bail};
 use mdbook_driver::{MDBook, config::Config};

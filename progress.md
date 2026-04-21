@@ -28,10 +28,10 @@
 - Coordinator: orchestrates and may commit on behalf of the developer when needed.
 
 ## Current State
-- Status: CHUNK_READY
-- Current iteration: CHUNK-003 implementation
-- Current chunk: CHUNK-003
-- Next action: implement a validated input catalog that resolves per-book roots/src paths and enforces canonical `SUMMARY.md` ownership.
+- Status: READY_FOR_NEXT_CHUNK
+- Current iteration: CHUNK-004 implementation
+- Current chunk: CHUNK-004
+- Next action: implement deterministic multi-book mdBook loading on top of the approved input catalog.
 - Blockers: none recorded.
 
 ## Open Risks
@@ -42,61 +42,58 @@
 
 ## Active Chunk
 ```yaml
-chunk_id: CHUNK-003
-title: Build validated multi-book input catalog with canonical `SUMMARY.md` ownership checks
-objective: Convert validated `bookshelf.toml` data into a concrete multi-book input catalog and enforce per-book canonical `SUMMARY.md` presence/rules before any site-model or rendering work.
-why_now: This is the smallest missing bridge between config validation and mdBook seam reuse, and it directly gates acceptance criteria on canonical per-book summary ownership.
+chunk_id: CHUNK-004
+title: Load catalog entries into canonical parsed summaries and in-memory mdBook instances
+objective: Implement a deterministic multi-book loader that takes the validated input catalog and, for each book, parses canonical `SUMMARY.md` and creates an in-memory `MDBook` via the approved seam.
+why_now: This is the smallest direct step from validated catalog metadata to real mdBook-backed book data, and it is required before any bookshelf-owned site model work.
 depends_on:
   - CHUNK-001
   - CHUNK-002
+  - CHUNK-003
 mdbook_touchpoints:
-  - reuse: prepare per-book normalized inputs that feed `load_single_book_with_summary` in later chunks
-  - avoid: no render/build path (`MDBook::build`/HTML renderer) and no site shell generation
+  - reuse: `mdbook_summary::parse_summary` and `load_single_book_with_summary` via `MDBook::load_with_config_and_summary`
+  - avoid: `MDBook::build()` and any stock HTML renderer invocation
 scope_in:
-  - implement catalog builder API from validated config to typed per-book entries
-  - resolve and normalize each book root/src path relative to `bookshelf.toml`
-  - enforce canonical summary rule per book: exactly one expected summary file at `<book_src>/SUMMARY.md` and it must exist
-  - enforce root-book ownership invariants needed for future in-memory `Bookshelf` page attachment
-  - add focused fixtures/tests for valid and invalid catalog/summary ownership cases
+  - add multi-book loader API that iterates validated catalog entries
+  - parse each canonical summary file into `Summary`
+  - load each book into in-memory `MDBook` using the existing seam
+  - return deterministic per-book load results keyed by configured book id/order
+  - add focused tests for success and per-book failure propagation
 scope_out:
-  - no parsing of summary contents yet
-  - no chapter loading via mdBook yet
-  - no multi-book site model assembly
-  - no navigation/render/search behavior
+  - no bookshelf site model assembly
+  - no navigation/breadcrumb/prev-next behavior
+  - no HTML/render/search/build/serve implementation
 target_files:
-  - src/catalog.rs
+  - src/loader.rs
   - src/lib.rs
-  - tests/input_catalog_build.rs
-  - tests/fixtures/input-catalog/valid/bookshelf.toml
-  - tests/fixtures/input-catalog/valid/root-book/src/SUMMARY.md
-  - tests/fixtures/input-catalog/valid/child-book/src/SUMMARY.md
-  - tests/fixtures/input-catalog/invalid-missing-summary/bookshelf.toml
-  - tests/fixtures/input-catalog/invalid-summary-location/bookshelf.toml
+  - tests/multi_book_load.rs
+  - tests/fixtures/multi-book-load/valid/bookshelf.toml
+  - tests/fixtures/multi-book-load/invalid-summary-parse/bookshelf.toml
 implementation_tasks:
-  - add `build_input_catalog(config_path)` returning deterministic typed entries with resolved absolute paths
-  - encode summary ownership checks with stable error messages for assertions
-  - ensure catalog preserves deterministic book ordering for downstream reproducibility
-  - add tests for happy path, missing `SUMMARY.md`, and non-canonical summary placement expectations
+  - define typed load result structs holding book id, parsed summary, and loaded `MDBook`
+  - implement `load_books_from_catalog(...)` with stable ordering matching catalog order
+  - map parse/load failures to deterministic error messages with owning book id context
+  - add tests covering happy path for multiple books and failure on malformed canonical summary
 acceptance_criteria:
-  - valid fixture builds a catalog containing all configured books with normalized root/src/summary paths
-  - catalog build fails when any book lacks `<src>/SUMMARY.md`
-  - catalog build fails when summary ownership assumptions are violated
-  - errors are deterministic and assertion-friendly
-  - chunk introduces no render/build invocation or HTML post-processing logic
+  - valid multi-book fixture loads all configured books via the seam and returns deterministic order
+  - each loaded entry includes parsed canonical `Summary` and in-memory `MDBook`
+  - malformed canonical summary in any configured book fails with a deterministic, book-scoped error
+  - no code path invokes `MDBook::build()` or stock HTML rendering APIs
 verification:
-  - command: `cargo test input_catalog_build -- --exact`
-    expect: exits 0 and covers valid plus invalid summary-ownership scenarios
+  - command: `cargo test multi_book_load -- --exact`
+    expect: exits 0 and covers both successful multi-book load and malformed-summary failure
   - command: `cargo check --offline`
     expect: exits 0
 review_focus:
-  - canonical per-book `SUMMARY.md` rule is enforced strictly and only once per book
-  - path resolution is deterministic and rooted at human-owned `bookshelf.toml`
-  - output catalog shape is minimal but sufficient for the next mdBook loading chunk
+  - strict reuse of the approved mdBook loading seam per book
+  - deterministic ordering and error attribution by configured book id
+  - scope remains loader-only with no premature site-model or rendering logic
 ```
 
 ## Chunk Ledger
 - CHUNK-001 approved via commits `007cca2` and `55866ca`: added published mdBook crate dependencies, a minimal `load_single_book_with_summary()` seam around `parse_summary` + `load_with_config_and_summary`, and a passing deterministic seam smoke test. Verified with `cargo check --offline` and `cargo test seam_single_book_load -- --exact`.
 - CHUNK-002 approved via commits `4473c11` and `e0aafec`: added typed `bookshelf.toml` loading with TOML-native deserialization, structural validation for catalog/root/path invariants, and passing regression coverage for standard mdBook tables, inline comments, escaped quotes, duplicate IDs, missing root membership, and empty catalogs. Verified with `cargo test bookshelf_config_parse -- --exact` and `cargo check --offline`.
+- CHUNK-003 approved via commits `55d1cb5`, `6181cd6`, and `5027c6c`: added a validated multi-book input catalog with canonical configured-summary ownership checks, deterministic root/src normalization including top-level `docs/` roots, and passing coverage for valid nested/top-level layouts plus missing or wrong-location summary cases. Verified with `cargo test input_catalog_build -- --exact` and `cargo check --offline`.
 
 ## Final Validation
 - Pending
@@ -129,6 +126,9 @@ review_focus:
 - 2026-04-20T15:54:18Z [developer] [CHUNK-003] [DONE] Removed fixed src-root assumptions, derived book root/src from configured summary paths, and revalidated catalog tests offline.
 - 2026-04-20T15:58:04Z [reviewer-subagent] [CHUNK-003] CHANGES_REQUIRED - `src` hard-code is removed, but top-level `docs/SUMMARY.md` root-book layout is not positively covered and `book_root_rel` may remain an empty path instead of normalized `.`.
 - 2026-04-20T15:58:16Z [reviewer-claude] [CHUNK-003] CHANGES_REQUIRED - top-level `docs/SUMMARY.md` root-book pattern accepted by code but never exercised as a success case; root-path normalization is also untested/ambiguous.
+- 2026-04-20T16:39:06Z [developer] [CHUNK-003] [DONE] Added top-level docs-root success fixture/assertions and enforced deterministic `book_root_rel` normalization to `.`.
+- 2026-04-21T01:22:41Z [reviewer-subagent] [CHUNK-003] APPROVED - Catalog now normalizes top-level roots to `.` and includes passing positive coverage for `docs/SUMMARY.md` root-book layouts.
+- 2026-04-21T01:22:41Z [reviewer-claude] [CHUNK-003] APPROVED - canonical summary ownership and root/src normalization, including top-level `.`, are enforced and tested within scope.
 - 2026-04-20T15:18:45Z [developer] [CHUNK-002] [DONE] Added strict typed config loader/validation and passing parse tests for valid, duplicate-id, missing-root, and empty-catalog cases.
 - 2026-04-20T15:32:00Z [reviewer-subagent] [CHUNK-002] CHANGES_REQUIRED - Handwritten line parser is not TOML-compliant and can reject valid coexisting mdBook tables (non-quoted values, inline comments, escaping), so config fidelity is not met.
 - 2026-04-20T15:24:29Z [developer] [CHUNK-002] [STARTED] Began review-fix to replace line parsing with TOML deserialization and add regression coverage for comments and quoting semantics.
@@ -143,3 +143,7 @@ review_focus:
 - 2026-04-21T10:05:00Z [reviewer-subagent] [CHUNK-003] CHANGES_REQUIRED - `src` hard-code is removed, but top-level `docs/SUMMARY.md` root-book layout is not positively covered and `book_root_rel` may remain an empty path instead of normalized `.`.
 - 2026-04-20T16:37:59Z [developer] [CHUNK-003] [STARTED] Began review-fix to add top-level docs-root success coverage and enforce deterministic `book_root_rel = \".\"` normalization.
 - 2026-04-20T16:39:06Z [developer] [CHUNK-003] [DONE] Added top-level docs-root success fixture/assertions and enforced deterministic `book_root_rel` normalization to `.`.
+- 2026-04-21T10:15:00Z [reviewer-subagent] [CHUNK-003] APPROVED - Catalog now normalizes top-level roots to `.` and includes passing positive coverage for `docs/SUMMARY.md` root-book layouts.
+- 2026-04-21T01:23:27Z [planner] [CHUNK-004] [DONE] Selected minimal next chunk: load each catalog entry into parsed canonical `Summary` plus in-memory `MDBook` and return deterministic per-book load results.
+- 2026-04-21T01:24:46Z [developer] [CHUNK-004] [STARTED] Began multi-book loader implementation for canonical summary parsing plus in-memory per-book mdBook loads.
+- 2026-04-21T01:27:40Z [developer] [CHUNK-004] [DONE] Added deterministic multi-book load pipeline with per-book summary parsing, seam-based in-memory MDBook loading, and book-scoped failure attribution.
