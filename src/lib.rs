@@ -1,18 +1,20 @@
-pub mod config;
+pub mod build;
 pub mod catalog;
+pub mod config;
 pub mod loader;
-pub mod site_model;
 pub mod navigation;
+pub mod site_model;
 
-pub use catalog::{InputBook, InputCatalog, build_input_catalog};
-pub use config::{BookshelfBook, BookshelfConfig, load_bookshelf_config};
-pub use loader::{LoadedBook, LoadedBooks, load_books_from_catalog, load_books_from_config};
-pub use site_model::{SiteBook, SiteModel, SitePage, SitePageKind, build_site_model};
-pub use navigation::{NavigationMetadata, PageNavigation, build_navigation_metadata};
+pub use build::{build_bookshelf, project_mdbook_config};
+pub use catalog::{build_input_catalog, InputBook, InputCatalog};
+pub use config::{load_bookshelf_config, BookshelfBook, BookshelfConfig};
+pub use loader::{load_books_from_catalog, load_books_from_config, LoadedBook, LoadedBooks};
+pub use navigation::{build_navigation_metadata, NavigationMetadata, PageNavigation};
+pub use site_model::{build_site_model, SiteBook, SiteModel, SitePage, SitePageKind};
 
-use anyhow::{Context, Result, bail};
-use mdbook_driver::{MDBook, config::Config};
-use mdbook_summary::{Summary, parse_summary};
+use anyhow::{bail, Context, Result};
+use mdbook_driver::{config::Config, MDBook};
+use mdbook_summary::{parse_summary, Summary};
 use std::fs;
 use std::path::{Path, PathBuf};
 
