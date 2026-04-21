@@ -29,11 +29,10 @@ pub fn project_book_configs(
             .map(|p| p.to_path_buf())
             .unwrap_or_else(|_| book.book_src_rel.clone());
         cfg.book.src = src_rel;
+        // Keep per-book display title rooted in bookshelf config, not global [book].title.
+        cfg.book.title = Some(book.title.clone());
 
         if let Some(book_table) = source.get("book").and_then(|v| v.as_table()) {
-            if let Some(title) = book_table.get("title").and_then(|v| v.as_str()) {
-                cfg.book.title = Some(title.to_string());
-            }
             if let Some(language) = book_table.get("language").and_then(|v| v.as_str()) {
                 cfg.book.language = Some(language.to_string());
             }
@@ -56,6 +55,9 @@ pub fn project_book_configs(
                 format!("failed to project [output.html] for book '{}'", book.id)
             })?;
         }
+        // Intentionally minimal in CHUNK-007B: [build], [rust], and [preprocessor.*]
+        // are not projected yet because this first HTML path only consumes book.src,
+        // selected [book] metadata, and selected [output.html] settings.
 
         projected.push(ProjectedBookConfig {
             book_id: book.id.clone(),

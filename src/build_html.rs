@@ -52,6 +52,15 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
         let nav_page = nav
             .for_page(&page.page_id)
             .ok_or_else(|| anyhow::anyhow!("missing navigation metadata for '{}'", page.page_id))?;
+        let projected_cfg = projected_by_book
+            .get(page.owning_book_id.as_str())
+            .ok_or_else(|| anyhow::anyhow!("missing projected config for '{}'", page.owning_book_id))?;
+        let html_lang = projected_cfg.book.language.as_deref().unwrap_or("en");
+        let default_theme = projected_cfg
+            .get::<String>("output.html.default-theme")
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| "light".to_string());
 
         let prev_link = nav_page.prev_page_id.as_ref().and_then(|id| {
             content_output_paths
@@ -65,10 +74,12 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
         });
 
         let html = format!(
-            "<!doctype html><html><head><meta charset=\"utf-8\"><title>{}</title></head>\
-             <body><h1>{}</h1><p>{}</p><p>Book {}</p><p>Order {}</p>\
+            "<!doctype html><html lang=\"{}\"><head><meta charset=\"utf-8\"><title>{}</title></head>\
+             <body data-mdbook-default-theme=\"{}\"><h1>{}</h1><p>{}</p><p>Book {}</p><p>Order {}</p>\
              <nav>{} {}</nav></body></html>",
+            escape_html(html_lang),
             escape_html(&page.title),
+            escape_html(&default_theme),
             escape_html(&page.title),
             escape_html(nav_page.breadcrumb.as_deref().unwrap_or("")),
             escape_html(&page.owning_book_id),
@@ -82,10 +93,6 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
 
     let mut book_list_items = String::new();
     for book in &site_model.books {
-        let projected_title = projected_by_book
-            .get(book.book_id.as_str())
-            .and_then(|cfg| cfg.book.title.clone())
-            .unwrap_or_else(|| book.title.clone());
         let first_link = book
             .page_ids_in_order
             .first()
@@ -96,12 +103,23 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
             "<li data-book-id=\"{}\"><a href=\"{}\">{}</a></li>",
             escape_html(&book.book_id),
             escape_html(&first_link),
-            escape_html(&projected_title)
+            escape_html(&book.title)
         ));
     }
+    let root_projected_cfg = projected_by_book
+        .get(site_model.root_book_id.as_str())
+        .ok_or_else(|| anyhow::anyhow!("missing projected config for root book"))?;
+    let root_lang = root_projected_cfg.book.language.as_deref().unwrap_or("en");
+    let root_theme = root_projected_cfg
+        .get::<String>("output.html.default-theme")
+        .ok()
+        .flatten()
+        .unwrap_or_else(|| "light".to_string());
     let root_html = format!(
-        "<!doctype html><html><head><meta charset=\"utf-8\"><title>Bookshelf</title></head>\
-         <body><h1>Bookshelf</h1><ul>{}</ul></body></html>",
+        "<!doctype html><html lang=\"{}\"><head><meta charset=\"utf-8\"><title>Bookshelf</title></head>\
+         <body data-mdbook-default-theme=\"{}\"><h1>Bookshelf</h1><ul>{}</ul></body></html>",
+        escape_html(root_lang),
+        escape_html(&root_theme),
         book_list_items
     );
     std::fs::write(output_dir.join("index.html"), root_html)

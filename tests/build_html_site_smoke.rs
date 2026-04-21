@@ -16,7 +16,10 @@ fn build_html_site_smoke() {
     assert!(root_index.is_file(), "root index.html should exist");
     let root_html = fs::read_to_string(&root_index).expect("root index should be readable");
     assert!(root_html.contains("<h1>Bookshelf</h1>"));
-    assert!(root_html.contains("Bookshelf Fixture Site"));
+    assert!(root_html.contains("<html lang=\"en\">"));
+    assert!(root_html.contains("data-mdbook-default-theme=\"light\""));
+    assert!(root_html.contains("data-book-id=\"root\"><a href=\"/root/p0000.html\">Root Book</a>"));
+    assert!(root_html.contains("data-book-id=\"child\"><a href=\"/child/p0000.html\">Child Book</a>"));
 
     let root_content = output_dir.join("root/p0000.html");
     let child_content = output_dir.join("child/p0000.html");
@@ -25,6 +28,8 @@ fn build_html_site_smoke() {
 
     let root_content_html =
         fs::read_to_string(&root_content).expect("root content page should be readable");
+    assert!(root_content_html.contains("<html lang=\"en\">"));
+    assert!(root_content_html.contains("data-mdbook-default-theme=\"light\""));
     assert!(root_content_html.contains("Root Book / Root Intro"));
     assert!(root_content_html.contains("Next"));
 
