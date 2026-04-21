@@ -129,6 +129,9 @@ review_focus:
 - 2026-04-20T16:39:06Z [developer] [CHUNK-003] [DONE] Added top-level docs-root success fixture/assertions and enforced deterministic `book_root_rel` normalization to `.`.
 - 2026-04-21T01:22:41Z [reviewer-subagent] [CHUNK-003] APPROVED - Catalog now normalizes top-level roots to `.` and includes passing positive coverage for `docs/SUMMARY.md` root-book layouts.
 - 2026-04-21T01:22:41Z [reviewer-claude] [CHUNK-003] APPROVED - canonical summary ownership and root/src normalization, including top-level `.`, are enforced and tested within scope.
+- 2026-04-21T01:28:00Z [developer] [CHUNK-004] [DONE] Added deterministic multi-book loader results with parsed summaries, in-memory mdBook loads, and fixture-backed success plus malformed-summary coverage.
+- 2026-04-21T01:30:33Z [reviewer-subagent] [CHUNK-004] APPROVED - Loader stays within seam-only scope, preserves catalog order, and provides deterministic book-scoped parse/load failures; duplicate summary parsing is acceptable in this chunk.
+- 2026-04-21T01:30:33Z [reviewer-claude] [CHUNK-004] CHANGES_REQUIRED - loader re-parses each canonical SUMMARY.md instead of threading the parsed Summary into the approved seam, violating the single-source-of-truth invariant.
 - 2026-04-20T15:18:45Z [developer] [CHUNK-002] [DONE] Added strict typed config loader/validation and passing parse tests for valid, duplicate-id, missing-root, and empty-catalog cases.
 - 2026-04-20T15:32:00Z [reviewer-subagent] [CHUNK-002] CHANGES_REQUIRED - Handwritten line parser is not TOML-compliant and can reject valid coexisting mdBook tables (non-quoted values, inline comments, escaping), so config fidelity is not met.
 - 2026-04-20T15:24:29Z [developer] [CHUNK-002] [STARTED] Began review-fix to replace line parsing with TOML deserialization and add regression coverage for comments and quoting semantics.
@@ -147,3 +150,6 @@ review_focus:
 - 2026-04-21T01:23:27Z [planner] [CHUNK-004] [DONE] Selected minimal next chunk: load each catalog entry into parsed canonical `Summary` plus in-memory `MDBook` and return deterministic per-book load results.
 - 2026-04-21T01:24:46Z [developer] [CHUNK-004] [STARTED] Began multi-book loader implementation for canonical summary parsing plus in-memory per-book mdBook loads.
 - 2026-04-21T01:27:40Z [developer] [CHUNK-004] [DONE] Added deterministic multi-book load pipeline with per-book summary parsing, seam-based in-memory MDBook loading, and book-scoped failure attribution.
+- 2026-04-21T10:28:00Z [reviewer-subagent] [CHUNK-004] APPROVED - Loader stays within seam-only scope, preserves catalog order, and provides deterministic book-scoped parse/load failures; duplicate summary parsing is acceptable in this chunk.
+- 2026-04-21T01:31:15Z [developer] [CHUNK-004] [STARTED] Began review-fix to remove summary double-parse and thread parsed Summary directly into the mdBook seam.
+- 2026-04-21T01:32:44Z [developer] [CHUNK-004] [DONE] Removed summary double-parse by threading parsed Summary into seam-based loads and added mdBook-load failure propagation coverage.

@@ -52,4 +52,19 @@ fn multi_book_load() {
         ),
         parse_err.to_string()
     );
+
+    let invalid_load_catalog = build_input_catalog(fixtures.join("invalid-mdbook-load/bookshelf.toml"))
+        .expect("invalid-mdbook-load fixture should build catalog");
+    let load_err = match load_books_from_catalog(&invalid_load_catalog) {
+        Ok(_) => panic!("must fail"),
+        Err(err) => err,
+    };
+    assert_eq!(
+        format!(
+            "book 'missing' failed to load mdbook from root {} and source {}",
+            fixtures.join("invalid-mdbook-load/missing-book").display(),
+            fixtures.join("invalid-mdbook-load/missing-book/docs").display()
+        ),
+        load_err.to_string()
+    );
 }

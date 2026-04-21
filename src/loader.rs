@@ -1,5 +1,5 @@
 use crate::catalog::{InputCatalog, build_input_catalog};
-use crate::load_single_book_with_summary;
+use crate::load_single_book_with_parsed_summary;
 use anyhow::{Context, Result};
 use mdbook_driver::MDBook;
 use mdbook_summary::{Summary, parse_summary};
@@ -40,7 +40,8 @@ pub fn load_books_from_catalog(catalog: &InputCatalog) -> Result<LoadedBooks> {
                 book.summary_abs.display()
             )
         })?;
-        let mdbook = load_single_book_with_summary(&book.book_root_abs, &book.book_src_abs)
+        let mdbook =
+            load_single_book_with_parsed_summary(&book.book_root_abs, &book.book_src_abs, summary.clone())
             .with_context(|| {
                 format!(
                     "book '{}' failed to load mdbook from root {} and source {}",
