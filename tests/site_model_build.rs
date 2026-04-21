@@ -30,7 +30,6 @@ fn site_model_build() {
     let synthetic = synthetic_pages[0];
     assert_eq!("bookshelf:root", synthetic.page_id);
     assert_eq!("root", synthetic.owning_book_id);
-    assert_eq!("/", synthetic.route);
     assert_eq!(None, synthetic.order_in_book);
     assert!(
         model.books.iter().all(|book| !book.page_ids_in_order.contains(&synthetic.page_id)),

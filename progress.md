@@ -138,6 +138,9 @@ review_focus:
 - 2026-04-21T01:32:44Z [developer] [CHUNK-004] [DONE] Removed summary double-parse by threading parsed Summary into seam-based loads and added mdBook-load failure propagation coverage.
 - 2026-04-21T01:34:50Z [reviewer-subagent] [CHUNK-004] APPROVED - Loader now threads one parsed Summary into the seam and includes deterministic coverage for both summary-parse and mdBook-load failures per book.
 - 2026-04-21T01:34:50Z [reviewer-claude] [CHUNK-004] APPROVED - parsed summary threaded through approved seam; deterministic per-book loading with book-id-scoped error context and no rendering work.
+- 2026-04-21T01:40:00Z [developer] [CHUNK-005] [DONE] Added deterministic bookshelf-owned site model with one synthetic root Bookshelf page and per-book ownership/order metadata plus passing site-model checks.
+- 2026-04-21T01:42:02Z [reviewer-subagent] [CHUNK-005] APPROVED - Site model is explicit and deterministic with exactly one root-owned synthetic Bookshelf page; current content route/id format is acceptable as internal placeholder metadata for this pre-navigation chunk.
+- 2026-04-21T01:42:02Z [reviewer-claude] [CHUNK-005] CHANGES_REQUIRED - `SitePage.route` adds out-of-scope URL semantics and a latent `/` collision with the synthetic Bookshelf; defer routing to the navigation chunk.
 - 2026-04-20T15:18:45Z [developer] [CHUNK-002] [DONE] Added strict typed config loader/validation and passing parse tests for valid, duplicate-id, missing-root, and empty-catalog cases.
 - 2026-04-20T15:32:00Z [reviewer-subagent] [CHUNK-002] CHANGES_REQUIRED - Handwritten line parser is not TOML-compliant and can reject valid coexisting mdBook tables (non-quoted values, inline comments, escaping), so config fidelity is not met.
 - 2026-04-20T15:24:29Z [developer] [CHUNK-002] [STARTED] Began review-fix to replace line parsing with TOML deserialization and add regression coverage for comments and quoting semantics.
@@ -163,3 +166,6 @@ review_focus:
 - 2026-04-21T01:35:37Z [planner] [CHUNK-005] [DONE] Selected minimal next chunk: construct a deterministic bookshelf-owned site model (books + owned pages + synthetic root Bookshelf placeholder) from loaded books, without rendering logic.
 - 2026-04-21T01:37:11Z [developer] [CHUNK-005] [STARTED] Began deterministic bookshelf-owned site-model implementation from loaded books with synthetic root Bookshelf page invariants.
 - 2026-04-21T01:39:05Z [developer] [CHUNK-005] [DONE] Added deterministic site-model builder with synthetic root Bookshelf page and verified ownership/order invariants from loaded books.
+- 2026-04-21T10:55:00Z [reviewer-subagent] [CHUNK-005] APPROVED - Site model is explicit and deterministic with exactly one root-owned synthetic Bookshelf page; current content route/id format is acceptable as internal placeholder metadata for this pre-navigation chunk.
+- 2026-04-21T01:42:43Z [developer] [CHUNK-005] [STARTED] Began review-fix to remove premature route metadata and keep CHUNK-005 model strictly ownership/order focused.
+- 2026-04-21T01:43:24Z [developer] [CHUNK-005] [DONE] Removed route metadata from site model/tests and revalidated CHUNK-005 ownership/order invariants.

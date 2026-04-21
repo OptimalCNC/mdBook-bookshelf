@@ -26,7 +26,6 @@ pub struct SitePage {
     pub kind: SitePageKind,
     pub owning_book_id: String,
     pub title: String,
-    pub route: String,
     pub source_path: Option<PathBuf>,
     pub order_in_book: Option<usize>,
 }
@@ -62,7 +61,6 @@ pub fn build_site_model(catalog: &InputCatalog, loaded: &LoadedBooks) -> Result<
         kind: SitePageKind::SyntheticBookshelf,
         owning_book_id: catalog.root_book_id.clone(),
         title: "Bookshelf".to_string(),
-        route: "/".to_string(),
         source_path: None,
         order_in_book: None,
     });
@@ -88,17 +86,11 @@ pub fn build_site_model(catalog: &InputCatalog, loaded: &LoadedBooks) -> Result<
             let order = page_ids_in_order.len();
             let path = chapter.path.clone().expect("checked is_some");
             let page_id = format!("{}:{:04}", loaded_book.book_id, order);
-            let route = format!(
-                "/{}/{}",
-                loaded_book.book_id,
-                path.with_extension("").to_string_lossy().replace('\\', "/")
-            );
             pages.push(SitePage {
                 page_id: page_id.clone(),
                 kind: SitePageKind::Content,
                 owning_book_id: loaded_book.book_id.clone(),
                 title: chapter.name.clone(),
-                route,
                 source_path: Some(path),
                 order_in_book: Some(order),
             });
