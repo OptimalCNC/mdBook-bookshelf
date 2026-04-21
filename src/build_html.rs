@@ -6,7 +6,9 @@ use crate::load_books_from_catalog;
 use crate::render_html::{
     ContentPageRenderInput, RootBookLink, SidebarItem, render_content_page, render_root_page,
 };
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
+use mdbook_driver::book::BookItem;
+use mdbook_driver::builtin_renderers::MarkdownRenderer;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -16,7 +18,9 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
 
     let catalog = build_input_catalog(config_path)?;
     let projected_configs = project_book_configs(config_path, &catalog)?;
-    let loaded = load_books_from_catalog(&catalog)?;
+    let mut loaded = load_books_from_catalog(&catalog)?;
+    preprocess_loaded_books(&projected_configs, &mut loaded)?;
+    let preprocessed_content_by_page_id = extract_page_content(&loaded);
     let site_model = build_site_model(&catalog, &loaded)?;
     let nav = build_navigation_metadata(&site_model)?;
 
@@ -117,6 +121,15 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
             prev_href: prev_link,
             next_href: next_link,
         });
+        let chapter_content = preprocessed_content_by_page_id
+            .get(&page.page_id)
+            .cloned()
+            .unwrap_or_default();
+        let chapter_html = format!(
+            "<article class=\"chapter-content\">{}</article>",
+            escape_html(&chapter_content)
+        );
+        let html = html.replacen("<nav class=\"pager\">", &(chapter_html + "<nav class=\"pager\">"), 1);
         std::fs::write(&file_path, html)
             .with_context(|| format!("failed to write {}", file_path.display()))?;
     }
@@ -151,6 +164,64 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
     Ok(())
 }
 
+fn preprocess_loaded_books(
+    projected_configs: &[crate::config_projection::ProjectedBookConfig],
+    loaded: &mut crate::loader::LoadedBooks,
+) -> Result<()> {
+    let projected_by_book: BTreeMap<_, _> = projected_configs
+        .iter()
+        .map(|p| (p.book_id.as_str(), &p.config))
+        .collect();
+
+    let renderer = MarkdownRenderer::new();
+    for book in &mut loaded.books {
+        let projected_cfg = projected_by_book
+            .get(book.book_id.as_str())
+            .ok_or_else(|| anyhow::anyhow!("missing projected config for '{}'", book.book_id))?;
+        book.mdbook.config = (*projected_cfg).clone();
+        let (preprocessed_book, _) = book
+            .mdbook
+            .preprocess_book(&renderer)
+            .with_context(|| {
+                format!(
+                    "book '{}' failed to preprocess for renderer '{}'",
+                    book.book_id,
+                    "markdown"
+                )
+            })?;
+        if preprocessed_book
+            .chapters()
+            .any(|chapter| chapter.content.contains("{{#include"))
+        {
+            bail!(
+                "book '{}' failed to preprocess for renderer 'markdown': unresolved include directive",
+                book.book_id
+            );
+        }
+        book.mdbook.book = preprocessed_book;
+    }
+    Ok(())
+}
+
+fn extract_page_content(loaded: &crate::loader::LoadedBooks) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for book in &loaded.books {
+        let mut order = 0usize;
+        for item in book.mdbook.iter() {
+            let BookItem::Chapter(chapter) = item else {
+                continue;
+            };
+            if chapter.path.is_none() {
+                continue;
+            }
+            let page_id = format!("{}:{:04}", book.book_id, order);
+            out.insert(page_id, chapter.content.clone());
+            order += 1;
+        }
+    }
+    out
+}
+
 fn relative_href(from_file: &str, to_file: &str) -> String {
     let from_dir = Path::new(from_file).parent().unwrap_or_else(|| Path::new(""));
     let from_components: Vec<_> = from_dir.components().collect();
@@ -177,4 +248,19 @@ fn relative_href(from_file: &str, to_file: &str) -> String {
     } else {
         parts.join("/")
     }
+}
+
+fn escape_html(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for ch in input.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#39;"),
+            _ => out.push(ch),
+        }
+    }
+    out
 }

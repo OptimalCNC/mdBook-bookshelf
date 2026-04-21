@@ -34,9 +34,9 @@
 
 ## Current State
 - Status: READY_FOR_NEXT_CHUNK
-- Current iteration: CHUNK-008 implementation
-- Current chunk: CHUNK-008
-- Next action: improve built HTML pages with acceptance-critical navigation chrome driven by existing metadata.
+- Current iteration: CHUNK-009 implementation
+- Current chunk: CHUNK-009
+- Next action: integrate mdBook preprocessing into the approved HTML build pipeline before emission.
 - Blockers: none recorded.
 
 ## Open Risks
@@ -48,10 +48,10 @@
 
 ## Active Chunk
 ```yaml
-chunk_id: CHUNK-008
-title: Render navigation chrome from existing metadata in built HTML pages
-objective: Improve website build fidelity by wiring current site/navigation metadata into generated page chrome: Bookshelf return control, active-book-scoped sidebar, `Book / Page` breadcrumbs, and book-bounded prev/next links.
-why_now: The first build path exists; this is the smallest high-impact step to make output behavior align with acceptance criteria without introducing search or full theme parity.
+chunk_id: CHUNK-009
+title: Integrate mdBook preprocessing into `build_html_site()` before HTML emission
+objective: Improve build-path fidelity by running per-book mdBook preprocessing on loaded books, `MDBook::preprocess_book`, so rendered pages are generated from mdBook-transformed content, not raw chapter inputs.
+why_now: The website build path exists; preprocessing is the smallest mdBook-first fidelity upgrade that materially affects output without expanding into search or full renderer replacement.
 depends_on:
   - CHUNK-001
   - CHUNK-002
@@ -60,47 +60,47 @@ depends_on:
   - CHUNK-005
   - CHUNK-006
   - CHUNK-007B
+  - CHUNK-008
 mdbook_touchpoints:
-  - reuse: existing bookshelf-owned `SiteModel` and `NavigationMetadata` as rendering inputs
-  - reuse: `build_html_site()` pipeline and mdBook-config projection already in place
-  - avoid: no top-level `MDBook::build()` and no direct `mdbook_html::HtmlHandlebars` final rendering
+  - reuse: `MDBook::preprocess_book` on each already-loaded in-memory book
+  - reuse: projected per-book mdBook `Config` from `bookshelf.toml` to control preprocessing behavior
+  - avoid: no top-level `MDBook::build()` and no direct `mdbook_html::HtmlHandlebars` final renderer
 scope_in:
-  - update HTML rendering layer to include a visible Bookshelf return control on every content page
-  - render sidebar entries scoped to active book only, excluding other books' chapter trees
-  - render breadcrumbs in exact `Book / Page` format on content pages
-  - render prev/next links from existing book-scoped navigation metadata
-  - add focused build-output assertions for these chrome elements
+  - wire preprocessing stage into `build_html_site()` between load and site-model or render stages
+  - ensure preprocessing is executed deterministically per configured book order
+  - propagate preprocessing failures with book-scoped context
+  - update tests or fixtures to assert HTML output reflects preprocessed content effects
 scope_out:
-  - no search model, index, or result labeling
-  - no serve/watch integration
-  - no full mdBook theme or assets parity
+  - no search or index work
+  - no serve or watch integration
+  - no major template or theme redesign
 target_files:
   - src/build_html.rs
-  - src/render_html.rs
+  - src/loader.rs
   - src/lib.rs
-  - tests/build_html_navigation_chrome.rs
-  - tests/fixtures/build-html-nav/valid/bookshelf.toml
+  - tests/build_html_preprocess.rs
+  - tests/fixtures/build-html-preprocess/valid/bookshelf.toml
 implementation_tasks:
-  - thread active-page navigation context into page rendering
-  - emit Bookshelf return control markup on each content page
-  - emit active-book-only sidebar tree markup for each content page
-  - emit breadcrumb and prev/next markup using deterministic metadata from CHUNK-006
-  - add integration-style fixture test that inspects generated HTML files for required chrome semantics
+  - add explicit preprocessing call in the build pipeline after per-book load
+  - pass projected config and renderer context needed for mdBook preprocessors
+  - thread preprocessed book data into the site-model or HTML rendering path
+  - add deterministic failure mapping for preprocessing errors by book id
+  - add fixture-backed smoke or regression checks that verify output changed by preprocessing stage
 acceptance_criteria:
-  - every generated content page contains a visible Bookshelf return control linking to root bookshelf page
-  - content-page sidebar shows only the active book's pages, with no cross-book sidebar pollution
-  - content pages render breadcrumbs exactly as `Book / Page`
-  - prev/next links exist only within the same book and respect first/last boundaries
-  - chunk introduces no search or index logic
+  - `build_html_site()` executes mdBook preprocessing for each loaded book before rendering
+  - generated HTML content reflects preprocessed chapter content, not solely raw chapter text
+  - preprocessing failures return deterministic book-scoped errors
+  - build still succeeds for valid multi-book fixtures and preserves existing navigation chrome behavior
+  - chunk does not add search functionality
 verification:
-  - command: `cargo test build_html_navigation_chrome -- --exact`
-    expect: exits 0 and validates return control, scoped sidebar, breadcrumb format, and intra-book prev/next behavior in generated HTML
+  - command: `cargo test build_html_preprocess -- --exact`
+    expect: exits 0 and validates preprocessing effects plus deterministic preprocessor failure handling
   - command: `cargo check --offline`
     expect: exits 0
 review_focus:
-  - renderer fidelity improvements are strictly driven by existing metadata, not ad hoc HTML heuristics
-  - acceptance-critical navigation chrome now appears in built pages without cross-book leakage
-  - scope remains website-build fidelity only, with search still deferred
+  - preprocessing stage is truly mdBook-driven and not reimplemented manually
+  - `bookshelf.toml` to mdBook `Config` mapping materially influences preprocessing behavior
+  - pipeline ordering is correct: load -> preprocess -> site model or navigation -> HTML write
 ```
 
 ## Chunk Ledger
@@ -111,6 +111,7 @@ review_focus:
 - CHUNK-005 approved via commits `66ca7d6` and `5dc7bb3`: added the first explicit bookshelf-owned site model with deterministic per-book ownership/order metadata and exactly one synthetic root `Bookshelf` page generated in memory, owned by the configured root book and excluded from content-book page order. Verified with `cargo test site_model_build -- --exact` and `cargo check --offline`.
 - CHUNK-006 approved via commit `4b2a949`: added deterministic navigation metadata with strict intra-book prev/next boundaries, exact `Book / Page` breadcrumbs for content pages, and page-id-keyed active-book resolution for content plus synthetic Bookshelf pages, all without rendering logic. Verified with `cargo test navigation_metadata -- --exact` and `cargo check --offline`.
 - CHUNK-007B approved via commits `259f3b7` and `e95bbd6`: added the first working `build_html_site()` orchestration from `bookshelf.toml` through catalog/load/site-model/navigation into emitted HTML files, with minimal but material mdBook-config projection affecting output via per-page language and default-theme markers while preserving bookshelf-owned per-book titles. Verified with `cargo test build_html_site_smoke -- --exact` and `cargo check --offline`.
+- CHUNK-008 approved via commits `959cc3a` and `c03e7b2`: upgraded built HTML pages to render acceptance-critical navigation chrome from existing metadata, including visible Bookshelf return control, active-book-only sidebar, exact `Book / Page` breadcrumbs, and intra-book prev/next links with page-relative hrefs. Verified with `cargo test build_html_navigation_chrome -- --exact` and `cargo check --offline`.
 
 ## Final Validation
 - Pending
@@ -173,6 +174,9 @@ review_focus:
 - 2026-04-21T02:50:09Z [developer] [CHUNK-008] [DONE] Rendered navigation chrome from metadata with Bookshelf return, active-book sidebar, exact breadcrumbs, and book-bounded prev/next in built HTML pages.
 - 2026-04-21T03:21:11Z [reviewer-subagent] [CHUNK-008] APPROVED - Navigation chrome is metadata-driven and acceptance-critical invariants pass; current root-relative hrefs are acceptable interim output-path links for this pre-base-url stage.
 - 2026-04-21T03:21:11Z [reviewer-claude] [CHUNK-008] CHANGES_REQUIRED - Root-absolute chrome hrefs commit to base-url semantics outside this build-fidelity chunk's scope; switch to page-relative links.
+- 2026-04-21T03:23:44Z [developer] [CHUNK-008] [DONE] Switched navigation chrome hrefs to page-relative links and removed debug-only page detail lines from content output.
+- 2026-04-21T03:26:30Z [reviewer-subagent] [CHUNK-008] APPROVED - Navigation chrome now uses page-relative hrefs and removes debug-only content lines while preserving metadata-driven sidebar, breadcrumb, and intra-book prev/next behavior.
+- 2026-04-21T03:26:30Z [reviewer-claude] [CHUNK-008] APPROVED - chrome elements render per spec with page-relative hrefs, and scope stays within the stated bounds.
 - 2026-04-20T15:18:45Z [developer] [CHUNK-002] [DONE] Added strict typed config loader/validation and passing parse tests for valid, duplicate-id, missing-root, and empty-catalog cases.
 - 2026-04-20T15:32:00Z [reviewer-subagent] [CHUNK-002] CHANGES_REQUIRED - Handwritten line parser is not TOML-compliant and can reject valid coexisting mdBook tables (non-quoted values, inline comments, escaping), so config fidelity is not met.
 - 2026-04-20T15:24:29Z [developer] [CHUNK-002] [STARTED] Began review-fix to replace line parsing with TOML deserialization and add regression coverage for comments and quoting semantics.
@@ -222,3 +226,7 @@ review_focus:
 - 2026-04-21T02:50:09Z [developer] [CHUNK-008] [DONE] Rendered navigation chrome from metadata (Bookshelf return, active-book sidebar, breadcrumbs, and book-bounded prev/next) with passing build output checks.
 - 2026-04-21T03:23:44Z [developer] [CHUNK-008] [DONE] Switched navigation chrome hrefs to page-relative links and removed debug-only page detail lines from content output.
 - 2026-04-21T12:02:00Z [reviewer-subagent] [CHUNK-008] APPROVED - Navigation chrome is metadata-driven and acceptance-critical invariants pass; current root-relative hrefs are acceptable interim output-path links for this pre-base-url stage.
+- 2026-04-21T12:16:00Z [reviewer-subagent] [CHUNK-008] APPROVED - Navigation chrome now uses page-relative hrefs and removes debug-only content lines while preserving metadata-driven sidebar, breadcrumb, and intra-book prev/next behavior.
+- 2026-04-21T03:27:57Z [planner] [CHUNK-009] [DONE] Selected minimal next chunk: run mdBook preprocessing (`MDBook::preprocess_book`) per loaded book within `build_html_site()` so emitted HTML reflects mdBook-transformed content before rendering.
+- 2026-04-21T03:34:31Z [developer] [CHUNK-009] [STARTED] Began build-pipeline preprocessing integration using `MDBook::preprocess_book` with deterministic per-book error attribution.
+- 2026-04-21T03:34:31Z [developer] [CHUNK-009] [DONE] Wired deterministic load->preprocess->render flow, emitted preprocessed chapter content, and added preprocess success/failure fixture coverage.
