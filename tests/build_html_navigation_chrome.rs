@@ -19,28 +19,34 @@ fn build_html_navigation_chrome() {
     let child_first = fs::read_to_string(output_dir.join("child/p0000.html"))
         .expect("child first page should be readable");
 
-    assert!(root_first.contains("<a class=\"bookshelf-return\" href=\"/index.html\">Bookshelf</a>"));
-    assert!(child_first.contains("<a class=\"bookshelf-return\" href=\"/index.html\">Bookshelf</a>"));
+    assert!(root_first.contains("<a class=\"bookshelf-return\" href=\"../index.html\">Bookshelf</a>"));
+    assert!(child_first.contains("<a class=\"bookshelf-return\" href=\"../index.html\">Bookshelf</a>"));
 
     assert!(root_first.contains("<aside class=\"sidebar\" data-active-book=\"root\">"));
     assert!(root_first.contains("data-page-id=\"root:0000\""));
     assert!(root_first.contains("data-page-id=\"root:0001\""));
+    assert!(root_first.contains("href=\"p0000.html\""));
+    assert!(root_first.contains("href=\"p0001.html\""));
     assert!(!root_first.contains("data-page-id=\"child:0000\""));
     assert!(!root_first.contains("data-page-id=\"child:0001\""));
 
     assert!(child_first.contains("<aside class=\"sidebar\" data-active-book=\"child\">"));
     assert!(child_first.contains("data-page-id=\"child:0000\""));
     assert!(child_first.contains("data-page-id=\"child:0001\""));
+    assert!(child_first.contains("href=\"p0000.html\""));
+    assert!(child_first.contains("href=\"p0001.html\""));
     assert!(!child_first.contains("data-page-id=\"root:0000\""));
     assert!(!child_first.contains("data-page-id=\"root:0001\""));
 
     assert!(root_first.contains("<div class=\"breadcrumb\">Root Book / Root Intro</div>"));
     assert!(child_first.contains("<div class=\"breadcrumb\">Child Book / Child Intro</div>"));
+    assert!(!root_first.contains("<p>Book "));
+    assert!(!root_first.contains("<p>Order "));
 
     assert!(root_first.contains("<span class=\"prev missing\"></span>"));
-    assert!(root_first.contains("<a class=\"next\" href=\"/root/p0001.html\">Next</a>"));
+    assert!(root_first.contains("<a class=\"next\" href=\"p0001.html\">Next</a>"));
 
-    assert!(root_last.contains("<a class=\"prev\" href=\"/root/p0000.html\">Prev</a>"));
+    assert!(root_last.contains("<a class=\"prev\" href=\"p0000.html\">Prev</a>"));
     assert!(root_last.contains("<span class=\"next missing\"></span>"));
     assert!(!root_last.contains("/child/p0000.html"));
 

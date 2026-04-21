@@ -21,7 +21,6 @@ pub struct ContentPageRenderInput {
     pub page_id: String,
     pub owning_book_id: String,
     pub breadcrumb: String,
-    pub order: usize,
     pub bookshelf_href: String,
     pub sidebar_items: Vec<SidebarItem>,
     pub prev_href: Option<String>,
@@ -80,7 +79,7 @@ pub fn render_content_page(input: &ContentPageRenderInput) -> String {
          <body data-mdbook-default-theme=\"{}\">\
          <a class=\"bookshelf-return\" href=\"{}\">Bookshelf</a>\
          <aside class=\"sidebar\" data-active-book=\"{}\"><ul>{}</ul></aside>\
-         <main><h1>{}</h1><div class=\"breadcrumb\">{}</div><p>Book {}</p><p>Order {}</p>\
+         <main><h1>{}</h1><div class=\"breadcrumb\">{}</div>\
          <nav class=\"pager\">{} {}</nav></main></body></html>",
         escape_html(&input.html_lang),
         escape_html(&input.page_title),
@@ -90,8 +89,6 @@ pub fn render_content_page(input: &ContentPageRenderInput) -> String {
         sidebar_items_html,
         escape_html(&input.page_title),
         escape_html(&input.breadcrumb),
-        escape_html(&input.owning_book_id),
-        input.order,
         prev_html,
         next_html
     )

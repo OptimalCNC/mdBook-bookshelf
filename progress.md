@@ -170,6 +170,9 @@ review_focus:
 - 2026-04-21T02:40:20Z [developer] [CHUNK-007B] [DONE] Made projected mdBook config materially affect emitted HTML, preserved distinct per-book bookshelf titles, and tightened build smoke coverage.
 - 2026-04-21T02:43:46Z [reviewer-subagent] [CHUNK-007B] APPROVED - Projected mdBook config now materially affects emitted HTML (lang/theme) while preserving bookshelf-owned per-book titles; minimal projection scope is acceptable for this first build chunk.
 - 2026-04-21T02:43:46Z [reviewer-claude] [CHUNK-007B] APPROVED - minimal end-to-end HTML build is real, deterministic, and mdBook-first via projected Config while honoring declared scope and avoid constraints.
+- 2026-04-21T02:50:09Z [developer] [CHUNK-008] [DONE] Rendered navigation chrome from metadata with Bookshelf return, active-book sidebar, exact breadcrumbs, and book-bounded prev/next in built HTML pages.
+- 2026-04-21T03:21:11Z [reviewer-subagent] [CHUNK-008] APPROVED - Navigation chrome is metadata-driven and acceptance-critical invariants pass; current root-relative hrefs are acceptable interim output-path links for this pre-base-url stage.
+- 2026-04-21T03:21:11Z [reviewer-claude] [CHUNK-008] CHANGES_REQUIRED - Root-absolute chrome hrefs commit to base-url semantics outside this build-fidelity chunk's scope; switch to page-relative links.
 - 2026-04-20T15:18:45Z [developer] [CHUNK-002] [DONE] Added strict typed config loader/validation and passing parse tests for valid, duplicate-id, missing-root, and empty-catalog cases.
 - 2026-04-20T15:32:00Z [reviewer-subagent] [CHUNK-002] CHANGES_REQUIRED - Handwritten line parser is not TOML-compliant and can reject valid coexisting mdBook tables (non-quoted values, inline comments, escaping), so config fidelity is not met.
 - 2026-04-20T15:24:29Z [developer] [CHUNK-002] [STARTED] Began review-fix to replace line parsing with TOML deserialization and add regression coverage for comments and quoting semantics.
@@ -217,3 +220,5 @@ review_focus:
 - 2026-04-21T11:48:00Z [reviewer-subagent] [CHUNK-007B] APPROVED - Projected mdBook config now materially affects emitted HTML (lang/theme) while preserving bookshelf-owned per-book titles; minimal projection scope is acceptable for this first build chunk.
 - 2026-04-21T02:46:19Z [developer] [CHUNK-008] [STARTED] Began HTML navigation chrome rendering upgrade using existing site/navigation metadata with active-book scoped output.
 - 2026-04-21T02:50:09Z [developer] [CHUNK-008] [DONE] Rendered navigation chrome from metadata (Bookshelf return, active-book sidebar, breadcrumbs, and book-bounded prev/next) with passing build output checks.
+- 2026-04-21T03:23:44Z [developer] [CHUNK-008] [DONE] Switched navigation chrome hrefs to page-relative links and removed debug-only page detail lines from content output.
+- 2026-04-21T12:02:00Z [reviewer-subagent] [CHUNK-008] APPROVED - Navigation chrome is metadata-driven and acceptance-critical invariants pass; current root-relative hrefs are acceptable interim output-path links for this pre-base-url stage.

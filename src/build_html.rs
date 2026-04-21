@@ -50,9 +50,9 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
     }
 
     for page in &site_model.pages {
-        let Some(order) = page.order_in_book else {
+        if page.order_in_book.is_none() {
             continue;
-        };
+        }
         let rel_path = content_output_paths
             .get(&page.page_id)
             .expect("content page should have deterministic output path");
@@ -81,12 +81,12 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
         let prev_link = nav_page.prev_page_id.as_ref().and_then(|id| {
             content_output_paths
                 .get(id)
-                .map(|path| format!("/{}", path))
+                .map(|path| relative_href(rel_path, path))
         });
         let next_link = nav_page.next_page_id.as_ref().and_then(|id| {
             content_output_paths
                 .get(id)
-                .map(|path| format!("/{}", path))
+                .map(|path| relative_href(rel_path, path))
         });
 
         let mut sidebar_items = Vec::new();
@@ -99,7 +99,7 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
                 .ok_or_else(|| anyhow::anyhow!("missing site page '{}'", book_page_id))?;
             sidebar_items.push(SidebarItem {
                 page_id: book_page_id.clone(),
-                href: format!("/{}", sidebar_rel),
+                href: relative_href(rel_path, sidebar_rel),
                 title: sidebar_page.title.clone(),
                 is_active: *book_page_id == page.page_id,
             });
@@ -112,8 +112,7 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
             page_id: page.page_id.clone(),
             owning_book_id: page.owning_book_id.clone(),
             breadcrumb: nav_page.breadcrumb.clone().unwrap_or_default(),
-            order,
-            bookshelf_href: "/index.html".to_string(),
+            bookshelf_href: relative_href(rel_path, "index.html"),
             sidebar_items,
             prev_href: prev_link,
             next_href: next_link,
@@ -150,4 +149,32 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
         .with_context(|| format!("failed to write {}", output_dir.join("index.html").display()))?;
 
     Ok(())
+}
+
+fn relative_href(from_file: &str, to_file: &str) -> String {
+    let from_dir = Path::new(from_file).parent().unwrap_or_else(|| Path::new(""));
+    let from_components: Vec<_> = from_dir.components().collect();
+    let to_components: Vec<_> = Path::new(to_file).components().collect();
+
+    let mut common = 0;
+    while common < from_components.len()
+        && common < to_components.len()
+        && from_components[common] == to_components[common]
+    {
+        common += 1;
+    }
+
+    let mut parts: Vec<String> = Vec::new();
+    for _ in common..from_components.len() {
+        parts.push("..".to_string());
+    }
+    for component in &to_components[common..] {
+        parts.push(component.as_os_str().to_string_lossy().to_string());
+    }
+
+    if parts.is_empty() {
+        ".".to_string()
+    } else {
+        parts.join("/")
+    }
 }
