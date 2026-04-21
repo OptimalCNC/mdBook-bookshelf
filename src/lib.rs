@@ -44,10 +44,18 @@ pub fn load_single_book_with_parsed_summary(
     book_src: impl AsRef<Path>,
     summary: Summary,
 ) -> Result<MDBook> {
+    load_single_book_with_config_and_parsed_summary(book_root, book_src, Config::default(), summary)
+}
+
+pub fn load_single_book_with_config_and_parsed_summary(
+    book_root: impl AsRef<Path>,
+    book_src: impl AsRef<Path>,
+    mut config: Config,
+    summary: Summary,
+) -> Result<MDBook> {
     let book_root = book_root.as_ref();
     let src_relative = normalize_src_path(book_root, book_src.as_ref())?;
 
-    let mut config = Config::default();
     config.book.src = src_relative;
 
     MDBook::load_with_config_and_summary(book_root.to_path_buf(), config, summary)

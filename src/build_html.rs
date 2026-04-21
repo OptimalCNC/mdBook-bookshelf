@@ -3,12 +3,13 @@ use crate::build_navigation_metadata;
 use crate::build_site_model;
 use crate::config_projection::project_book_configs;
 use crate::load_books_from_catalog;
+use crate::load_single_book_with_config_and_parsed_summary;
 use crate::render_html::{
     ContentPageRenderInput, RootBookLink, SidebarItem, render_content_page, render_root_page,
 };
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use mdbook_driver::book::BookItem;
-use mdbook_driver::builtin_renderers::MarkdownRenderer;
+use mdbook_driver::builtin_renderers::CmdRenderer;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -17,8 +18,23 @@ pub fn build_html_site(config_path: impl AsRef<Path>, output_dir: impl AsRef<Pat
     let output_dir = output_dir.as_ref();
 
     let catalog = build_input_catalog(config_path)?;
-    let projected_configs = project_book_configs(config_path, &catalog)?;
+    let mut projected_configs = project_book_configs(config_path, &catalog)?;
+    let preprocessor_table = load_preprocessor_table(config_path)?;
+    if let Some(preprocessor) = preprocessor_table {
+        for projected in &mut projected_configs {
+            projected
+                .config
+                .set("preprocessor", preprocessor.clone())
+                .with_context(|| {
+                    format!(
+                        "book '{}' failed to project global [preprocessor.*] config",
+                        projected.book_id
+                    )
+                })?;
+        }
+    }
     let mut loaded = load_books_from_catalog(&catalog)?;
+    apply_projected_configs_to_loaded_books(&projected_configs, &mut loaded)?;
     preprocess_loaded_books(&projected_configs, &mut loaded)?;
     let preprocessed_content_by_page_id = extract_page_content(&loaded);
     let site_model = build_site_model(&catalog, &loaded)?;
@@ -173,7 +189,7 @@ fn preprocess_loaded_books(
         .map(|p| (p.book_id.as_str(), &p.config))
         .collect();
 
-    let renderer = MarkdownRenderer::new();
+    let renderer = CmdRenderer::new("html".to_string(), "true".to_string());
     for book in &mut loaded.books {
         let projected_cfg = projected_by_book
             .get(book.book_id.as_str())
@@ -186,21 +202,51 @@ fn preprocess_loaded_books(
                 format!(
                     "book '{}' failed to preprocess for renderer '{}'",
                     book.book_id,
-                    "markdown"
+                    "html"
                 )
             })?;
-        if preprocessed_book
-            .chapters()
-            .any(|chapter| chapter.content.contains("{{#include"))
-        {
-            bail!(
-                "book '{}' failed to preprocess for renderer 'markdown': unresolved include directive",
-                book.book_id
-            );
-        }
         book.mdbook.book = preprocessed_book;
     }
     Ok(())
+}
+
+fn apply_projected_configs_to_loaded_books(
+    projected_configs: &[crate::config_projection::ProjectedBookConfig],
+    loaded: &mut crate::loader::LoadedBooks,
+) -> Result<()> {
+    let projected_by_book: BTreeMap<_, _> = projected_configs
+        .iter()
+        .map(|p| (p.book_id.as_str(), &p.config))
+        .collect();
+
+    for book in &mut loaded.books {
+        let projected_cfg = projected_by_book
+            .get(book.book_id.as_str())
+            .ok_or_else(|| anyhow::anyhow!("missing projected config for '{}'", book.book_id))?;
+        let mdbook = load_single_book_with_config_and_parsed_summary(
+            &book.mdbook.root,
+            &book.mdbook.config.book.src,
+            (*projected_cfg).clone(),
+            book.summary.clone(),
+        )
+        .with_context(|| {
+            format!(
+                "book '{}' failed to reload mdbook with projected config",
+                book.book_id
+            )
+        })?;
+        book.mdbook = mdbook;
+    }
+
+    Ok(())
+}
+
+fn load_preprocessor_table(config_path: &Path) -> Result<Option<toml::Value>> {
+    let source_text = std::fs::read_to_string(config_path)
+        .with_context(|| format!("failed to read {}", config_path.display()))?;
+    let source: toml::Value = toml::from_str(&source_text)
+        .with_context(|| format!("failed to parse TOML in {}", config_path.display()))?;
+    Ok(source.get("preprocessor").cloned())
 }
 
 fn extract_page_content(loaded: &crate::loader::LoadedBooks) -> BTreeMap<String, String> {

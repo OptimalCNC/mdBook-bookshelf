@@ -5,6 +5,9 @@ language = "en"
 [output.html]
 default-theme = "light"
 
+[preprocessor.broken]
+command = "definitely-not-installed-mdbook-preprocessor"
+
 [bookshelf]
 root_book = "root"
 

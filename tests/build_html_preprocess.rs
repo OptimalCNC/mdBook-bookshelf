@@ -25,7 +25,7 @@ fn build_html_preprocess() {
     };
     assert!(
         err.to_string()
-            .contains("book 'root' failed to preprocess for renderer 'markdown'"),
+            .contains("book 'root' failed to preprocess for renderer 'html'"),
         "expected deterministic book-scoped preprocess failure, got: {}",
         err
     );
