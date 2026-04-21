@@ -17,6 +17,11 @@
 - Preferred path: build a Rust `mdbook-bookshelf` driver that loads bookshelf config, reuses mdBook-compatible book loading/parsing seams per source book, builds one explicit bookshelf-owned site model, and renders the final multi-book HTML shell directly instead of post-processing stock HTML.
 - Reused mdBook seams: `mdbook_summary::parse_summary`, `mdbook_driver::MDBook::load_with_config_and_summary` for single-book loading, optional `MDBook::preprocess_book` for mdBook-compatible preprocessing, and mdBook-like serve/watch flow patterns where practical. Avoid `MDBook::build()` and `mdbook_html::HtmlHandlebars` because they lock in single-book shell behavior.
 - Cargo mdBook dependencies: add published mdBook crates to this crate and treat them as the implementation boundary rather than copying mdBook internals or editing `mdBook-repo`.
+- User-guided priority:
+  - first priority is a working website HTML build path analogous to mdBook's core build flow
+  - preserve the bookshelf project layout with multiple canonical `SUMMARY.md` files
+  - treat `bookshelf.toml` as the human-owned source of truth and map the applicable pieces into mdBook `Config` rather than introducing a separate authoring model
+  - defer search work until after website build works; when search resumes, prefer reusing mdBook library support over custom search behavior
 - Explicit non-goals: modifying `mdBook-repo`, reviving the archived HTML post-processing prototype as the primary architecture, merging all books into one sidebar, or copying full book trees into a staged workspace as the core design.
 
 ## Permissions
@@ -28,10 +33,10 @@
 - Coordinator: orchestrates and may commit on behalf of the developer when needed.
 
 ## Current State
-- Status: READY_FOR_NEXT_CHUNK
-- Current iteration: CHUNK-007 implementation
-- Current chunk: CHUNK-007
-- Next action: build a renderer-agnostic site-wide search document model with owning-book labels.
+- Status: REPLANNING_PER_USER_PRIORITY
+- Current iteration: CHUNK-007B planning complete
+- Current chunk: CHUNK-007B
+- Next action: execute the first working HTML build path chunk and keep CHUNK-007 search-model work deferred until after website build exists.
 - Blockers: none recorded.
 
 ## Open Risks
@@ -39,13 +44,14 @@
 - Mapping each `bookshelf.toml` entry to a valid mdBook `Config`/book root boundary may expose path assumptions that need careful tests.
 - Pulling in published mdBook crates may require network access or version adjustments before local verification works.
 - The archived prototype may contain useful domain logic, but its architecture cannot be adopted wholesale if it depends on HTML post-processing or staging copies.
+- The current HEAD includes CHUNK-007 search-model work (`4f090a4`) that is intentionally deferred from review while the build-to-HTML path is reprioritized.
 
 ## Active Chunk
 ```yaml
-chunk_id: CHUNK-007
-title: Build renderer-agnostic site-wide search document model with owning-book labels
-objective: Derive a deterministic search data model from the bookshelf site model so every searchable content page yields a labeled search document that includes owning-book identity for reader-visible results.
-why_now: Search labeling is a direct acceptance requirement and the smallest remaining behavior layer that can be completed before sidebar/render/build/serve integration.
+chunk_id: CHUNK-007B
+title: Add first working `build_html_site()` orchestration with mdBook-config projection
+objective: Implement the smallest end-to-end HTML build entrypoint that consumes `bookshelf.toml`, projects per-book minimal mdBook `Config`, and writes a basic multi-book website output from existing site/navigation models.
+why_now: User priority now requires a first working website build before search, and this chunk establishes the core build path analogous to mdBook flow without jumping to full renderer parity.
 depends_on:
   - CHUNK-001
   - CHUNK-002
@@ -54,45 +60,47 @@ depends_on:
   - CHUNK-005
   - CHUNK-006
 mdbook_touchpoints:
-  - reuse: consume mdBook-loaded content already normalized into bookshelf-owned site/page metadata
-  - avoid: no `MDBook::build()`, no `mdbook_html` searcher pipeline coupling, no HTML/template output
+  - reuse: `MDBook::load_with_config_and_summary` loaded outputs from the existing pipeline
+  - reuse: project `bookshelf.toml` overlays into per-book mdBook `Config` such as `book.src` and applicable optional tables
+  - reuse: mdBook-like html destination semantics via `build_dir_for("html")`-compatible convention
+  - avoid: no top-level `MDBook::build()` orchestration and no direct `mdbook_html::HtmlHandlebars` as the final site renderer
 scope_in:
-  - define typed search-document structs for site-wide indexing inputs
-  - emit one deterministic search document per searchable content page across all books
-  - include required owning-book label metadata on each document
-  - exclude synthetic root `Bookshelf` page from searchable content documents
-  - add focused tests for cross-book coverage and label correctness
+  - add `build_html_site()` API that runs config -> catalog -> load -> site-model -> navigation -> write-output orchestration
+  - implement minimal per-book config projection from `bookshelf.toml` into mdBook config structs
+  - write first working HTML artifacts: root `index.html` for the Bookshelf page and content page html files for loaded chapters
+  - ensure output directory layout is deterministic and cleanly reproducible
+  - add one integration-style test proving a non-empty HTML site is emitted from fixture input
 scope_out:
-  - no frontend search UI behavior
-  - no JS index serialization format coupling
-  - no sidebar data generation
-  - no renderer/build/serve wiring
+  - no search index or result-label implementation
+  - no full mdBook theme parity or advanced template system
+  - no serve/watch command integration yet
 target_files:
-  - src/search_model.rs
+  - src/build_html.rs
+  - src/config_projection.rs
   - src/lib.rs
-  - tests/search_model_build.rs
-  - tests/fixtures/search-model/valid/bookshelf.toml
+  - tests/build_html_site_smoke.rs
+  - tests/fixtures/build-html/valid/bookshelf.toml
 implementation_tasks:
-  - add `build_search_documents(...)` API from existing site/navigation metadata
-  - map each content page to stable search fields such as id/title/content text plus owning-book label
-  - enforce deterministic document ordering for reproducible output/tests
-  - skip synthetic/non-content pages explicitly
-  - add regression tests for multi-book site-wide inclusion and per-document book-label presence
+  - define `build_html_site(config_path, output_dir)` entrypoint and pipeline wiring
+  - map applicable `bookshelf.toml` sections into per-book minimal mdBook `Config`
+  - render minimal bookshelf-owned HTML shell pages from existing site/navigation data, root bookshelf plus chapter pages
+  - emit deterministic file paths and basic cross-links sufficient for a working website smoke check
+  - add smoke test asserting expected files exist and contain key markers
 acceptance_criteria:
-  - search model includes documents from all content books, site-wide
-  - each search document includes owning-book label metadata suitable for reader-visible results
-  - synthetic root `Bookshelf` page is not emitted as a searchable content document
-  - output ordering and identifiers are deterministic across runs
-  - chunk adds no HTML rendering or build/serve behavior
+  - running `build_html_site()` on a valid fixture produces an output directory with root `index.html`
+  - output includes at least one rendered content page per configured content book
+  - build path uses `bookshelf.toml` as source of truth and projects applicable config into mdBook config objects
+  - top-level orchestration does not invoke `MDBook::build()` and does not rely on stock `HtmlHandlebars` renderer
+  - chunk remains pre-search and does not add search model or index generation
 verification:
-  - command: `cargo test search_model_build -- --exact`
-    expect: exits 0 and validates site-wide inclusion, label presence, synthetic-page exclusion, and determinism
+  - command: `cargo test build_html_site_smoke -- --exact`
+    expect: exits 0 and verifies generated html files for root bookshelf page plus multiple content books
   - command: `cargo check --offline`
     expect: exits 0
 review_focus:
-  - owning-book label presence is enforced for every emitted search document
-  - site-wide search scope is complete while honoring non-content exclusions
-  - model stays renderer-agnostic to preserve separation before rendering integration
+  - build orchestration is mdBook-first but bookshelf-owned at top level
+  - config projection fidelity from `bookshelf.toml` to per-book mdBook config is explicit and minimal
+  - emitted site is truly end-to-end working, files written and basically navigable, without overreaching into full rendering or search
 ```
 
 ## Chunk Ledger
@@ -152,6 +160,9 @@ review_focus:
 - 2026-04-21T01:51:22Z [developer] [CHUNK-006] [DONE] Added deterministic navigation metadata with book-scoped prev/next, exact `Book / Page` breadcrumbs, and active-book resolution plus passing checks.
 - 2026-04-21T01:54:32Z [reviewer-subagent] [CHUNK-006] APPROVED - Navigation metadata enforces book-scoped prev/next with exact `Book / Page` breadcrumbs; page-id keyed active-book resolution is sufficient at this pre-route stage.
 - 2026-04-21T01:54:32Z [reviewer-claude] [CHUNK-006] APPROVED - book-scoped prev/next, `Book / Page` breadcrumbs, and page-id-keyed active-book resolution satisfy the pre-HTML, renderer-agnostic navigation contract.
+- 2026-04-21T02:22:42Z [coordinator] [REPRIORITIZE] [DONE] Recorded user-guided priority override: HTML build path first, preserve multiple canonical `SUMMARY.md`, map `bookshelf.toml` into mdBook `Config`, and defer search until after website build works.
+- 2026-04-21T10:34:00Z [researcher] [HTML-SEAM] [DONE] Recommended bookshelf-owned HTML build pipeline: project `bookshelf.toml` into minimal per-book mdBook configs, reuse mdBook loading/preprocessing seams, and emulate only thin stock build/serve wrappers.
+- 2026-04-21T02:22:42Z [planner] [CHUNK-007B] [DONE] Replanned next chunk to first working `build_html_site()` orchestration, explicitly deferring review of committed CHUNK-007 search-model work until after website build priority is satisfied.
 - 2026-04-20T15:18:45Z [developer] [CHUNK-002] [DONE] Added strict typed config loader/validation and passing parse tests for valid, duplicate-id, missing-root, and empty-catalog cases.
 - 2026-04-20T15:32:00Z [reviewer-subagent] [CHUNK-002] CHANGES_REQUIRED - Handwritten line parser is not TOML-compliant and can reject valid coexisting mdBook tables (non-quoted values, inline comments, escaping), so config fidelity is not met.
 - 2026-04-20T15:24:29Z [developer] [CHUNK-002] [STARTED] Began review-fix to replace line parsing with TOML deserialization and add regression coverage for comments and quoting semantics.
@@ -183,8 +194,12 @@ review_focus:
 - 2026-04-21T11:02:00Z [reviewer-subagent] [CHUNK-005] APPROVED - Route metadata was removed as requested; model remains deterministic and focused on ownership/order plus synthetic Bookshelf invariants.
 - 2026-04-21T01:48:02Z [planner] [CHUNK-006] [DONE] Selected minimal next chunk: derive deterministic navigation metadata (book-scoped prev/next, `Book / Page` breadcrumbs, and active-book context resolution) from the site model without rendering.
 - 2026-04-21T01:55:24Z [planner] [CHUNK-007] [DONE] Selected minimal next chunk: build renderer-agnostic site-wide search document model with required owning-book labels from the current site and navigation metadata.
+- 2026-04-21T02:24:51Z [planner] [CHUNK-007B] [DONE] Re-prioritized next chunk to first working HTML build path: implement bookshelf-owned `build_html_site()` orchestration and minimal per-book mdBook `Config` projection, deferring search.
 - 2026-04-21T01:49:25Z [developer] [CHUNK-006] [STARTED] Began navigation-metadata implementation for book-scoped prev/next, `Book / Page` breadcrumbs, and active-book target resolution.
 - 2026-04-21T01:52:14Z [developer] [CHUNK-006] [DONE] Added deterministic renderer-agnostic navigation metadata with book-scoped prev/next, `Book / Page` breadcrumbs, and active-book resolution.
 - 2026-04-21T11:18:00Z [reviewer-subagent] [CHUNK-006] APPROVED - Navigation metadata enforces book-scoped prev/next with exact `Book / Page` breadcrumbs; page-id keyed active-book resolution is sufficient at this pre-route stage.
 - 2026-04-21T01:56:46Z [developer] [CHUNK-007] [STARTED] Began renderer-agnostic site-wide search model implementation with per-document owning-book labels and synthetic-page exclusion.
 - 2026-04-21T01:59:07Z [developer] [CHUNK-007] [DONE] Added deterministic site-wide search document model with owning-book labels and synthetic-page exclusion from emitted documents.
+- 2026-04-21T02:31:36Z [developer] [CHUNK-007B] [STARTED] Began first working HTML build-path implementation with mdBook-config projection and bookshelf-owned file emission.
+- 2026-04-21T02:31:36Z [developer] [CHUNK-007B] [DONE] Added first working HTML build orchestration with config projection and fixture-backed smoke validation for root plus multi-book content pages.
+- 2026-04-21T10:34:00Z [researcher] [HTML-SEAM] [DONE] Recommended minimal mdBook-first seam: project `bookshelf.toml` into per-book `mdbook_core::Config`, keep multi-book composition in a custom renderer path, and emulate only thin stock build/serve wrappers next.

@@ -4,6 +4,8 @@ pub mod loader;
 pub mod site_model;
 pub mod navigation;
 pub mod search_model;
+pub mod config_projection;
+pub mod build_html;
 
 pub use catalog::{InputBook, InputCatalog, build_input_catalog};
 pub use config::{BookshelfBook, BookshelfConfig, load_bookshelf_config};
@@ -11,6 +13,8 @@ pub use loader::{LoadedBook, LoadedBooks, load_books_from_catalog, load_books_fr
 pub use site_model::{SiteBook, SiteModel, SitePage, SitePageKind, build_site_model};
 pub use navigation::{NavigationMetadata, PageNavigation, build_navigation_metadata};
 pub use search_model::{SearchDocument, SearchDocuments, build_search_documents};
+pub use config_projection::{ProjectedBookConfig, project_book_configs};
+pub use build_html::build_html_site;
 
 use anyhow::{Context, Result, bail};
 use mdbook_driver::{MDBook, config::Config};
