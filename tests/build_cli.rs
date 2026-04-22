@@ -3,12 +3,14 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const BOOKSHELF_RETURN_CSS_PATH: &str = ".mdbook-bookshelf/shared/bookshelf-return.css";
+
 #[test]
 fn build_cli_emits_root_book_bookshelf_page_and_preserves_authored_root_index() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook-bookshelf"));
     let config_path = repo_root.join("bookshelf/handoffs/examples/self-contained/bookshelf.toml");
-    let output_dir = make_temp_dir("chunk-011-build-cli", &repo_root);
+    let output_dir = make_temp_dir("chunk-014-build-cli", &repo_root);
 
     let output = Command::new(&bin)
         .arg("build")
@@ -80,16 +82,62 @@ fn build_cli_emits_root_book_bookshelf_page_and_preserves_authored_root_index() 
         &root_index_html,
         "Parser-specific reference pages with their own reading order.",
     );
+    assert_text_contains(
+        &root_index_html,
+        &format!("href=\"{BOOKSHELF_RETURN_CSS_PATH}\""),
+    );
+    assert_text_contains(
+        &root_index_html,
+        "src=\".mdbook-bookshelf/books/meta/bookshelf-return.js\"",
+    );
+
+    let parser_index_html = assert_read_to_string(output_dir.join("books/parser/index.html"));
+    assert_text_contains(
+        &parser_index_html,
+        &format!("href=\"{BOOKSHELF_RETURN_CSS_PATH}\""),
+    );
+    assert_text_contains(
+        &parser_index_html,
+        "src=\".mdbook-bookshelf/books/parser/bookshelf-return.js\"",
+    );
 
     assert_exists(output_dir.join("books/meta/index.html"));
     assert_exists(output_dir.join("books/meta/bookshelf.html"));
     assert_exists(output_dir.join("books/meta/onboarding.html"));
     assert_exists(output_dir.join("books/meta/toc.html"));
     assert_has_file_with_prefix(&output_dir.join("books/meta"), "book-", ".js");
+    let root_return_script =
+        output_dir.join("books/meta/.mdbook-bookshelf/books/meta/bookshelf-return.js");
+    assert_exists(root_return_script.clone());
+    assert_file_contains(
+        root_return_script,
+        "const bookshelfTarget = \"bookshelf.html\";",
+    );
     assert_exists(output_dir.join("books/parser/index.html"));
     assert_exists(output_dir.join("books/parser/grammar.html"));
     assert_exists(output_dir.join("books/parser/toc.html"));
     assert_has_file_with_prefix(&output_dir.join("books/parser"), "book-", ".js");
+    let parser_return_script =
+        output_dir.join("books/parser/.mdbook-bookshelf/books/parser/bookshelf-return.js");
+    assert_exists(parser_return_script.clone());
+    assert_file_contains(
+        parser_return_script.clone(),
+        "const bookshelfTarget = \"../meta/bookshelf.html\";",
+    );
+    assert_file_contains(
+        parser_return_script.clone(),
+        "window.location.pathname.split(\"/\").pop()",
+    );
+    assert_file_contains(
+        parser_return_script.clone(),
+        "currentPage === \"bookshelf.html\"",
+    );
+    assert_file_contains(
+        parser_return_script,
+        "document.querySelector(\"#mdbook-menu-bar .right-buttons\")",
+    );
+    assert_exists(output_dir.join("books/meta/.mdbook-bookshelf/shared/bookshelf-return.css"));
+    assert_exists(output_dir.join("books/parser/.mdbook-bookshelf/shared/bookshelf-return.css"));
 
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
@@ -100,7 +148,7 @@ fn build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir() {
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook-bookshelf"));
     let fixture_root = repo_root.join("tests/fixtures/build-cli/shared-config-root");
     let config_path = fixture_root.join("bookshelf.toml");
-    let output_dir = make_temp_dir("chunk-011-shared-config-root", &repo_root);
+    let output_dir = make_temp_dir("chunk-014-shared-config-root", &repo_root);
 
     let output = Command::new(&bin)
         .arg("build")
@@ -131,6 +179,14 @@ fn build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir() {
     assert_file_contains(
         output_dir.join("books/child/index.html"),
         &format!("shared/{child_css}"),
+    );
+    assert_file_contains(
+        output_dir.join("books/root/index.html"),
+        BOOKSHELF_RETURN_CSS_PATH,
+    );
+    assert_file_contains(
+        output_dir.join("books/child/index.html"),
+        BOOKSHELF_RETURN_CSS_PATH,
     );
 
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
