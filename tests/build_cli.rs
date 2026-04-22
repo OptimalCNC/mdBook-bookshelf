@@ -4,7 +4,7 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
-fn build_cli_emits_bookshelf_return_assets_without_fixture_residue() {
+fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook-bookshelf"));
     let fixture_root = repo_root.join("bookshelf/handoffs/examples/self-contained");
@@ -77,6 +77,8 @@ fn build_cli_emits_bookshelf_return_assets_without_fixture_residue() {
         "Repository-wide onboarding and architecture guidance for the example project.",
     );
     assert_text_contains(&root_index_html, "href=\"onboarding.html\"");
+    assert_text_contains(&root_index_html, "bookshelf-breadcrumb.css");
+    assert_text_contains(&root_index_html, "bookshelf-breadcrumb.js");
     assert_text_contains(&root_index_html, "bookshelf-return.css");
     assert_text_contains(&root_index_html, "bookshelf-return.js");
     assert_text_not_contains(&root_index_html, "Choose a book to enter its root page.");
@@ -86,11 +88,20 @@ fn build_cli_emits_bookshelf_return_assets_without_fixture_residue() {
     );
 
     let parser_index_html = assert_read_to_string(output_dir.join("books/parser/index.html"));
+    assert_text_contains(&parser_index_html, "bookshelf-breadcrumb.css");
+    assert_text_contains(&parser_index_html, "bookshelf-breadcrumb.js");
     assert_text_contains(&parser_index_html, "bookshelf-return.css");
     assert_text_contains(&parser_index_html, "bookshelf-return.js");
+    let architecture_html = assert_read_to_string(output_dir.join("books/meta/architecture.html"));
+    assert_text_contains(&architecture_html, "bookshelf-breadcrumb.css");
+    assert_text_contains(&architecture_html, "bookshelf-breadcrumb.js");
+    let grammar_html = assert_read_to_string(output_dir.join("books/parser/grammar.html"));
+    assert_text_contains(&grammar_html, "bookshelf-breadcrumb.css");
+    assert_text_contains(&grammar_html, "bookshelf-breadcrumb.js");
 
     assert_exists(output_dir.join("books/meta/index.html"));
     assert_exists(output_dir.join("books/meta/bookshelf.html"));
+    assert_exists(output_dir.join("books/meta/architecture.html"));
     assert_exists(output_dir.join("books/meta/onboarding.html"));
     assert_exists(output_dir.join("books/meta/toc.html"));
     assert_has_file_with_prefix(&output_dir.join("books/meta"), "book-", ".js");
@@ -98,6 +109,14 @@ fn build_cli_emits_bookshelf_return_assets_without_fixture_residue() {
         assert_single_file_named_recursive(&output_dir.join("books/meta"), "bookshelf-return.js");
     let root_return_css =
         assert_single_file_named_recursive(&output_dir.join("books/meta"), "bookshelf-return.css");
+    let root_breadcrumb_script = assert_single_file_named_recursive(
+        &output_dir.join("books/meta"),
+        "bookshelf-breadcrumb.js",
+    );
+    let root_breadcrumb_css = assert_single_file_named_recursive(
+        &output_dir.join("books/meta"),
+        "bookshelf-breadcrumb.css",
+    );
     assert_file_contains(
         root_return_script.clone(),
         "const bookshelfTarget = \"bookshelf.html\";",
@@ -112,6 +131,20 @@ fn build_cli_emits_bookshelf_return_assets_without_fixture_residue() {
     );
     assert_file_contains(root_return_script, "currentPage === \"bookshelf.html\"");
     assert_file_contains(root_return_css, ".bookshelf-return-link");
+    assert_file_contains(
+        root_breadcrumb_script.clone(),
+        "\"architecture.html\": \"Example Core / Architecture\"",
+    );
+    assert_file_contains(
+        root_breadcrumb_script.clone(),
+        "\"index.html\": \"Example Core / Example Core\"",
+    );
+    assert_file_contains(
+        root_breadcrumb_script.clone(),
+        "setAttribute(\"data-bookshelf-breadcrumb\", \"true\")",
+    );
+    assert_file_not_contains(root_breadcrumb_script, "\"bookshelf.html\":");
+    assert_file_contains(root_breadcrumb_css, ".bookshelf-breadcrumb");
     assert_exists(output_dir.join("books/parser/index.html"));
     assert_exists(output_dir.join("books/parser/grammar.html"));
     assert_exists(output_dir.join("books/parser/toc.html"));
@@ -122,12 +155,31 @@ fn build_cli_emits_bookshelf_return_assets_without_fixture_residue() {
         &output_dir.join("books/parser"),
         "bookshelf-return.css",
     );
+    let parser_breadcrumb_script = assert_single_file_named_recursive(
+        &output_dir.join("books/parser"),
+        "bookshelf-breadcrumb.js",
+    );
+    let parser_breadcrumb_css = assert_single_file_named_recursive(
+        &output_dir.join("books/parser"),
+        "bookshelf-breadcrumb.css",
+    );
     assert_file_contains(
         parser_return_script.clone(),
         "const bookshelfTarget = \"../meta/bookshelf.html\";",
     );
     assert_file_contains(parser_return_script, "link.rel = \"up\";");
     assert_file_contains(parser_return_css, ".bookshelf-return-link");
+    assert_file_contains(
+        parser_breadcrumb_script.clone(),
+        "\"grammar.html\": \"Example Parser / Grammar\"",
+    );
+    assert_file_contains(
+        parser_breadcrumb_script.clone(),
+        "\"runtime.html\": \"Example Parser / Runtime\"",
+    );
+    assert_file_contains(parser_breadcrumb_script, "main.prepend(breadcrumb)");
+    assert_file_contains(parser_breadcrumb_css, ".bookshelf-breadcrumb");
+    assert_text_not_contains(&bookshelf_html, "data-bookshelf-breadcrumb");
     assert!(!fixture_root.join(".mdbook-bookshelf").exists());
     assert_eq!(collect_tree_entries(&fixture_root), fixture_entries_before);
 
@@ -220,6 +272,17 @@ fn assert_file_contains(path: PathBuf, needle: &str) {
     assert!(
         content.contains(needle),
         "expected {} to contain {:?}",
+        path.display(),
+        needle
+    );
+}
+
+fn assert_file_not_contains(path: PathBuf, needle: &str) {
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+    assert!(
+        !content.contains(needle),
+        "expected {} not to contain {:?}",
         path.display(),
         needle
     );

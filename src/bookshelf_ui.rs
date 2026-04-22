@@ -9,10 +9,21 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const BOOKSHELF_UI_ASSET_DIR: &str = ".mdbook-bookshelf";
 const BOOKSHELF_UI_SHARED_DIR: &str = "shared";
 const BOOKSHELF_UI_BOOKS_DIR: &str = "books";
+const BOOKSHELF_BREADCRUMB_CSS_NAME: &str = "bookshelf-breadcrumb.css";
+const BOOKSHELF_BREADCRUMB_JS_NAME: &str = "bookshelf-breadcrumb.js";
+const BOOKSHELF_BREADCRUMB_CLASS: &str = "bookshelf-breadcrumb";
+const BOOKSHELF_BREADCRUMB_ID: &str = "bookshelf-breadcrumb";
+const BOOKSHELF_BREADCRUMB_ATTRIBUTE: &str = "data-bookshelf-breadcrumb";
 const BOOKSHELF_RETURN_CSS_NAME: &str = "bookshelf-return.css";
 const BOOKSHELF_RETURN_JS_NAME: &str = "bookshelf-return.js";
 const BOOKSHELF_RETURN_LINK_CLASS: &str = "bookshelf-return-link";
 const BOOKSHELF_RETURN_LINK_ID: &str = "bookshelf-return-link";
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct BookshelfBreadcrumbPage {
+    pub html_path: String,
+    pub breadcrumb: String,
+}
 
 pub struct TransientBookshelfUiAssets {
     config_root: PathBuf,
@@ -61,28 +72,50 @@ impl TransientBookshelfUiAssets {
         );
     }
 
-    pub fn inject_bookshelf_return_assets(
+    pub fn inject_bookshelf_ui_assets(
         &self,
         config: &mut Config,
         book_id: &str,
         root_book_id: &str,
+        breadcrumb_pages: &[BookshelfBreadcrumbPage],
     ) -> Result<()> {
-        let css_rel_path = self.bookshelf_return_css_path();
-        let js_rel_path = self.bookshelf_return_js_path(book_id);
-        let css_abs_path = self.config_root.join(&css_rel_path);
-        let js_abs_path = self.config_root.join(&js_rel_path);
+        let return_css_rel_path = self.bookshelf_return_css_path();
+        let return_js_rel_path = self.bookshelf_return_js_path(book_id);
+        let breadcrumb_css_rel_path = self.bookshelf_breadcrumb_css_path();
+        let breadcrumb_js_rel_path = self.bookshelf_breadcrumb_js_path(book_id);
 
-        write_asset_file(&css_abs_path, &render_bookshelf_return_css())?;
         write_asset_file(
-            &js_abs_path,
+            &self.config_root.join(&return_css_rel_path),
+            &render_bookshelf_return_css(),
+        )?;
+        write_asset_file(
+            &self.config_root.join(&return_js_rel_path),
             &render_bookshelf_return_js(book_id, root_book_id),
         )?;
+        write_asset_file(
+            &self.config_root.join(&breadcrumb_css_rel_path),
+            &render_bookshelf_breadcrumb_css(),
+        )?;
+        write_asset_file(
+            &self.config_root.join(&breadcrumb_js_rel_path),
+            &render_bookshelf_breadcrumb_js(breadcrumb_pages),
+        )?;
 
-        append_output_asset(config, "output.html.additional-css", css_rel_path).context(
+        append_output_asset(config, "output.html.additional-css", return_css_rel_path).context(
             "failed to append bookshelf return stylesheet to output.html.additional-css",
         )?;
-        append_output_asset(config, "output.html.additional-js", js_rel_path)
+        append_output_asset(
+            config,
+            "output.html.additional-css",
+            breadcrumb_css_rel_path,
+        )
+        .context(
+            "failed to append bookshelf breadcrumb stylesheet to output.html.additional-css",
+        )?;
+        append_output_asset(config, "output.html.additional-js", return_js_rel_path)
             .context("failed to append bookshelf return script to output.html.additional-js")?;
+        append_output_asset(config, "output.html.additional-js", breadcrumb_js_rel_path)
+            .context("failed to append bookshelf breadcrumb script to output.html.additional-js")?;
 
         Ok(())
     }
@@ -120,11 +153,24 @@ impl TransientBookshelfUiAssets {
             .join(BOOKSHELF_RETURN_CSS_NAME)
     }
 
+    fn bookshelf_breadcrumb_css_path(&self) -> PathBuf {
+        self.build_rel_root
+            .join(BOOKSHELF_UI_SHARED_DIR)
+            .join(BOOKSHELF_BREADCRUMB_CSS_NAME)
+    }
+
     fn bookshelf_return_js_path(&self, book_id: &str) -> PathBuf {
         self.build_rel_root
             .join(BOOKSHELF_UI_BOOKS_DIR)
             .join(book_id)
             .join(BOOKSHELF_RETURN_JS_NAME)
+    }
+
+    fn bookshelf_breadcrumb_js_path(&self, book_id: &str) -> PathBuf {
+        self.build_rel_root
+            .join(BOOKSHELF_UI_BOOKS_DIR)
+            .join(book_id)
+            .join(BOOKSHELF_BREADCRUMB_JS_NAME)
     }
 }
 
@@ -233,12 +279,109 @@ fn render_bookshelf_return_css() -> String {
     )
 }
 
+fn render_bookshelf_breadcrumb_css() -> String {
+    format!(
+        "#mdbook-content main .{class_name} {{\n\
+    color: var(--fg);\n\
+    display: block;\n\
+    font-size: 0.9em;\n\
+    font-weight: 600;\n\
+    letter-spacing: 0.01em;\n\
+    margin: 0 0 1rem;\n\
+    opacity: 0.72;\n\
+}}\n",
+        class_name = BOOKSHELF_BREADCRUMB_CLASS,
+    )
+}
+
+fn render_bookshelf_breadcrumb_js(breadcrumb_pages: &[BookshelfBreadcrumbPage]) -> String {
+    let breadcrumb_entries = if breadcrumb_pages.is_empty() {
+        String::new()
+    } else {
+        breadcrumb_pages
+            .iter()
+            .map(|page| {
+                format!(
+                    "    \"{}\": \"{}\"",
+                    escape_js_string(&page.html_path),
+                    escape_js_string(&page.breadcrumb),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join(",\n")
+    };
+
+    format!(
+        "(() => {{\n\
+const breadcrumbByPage = {{\n\
+{entries}\n\
+}};\n\
+const main = document.querySelector(\"#mdbook-content main\");\n\
+if (!main || document.getElementById(\"{breadcrumb_id}\")) {{\n\
+    return;\n\
+}}\n\
+const rootPath = typeof path_to_root === \"string\" ? path_to_root : \"\";\n\
+let currentPath = \"\";\n\
+try {{\n\
+    const currentUrl = new URL(window.location.href);\n\
+    const bookRootUrl = new URL(rootPath === \"\" ? \"./\" : rootPath, currentUrl);\n\
+    if (currentUrl.pathname.startsWith(bookRootUrl.pathname)) {{\n\
+        currentPath = currentUrl.pathname.slice(bookRootUrl.pathname.length);\n\
+    }} else {{\n\
+        currentPath = currentUrl.pathname.split(\"/\").pop() || \"\";\n\
+    }}\n\
+}} catch (_err) {{\n\
+    currentPath = window.location.pathname.split(\"/\").pop() || \"\";\n\
+}}\n\
+currentPath = currentPath.replace(/^\\/+/u, \"\");\n\
+if (currentPath === \"\") {{\n\
+    currentPath = \"index.html\";\n\
+}}\n\
+const breadcrumbText = breadcrumbByPage[currentPath];\n\
+if (!breadcrumbText) {{\n\
+    return;\n\
+}}\n\
+const breadcrumb = document.createElement(\"nav\");\n\
+breadcrumb.id = \"{breadcrumb_id}\";\n\
+breadcrumb.className = \"{breadcrumb_class}\";\n\
+breadcrumb.setAttribute(\"aria-label\", \"Breadcrumb\");\n\
+breadcrumb.setAttribute(\"{breadcrumb_attr}\", \"true\");\n\
+breadcrumb.textContent = breadcrumbText;\n\
+main.prepend(breadcrumb);\n\
+}})();\n",
+        entries = breadcrumb_entries,
+        breadcrumb_attr = BOOKSHELF_BREADCRUMB_ATTRIBUTE,
+        breadcrumb_class = BOOKSHELF_BREADCRUMB_CLASS,
+        breadcrumb_id = BOOKSHELF_BREADCRUMB_ID,
+    )
+}
+
 fn bookshelf_return_target_from_book_root(book_id: &str, root_book_id: &str) -> String {
     if book_id == root_book_id {
         ROOT_BOOKSHELF_HTML_PATH.to_string()
     } else {
         format!("../{root_book_id}/{ROOT_BOOKSHELF_HTML_PATH}")
     }
+}
+
+fn escape_js_string(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            '\u{2028}' => escaped.push_str("\\u2028"),
+            '\u{2029}' => escaped.push_str("\\u2029"),
+            control if control.is_control() => {
+                escaped.push_str(&format!("\\u{:04x}", control as u32));
+            }
+            other => escaped.push(other),
+        }
+    }
+    escaped
 }
 
 #[cfg(test)]
@@ -262,7 +405,7 @@ mod tests {
     }
 
     #[test]
-    fn inject_bookshelf_return_assets_preserves_existing_output_assets() {
+    fn inject_bookshelf_ui_assets_preserves_existing_output_assets() {
         let temp_root = make_temp_dir("mdbook-bookshelf-bookshelf-ui");
         let mut ui_assets =
             TransientBookshelfUiAssets::new(&temp_root).expect("asset root should be created");
@@ -281,7 +424,7 @@ mod tests {
             .expect("existing js should be configured");
 
         ui_assets
-            .inject_bookshelf_return_assets(&mut config, "parser", "meta")
+            .inject_bookshelf_ui_assets(&mut config, "parser", "meta", &sample_breadcrumb_pages())
             .expect("asset injection should succeed");
 
         let css_assets = config
@@ -291,7 +434,10 @@ mod tests {
         assert_eq!(css_assets[0], PathBuf::from("shared/site.css"));
         assert!(css_assets[1].starts_with(Path::new(BOOKSHELF_UI_ASSET_DIR)));
         assert!(css_assets[1].ends_with(Path::new(BOOKSHELF_RETURN_CSS_NAME)));
+        assert!(css_assets[2].starts_with(Path::new(BOOKSHELF_UI_ASSET_DIR)));
+        assert!(css_assets[2].ends_with(Path::new(BOOKSHELF_BREADCRUMB_CSS_NAME)));
         assert!(temp_root.join(&css_assets[1]).exists());
+        assert!(temp_root.join(&css_assets[2]).exists());
 
         let js_assets = config
             .get::<Vec<PathBuf>>("output.html.additional-js")
@@ -300,11 +446,29 @@ mod tests {
         assert_eq!(js_assets[0], PathBuf::from("shared/site.js"));
         assert!(js_assets[1].starts_with(Path::new(BOOKSHELF_UI_ASSET_DIR)));
         assert!(js_assets[1].ends_with(Path::new("parser").join(BOOKSHELF_RETURN_JS_NAME)));
+        assert!(js_assets[2].starts_with(Path::new(BOOKSHELF_UI_ASSET_DIR)));
+        assert!(js_assets[2].ends_with(Path::new("parser").join(BOOKSHELF_BREADCRUMB_JS_NAME)));
         assert!(temp_root.join(&js_assets[1]).exists());
+        assert!(temp_root.join(&js_assets[2]).exists());
+        let breadcrumb_js = fs::read_to_string(temp_root.join(&js_assets[2]))
+            .expect("breadcrumb script should be readable");
+        assert!(breadcrumb_js.contains("\"grammar.html\": \"Example Parser / Grammar\""));
+        assert!(breadcrumb_js.contains("setAttribute(\"data-bookshelf-breadcrumb\", \"true\")"));
 
         ui_assets.cleanup().expect("asset root should be removed");
         assert!(!temp_root.join(BOOKSHELF_UI_ASSET_DIR).exists());
         fs::remove_dir_all(temp_root).expect("temporary asset directory should be removed");
+    }
+
+    #[test]
+    fn render_bookshelf_breadcrumb_js_uses_exact_page_map() {
+        let script = render_bookshelf_breadcrumb_js(&sample_breadcrumb_pages());
+
+        assert!(script.contains("\"grammar.html\": \"Example Parser / Grammar\""));
+        assert!(script.contains("\"runtime.html\": \"Example Parser / Runtime\""));
+        assert!(script.contains("breadcrumbByPage[currentPath]"));
+        assert!(script.contains("main.prepend(breadcrumb)"));
+        assert!(script.contains("currentPath = \"index.html\""));
     }
 
     #[test]
@@ -316,7 +480,7 @@ mod tests {
                 TransientBookshelfUiAssets::new(&temp_root).expect("asset root should be created");
             let mut config = Config::default();
             ui_assets
-                .inject_bookshelf_return_assets(&mut config, "meta", "meta")
+                .inject_bookshelf_ui_assets(&mut config, "meta", "meta", &sample_breadcrumb_pages())
                 .expect("asset injection should succeed");
             assert!(temp_root.join(BOOKSHELF_UI_ASSET_DIR).exists());
         }
@@ -346,13 +510,26 @@ mod tests {
             TransientBookshelfUiAssets::new(&temp_root).expect("asset root should be created");
         let mut config = Config::default();
         ui_assets
-            .inject_bookshelf_return_assets(&mut config, "meta", "meta")
+            .inject_bookshelf_ui_assets(&mut config, "meta", "meta", &sample_breadcrumb_pages())
             .expect("asset injection should succeed");
 
         ui_assets.cleanup().expect("cleanup should succeed");
 
         assert!(!temp_root.join(BOOKSHELF_UI_ASSET_DIR).exists());
         fs::remove_dir_all(temp_root).expect("temporary asset directory should be removed");
+    }
+
+    fn sample_breadcrumb_pages() -> Vec<BookshelfBreadcrumbPage> {
+        vec![
+            BookshelfBreadcrumbPage {
+                html_path: "grammar.html".to_string(),
+                breadcrumb: "Example Parser / Grammar".to_string(),
+            },
+            BookshelfBreadcrumbPage {
+                html_path: "runtime.html".to_string(),
+                breadcrumb: "Example Parser / Runtime".to_string(),
+            },
+        ]
     }
 
     fn make_temp_dir(tag: &str) -> PathBuf {

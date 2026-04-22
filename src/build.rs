@@ -1,21 +1,28 @@
-use crate::bookshelf_ui::TransientBookshelfUiAssets;
+use crate::bookshelf_ui::{BookshelfBreadcrumbPage, TransientBookshelfUiAssets};
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
+use crate::loader::load_books_from_catalog;
+use crate::navigation::build_navigation_metadata;
 use crate::root_bookshelf_preprocessor::{
     inject_root_bookshelf_page, site_root_bookshelf_entry_path,
 };
+use crate::site_model::{build_site_model, SitePageKind};
 use anyhow::{Context, Result};
 use mdbook_driver::{config::Config, MDBook};
 use mdbook_summary::parse_summary;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 pub fn build_bookshelf(config_path: impl AsRef<Path>, dest_dir: Option<PathBuf>) -> Result<()> {
     let config_path = config_path.as_ref();
-    let catalog = build_input_catalog(config_path)?;
+    let catalog = absolutize_catalog_paths(build_input_catalog(config_path)?)
+        .context("failed to resolve bookshelf catalog paths")?;
     let projected_config = project_mdbook_config(config_path)?;
     let site_dest_dir = resolve_site_dest_dir(&catalog.config_dir, &projected_config, dest_dir)?;
     let config_root = catalog.config_dir.clone();
+    let book_breadcrumbs = build_book_breadcrumbs(&catalog)
+        .context("failed to build exact book/page breadcrumb metadata")?;
 
     {
         let mut ui_assets = TransientBookshelfUiAssets::new(&config_root).with_context(|| {
@@ -26,6 +33,10 @@ pub fn build_bookshelf(config_path: impl AsRef<Path>, dest_dir: Option<PathBuf>)
         })?;
 
         for book in &catalog.books {
+            let breadcrumb_pages: &[BookshelfBreadcrumbPage] = book_breadcrumbs
+                .get(&book.id)
+                .map(Vec::as_slice)
+                .unwrap_or(&[]);
             build_catalog_book(
                 book,
                 &catalog,
@@ -33,6 +44,7 @@ pub fn build_bookshelf(config_path: impl AsRef<Path>, dest_dir: Option<PathBuf>)
                 &config_root,
                 &site_dest_dir,
                 &ui_assets,
+                breadcrumb_pages,
             )?;
         }
 
@@ -79,6 +91,7 @@ fn build_catalog_book(
     config_root: &Path,
     site_dest_dir: &Path,
     ui_assets: &TransientBookshelfUiAssets,
+    breadcrumb_pages: &[BookshelfBreadcrumbPage],
 ) -> Result<()> {
     let summary_text = fs::read_to_string(&book.summary_abs).with_context(|| {
         format!(
@@ -99,10 +112,15 @@ fn build_catalog_book(
     config.book.src = book.book_src_rel.clone();
     config.build.build_dir = site_dest_dir.join("books").join(&book.id);
     ui_assets
-        .inject_bookshelf_return_assets(&mut config, &book.id, &catalog.root_book_id)
+        .inject_bookshelf_ui_assets(
+            &mut config,
+            &book.id,
+            &catalog.root_book_id,
+            breadcrumb_pages,
+        )
         .with_context(|| {
             format!(
-                "book '{}' failed to inject bookshelf return assets under {}",
+                "book '{}' failed to inject bookshelf UI assets under {}",
                 book.id,
                 config_root.display()
             )
@@ -163,6 +181,86 @@ fn make_absolute(base: &Path, path: PathBuf) -> PathBuf {
     } else {
         base.join(path)
     }
+}
+
+fn absolutize_catalog_paths(mut catalog: InputCatalog) -> Result<InputCatalog> {
+    let cwd = std::env::current_dir().context("failed to determine current working directory")?;
+    catalog.config_path = make_absolute(&cwd, catalog.config_path);
+    catalog.config_dir = make_absolute(&cwd, catalog.config_dir);
+
+    for book in &mut catalog.books {
+        absolutize_book_paths(book, &cwd);
+    }
+
+    Ok(catalog)
+}
+
+fn absolutize_book_paths(book: &mut InputBook, cwd: &Path) {
+    book.book_root_abs = make_absolute(cwd, book.book_root_abs.clone());
+    book.book_src_abs = make_absolute(cwd, book.book_src_abs.clone());
+    book.summary_abs = make_absolute(cwd, book.summary_abs.clone());
+}
+
+fn build_book_breadcrumbs(
+    catalog: &InputCatalog,
+) -> Result<BTreeMap<String, Vec<BookshelfBreadcrumbPage>>> {
+    let loaded =
+        load_books_from_catalog(catalog).context("failed to load books for breadcrumb metadata")?;
+    let site_model = build_site_model(catalog, &loaded)
+        .context("failed to build site model for breadcrumb metadata")?;
+    let navigation = build_navigation_metadata(&site_model)
+        .context("failed to build navigation metadata for breadcrumb strings")?;
+    let mut by_book = catalog
+        .books
+        .iter()
+        .map(|book| (book.id.clone(), Vec::new()))
+        .collect::<BTreeMap<_, _>>();
+
+    for page in &site_model.pages {
+        if page.kind != SitePageKind::Content {
+            continue;
+        }
+
+        let html_path = page
+            .source_path
+            .as_ref()
+            .map(|path| chapter_output_html_path(path))
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "content page '{}' is missing a source path for breadcrumb output",
+                    page.page_id
+                )
+            })?;
+        let breadcrumb = navigation
+            .for_page(&page.page_id)
+            .and_then(|entry| entry.breadcrumb.clone())
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "content page '{}' is missing breadcrumb text in navigation metadata",
+                    page.page_id
+                )
+            })?;
+
+        by_book
+            .entry(page.owning_book_id.clone())
+            .or_default()
+            .push(BookshelfBreadcrumbPage {
+                html_path,
+                breadcrumb,
+            });
+    }
+
+    for breadcrumb_pages in by_book.values_mut() {
+        breadcrumb_pages.sort();
+    }
+
+    Ok(by_book)
+}
+
+fn chapter_output_html_path(path: &Path) -> String {
+    path.with_extension("html")
+        .to_string_lossy()
+        .replace('\\', "/")
 }
 
 fn write_site_root_index(
