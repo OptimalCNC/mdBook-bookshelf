@@ -1,8 +1,9 @@
 use std::fs;
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::io::{BufRead, BufReader, Read, Write};
+use std::net::TcpStream;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
+use std::process::{Child, ChildStderr, Command, Stdio};
+use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -12,7 +13,6 @@ fn serve_cli_serves_built_site() {
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook-bookshelf"));
     let config_path = repo_root.join("bookshelf/handoffs/examples/self-contained/bookshelf.toml");
     let output_dir = make_temp_dir("chunk-016-serve", &repo_root);
-    let port = reserve_loopback_port();
 
     let mut child = Command::new(&bin)
         .arg("serve")
@@ -22,13 +22,27 @@ fn serve_cli_serves_built_site() {
         .arg("--hostname")
         .arg("127.0.0.1")
         .arg("--port")
-        .arg(port.to_string())
+        .arg("0")
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
         .expect("serve command should spawn");
 
-    let root_response = wait_for_response(&mut child, port, "/");
+    let stderr = child
+        .stderr
+        .take()
+        .expect("serve child stderr should be piped");
+    let stderr_lines = spawn_stderr_reader(stderr);
+    let mut stderr_log = String::new();
+    let server_address = wait_for_serving_address(&mut child, &stderr_lines, &mut stderr_log);
+
+    let root_response = wait_for_response(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        "/",
+    );
     assert_status_ok(&root_response);
     assert_text_contains(
         response_body(&root_response),
@@ -39,7 +53,13 @@ fn serve_cli_serves_built_site() {
         "window.location.replace(\"books/meta/bookshelf.html\")",
     );
 
-    let shelf_response = wait_for_response(&mut child, port, "/books/meta/bookshelf.html");
+    let shelf_response = wait_for_response(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        "/books/meta/bookshelf.html",
+    );
     assert_status_ok(&shelf_response);
     assert_text_contains(response_body(&shelf_response), "<h1 id=\"bookshelf\">");
     assert_text_contains(
@@ -47,7 +67,13 @@ fn serve_cli_serves_built_site() {
         "Choose a book to enter its root page.",
     );
 
-    let parser_response = wait_for_response(&mut child, port, "/books/parser/grammar.html");
+    let parser_response = wait_for_response(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        "/books/parser/grammar.html",
+    );
     assert_status_ok(&parser_response);
     assert_text_contains(response_body(&parser_response), "<h1 id=\"grammar\">");
     assert_text_contains(
@@ -59,31 +85,68 @@ fn serve_cli_serves_built_site() {
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
 
-fn wait_for_response(child: &mut Child, port: u16, path: &str) -> String {
+fn wait_for_serving_address(
+    child: &mut Child,
+    stderr_lines: &Receiver<String>,
+    stderr_log: &mut String,
+) -> String {
     for _ in 0..100 {
         if let Some(status) = child
             .try_wait()
             .expect("serve child status should be readable")
         {
-            let stderr = read_child_stderr(child);
-            panic!("serve exited early with {status}\nstderr:\n{stderr}");
+            drain_stderr(stderr_lines, stderr_log);
+            panic!("serve exited early with {status}\nstderr:\n{stderr_log}");
         }
 
-        match http_get(port, path) {
+        if let Some(address) = drain_stderr_for_serving_address(stderr_lines, stderr_log) {
+            return address;
+        }
+
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    shutdown_child(child);
+    panic!("timed out waiting for serve process to report a bound address\nstderr:\n{stderr_log}");
+}
+
+fn wait_for_response(
+    child: &mut Child,
+    stderr_lines: &Receiver<String>,
+    stderr_log: &mut String,
+    server_address: &str,
+    path: &str,
+) -> String {
+    for _ in 0..100 {
+        if let Some(status) = child
+            .try_wait()
+            .expect("serve child status should be readable")
+        {
+            drain_stderr(stderr_lines, stderr_log);
+            panic!("serve exited early with {status}\nstderr:\n{stderr_log}");
+        }
+
+        match http_get(server_address, path) {
             Ok(response) => return response,
-            Err(_) => thread::sleep(Duration::from_millis(50)),
+            Err(_) => {
+                drain_stderr(stderr_lines, stderr_log);
+                thread::sleep(Duration::from_millis(50));
+            }
         }
     }
 
     shutdown_child(child);
-    panic!("timed out waiting for HTTP response from serve process for {path}");
+    panic!(
+        "timed out waiting for HTTP response from serve process for {path}\nstderr:\n{stderr_log}"
+    );
 }
 
-fn http_get(port: u16, path: &str) -> std::io::Result<String> {
-    let mut stream = TcpStream::connect(("127.0.0.1", port))?;
+fn http_get(server_address: &str, path: &str) -> std::io::Result<String> {
+    let mut stream = TcpStream::connect(server_address)?;
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
     stream.write_all(
-        format!("GET {path} HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").as_bytes(),
+        format!("GET {path} HTTP/1.1\r\nHost: {server_address}\r\nConnection: close\r\n\r\n")
+            .as_bytes(),
     )?;
 
     let mut response = String::new();
@@ -119,20 +182,51 @@ fn shutdown_child(child: &mut Child) {
     }
 }
 
-fn read_child_stderr(child: &mut Child) -> String {
-    let mut stderr = String::new();
-    if let Some(mut pipe) = child.stderr.take() {
-        let _ = pipe.read_to_string(&mut stderr);
-    }
-    stderr
+fn spawn_stderr_reader(stderr: ChildStderr) -> Receiver<String> {
+    let (sender, receiver) = mpsc::channel();
+
+    thread::spawn(move || {
+        let reader = BufReader::new(stderr);
+        for line in reader.lines() {
+            match line {
+                Ok(line) => {
+                    let _ = sender.send(line);
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    receiver
 }
 
-fn reserve_loopback_port() -> u16 {
-    TcpListener::bind(("127.0.0.1", 0))
-        .expect("loopback listener should bind")
-        .local_addr()
-        .expect("loopback listener should report local address")
-        .port()
+fn drain_stderr_for_serving_address(
+    stderr_lines: &Receiver<String>,
+    stderr_log: &mut String,
+) -> Option<String> {
+    let mut address = None;
+
+    while let Ok(line) = stderr_lines.try_recv() {
+        if !stderr_log.is_empty() {
+            stderr_log.push('\n');
+        }
+        stderr_log.push_str(&line);
+
+        if let Some(bound) = line.strip_prefix("Serving on: http://") {
+            address = Some(bound.trim().to_string());
+        }
+    }
+
+    address
+}
+
+fn drain_stderr(stderr_lines: &Receiver<String>, stderr_log: &mut String) {
+    while let Ok(line) = stderr_lines.try_recv() {
+        if !stderr_log.is_empty() {
+            stderr_log.push('\n');
+        }
+        stderr_log.push_str(&line);
+    }
 }
 
 fn make_temp_dir(prefix: &str, repo_root: &Path) -> PathBuf {

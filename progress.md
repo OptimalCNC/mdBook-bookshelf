@@ -42,10 +42,10 @@
 - Coordinator: orchestrates and may commit on behalf of the developer when needed.
 
 ## Current State
-- Status: IN_PROGRESS
+- Status: REVIEWING
 - Current iteration: CHUNK-016 iteration 1
 - Current chunk: CHUNK-016 build-once top-level `serve` workflow via the stock static-file server seam
-- Next action: implement CHUNK-016 to replace the unimplemented `serve` CLI path with a build-once static server for the existing multi-book site tree, explicitly deferring watch and live-reload.
+- Next action: review commit `acf1832` across direction, implementation, and external Claude gates, then either close CHUNK-016 or turn around review fixes.
 - Blockers: none.
 
 ## Open Risks
@@ -345,3 +345,7 @@ review_focus:
 - 2026-04-22T16:48:56Z [researcher] [CHUNK-016-SEAM] [DONE] Recommended a build-once top-level `serve` wrapper around `build_bookshelf(...)` plus the static `axum`/`ServeDir` half of stock `mdbook serve`, explicitly deferring watch and live-reload.
 - 2026-04-22T16:49:40Z [coordinator] [CHUNK-016] [STARTED] Accepted a tighter CHUNK-016 around the missing top-level `serve` workflow and began the implementation loop on the stock static-file server seam.
 - 2026-04-22T16:51:59Z [developer] [CHUNK-016] [STARTED] Began implementing build-once top-level `serve` by factoring the existing multi-book build path to return the resolved site root and wrapping it in a stock-like static file server.
+- 2026-04-22T16:57:52Z [developer] [CHUNK-016] [BLOCKED] The delegated worker iteration was interrupted before code changes landed, so the coordinator completed the chunk locally instead of waiting on a stale worker state.
+- 2026-04-22T16:57:52Z [coordinator] [CHUNK-016] [DONE] Implemented build-once top-level `serve` locally in commit `acf1832`, added loopback HTTP integration coverage, and revalidated with `cargo test` plus `cargo test serve_cli_serves_built_site -- --exact`.
+- 2026-04-23T00:00:00Z [reviewer] [CHUNK-016] APPROVED - Serve stays a build-once wrapper around the existing per-book `MDBook::build()` output plus a stock-like `ServeDir` static server, while the site root still redirects into the root-book-owned `Bookshelf` page.
+- 2026-04-22T17:00:39Z [reviewer-subagent] [CHUNK-016] CHANGES_REQUIRED - The new serve integration test still reserves a port in the parent and reuses it in the child, so the required deterministic ephemeral-port coverage remains flaky.
