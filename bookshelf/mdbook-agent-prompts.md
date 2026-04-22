@@ -93,6 +93,8 @@ local upstream mdBook source and follow that reference.
 - each book keeps one canonical `SUMMARY.md`
 - the `Bookshelf` page is generated in memory, not authored as a canonical
   summary entry
+- the `Bookshelf` page must still be a page inside the configured root book; it
+  is not a separate site-root-only page or separate chooser site
 - preserve an mdBook-like top-level build and serve workflow
 - done means satisfying the handoff acceptance criteria and test plan, not
   merely compiling
@@ -114,6 +116,10 @@ The coordinator must keep the implementation on this direction at all times:
   well: loading books, parsing `SUMMARY.md`, running preprocessors, rendering
   markdown to HTML, and preserving mdBook's site structure and conventions
   wherever practical
+- the `Bookshelf` page must remain root-book-owned per
+  `bookshelf/handoffs/01-target-site.md`; satisfying the site root with a
+  standalone handwritten chooser page outside root-book ownership is direction
+  drift unless the user explicitly approves that divergence
 - do not use mdBook merely as a parser or preprocessor feeding a separate
   clean-room site generator
 - if mdBook's public crate APIs are insufficient, treat that as an explicit
@@ -134,6 +140,9 @@ Preserve these implementation principles:
   adapting code from `mdBook-repo`
 - prefer explicit in-memory site modeling over implicit behavior hidden in
   templates or post-processing
+- if a synthetic `Bookshelf` page is generated in memory, compose it as a page
+  in the root-book experience rather than as a parallel top-level site with its
+  own bespoke shell
 - when touching mdBook integration seams, record exactly which mdBook crate,
   module, or API is being reused
 - if a chunk proposes replacing a stock mdBook subsystem, require a written
@@ -319,6 +328,8 @@ Requirements:
   - mdBook remains responsible for single-book heavy lifting wherever practical
   - the chunk must not silently substitute a clean-room implementation for
     stock mdBook behavior
+  - the chunk must not satisfy the `Bookshelf` requirement with a standalone
+    site-root page that is not also the root-book-owned `Bookshelf` page
 - if mdBook's public APIs may be insufficient, prefer an investigation or
   blocker chunk before any replacement implementation chunk
 - the planner may not edit source code
@@ -575,6 +586,7 @@ Review against:
 - the current developer commit checkpoint
 - the changed files
 - `bookshelf/handoffs/00-mdbook-first-scope.md`
+- `bookshelf/handoffs/01-target-site.md`
 - `bookshelf/handoffs/02-implementation-overview.md`
 - `bookshelf/handoffs/05-acceptance-criteria.md`
 - the current `Integration Strategy` in `progress.md`
@@ -587,6 +599,8 @@ Your job:
   - turns mdBook into only a parser or preprocessor for a separate generator
   - replaces mdBook single-book heavy lifting without a recorded blocker or explicit approval
   - causes the bookshelf `build` or `serve` pipeline to diverge materially from stock mdBook without a justified multi-book reason
+  - makes the `Bookshelf` page a separate site-root page instead of a page inside the configured root book
+  - gives the `Bookshelf` page a bespoke shell/style outside the root-book mdBook experience when the chunk is supposed to preserve mdBook conventions where practical
 - if direction drift exists, require revert of the offending developer commit checkpoint and replanning before more development
 - append one concise reviewer status line to `progress.md`
 
@@ -671,6 +685,7 @@ Global constraints:
 - `bookshelf.toml` is the human-owned config
 - one canonical `SUMMARY.md` per book
 - `Bookshelf` page is generated in memory
+- the `Bookshelf` page must still be a page in the configured root book, not a separate chooser site
 - the primary user-facing targets are `build` and `serve`
 - the bookshelf `build` and `serve` pipeline should stay as close as practical
   to stock mdBook's build and serve pipeline

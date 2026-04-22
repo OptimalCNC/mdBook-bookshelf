@@ -23,7 +23,9 @@
 - Pipeline similarity target: keep the bookshelf `build` and `serve` flow structurally close to stock mdBook and diverge only where the multi-book data model requires it.
 - Cargo mdBook dependencies: use published mdBook crates as the implementation boundary rather than copying mdBook internals or editing `mdBook-repo`.
 - Retained foundations after the direction reset: typed `bookshelf.toml` parsing, multi-book input catalog validation, per-book mdBook loading, explicit site ownership/order modeling, and navigation metadata.
+- Root-book Bookshelf invariant: the `Bookshelf` page must be a page in the configured root book, not a separate site-root-only chooser page. Any top-level entry behavior must resolve into that root-book-owned page rather than replace it with a standalone shell.
 - Removed due to direction drift: custom HTML emission, custom page shell rendering, synthetic public `pNNNN.html` routing, custom build CLI behavior, custom config projection for the bespoke renderer, and generator-specific tests/fixtures.
+- Current known mismatch to correct: CHUNK-012 introduced a standalone handwritten site-root chooser page. That output shape is not an accepted baseline because it violates the target-site requirement that `Bookshelf` is a page inside the root book and it visibly diverges from mdBook page styling.
 - Explicit non-goals: modifying `mdBook-repo`, using mdBook merely as a parser/preprocessor feeding a separate site generator, reviving the archived HTML post-processing prototype as the primary architecture, merging all books into one sidebar, or copying full book trees into a staged workspace as the core design.
 
 ## Permissions
@@ -37,56 +39,49 @@
 
 ## Current State
 - Status: HALTED_FOR_REPLAN
-- Current iteration: DIRECTION-RESET
-- Current chunk: none; the custom HTML/generator path was removed
-- Next action: choose a new first implementation chunk that proves an mdBook-powered `build` / `serve` path without replacing mdBook's single-book rendering behavior.
-- Blockers: no approved mdBook-powered rendering/build seam has been selected yet for the multi-book shell; the prior custom-generator path has been intentionally removed.
+- Current iteration: ROOT-BOOK-BOOKSHELF-CORRECTION
+- Current chunk: none; CHUNK-012 output shape is invalidated by user review and must not be extended
+- Next action: choose a correction chunk that re-establishes the `Bookshelf` page as a page in the root book and eliminates the standalone site-root chooser assumption.
+- Blockers: the current HEAD still emits a handwritten site-root `index.html` chooser page, which contradicts `bookshelf/handoffs/01-target-site.md` and causes visible style drift from mdBook pages.
 
 ## Open Risks
-- The remaining baseline no longer provides any active `build` or `serve` implementation, so the next chunk must start with a real mdBook-powered rendering/build seam rather than another generator shortcut.
-- Preserving authored output paths and mdBook-like page structure may require a deeper integration seam than the retained loading/modeling code currently exercises.
-- The public mdBook crate APIs may prove insufficient for the required multi-book shell, in which case the gap must be documented explicitly before any replacement behavior is implemented.
+- The current HEAD emits a standalone synthetic site-root chooser page plus isolated stock mdBook outputs under `books/<book-id>/`, but the handoff requires the `Bookshelf` page to belong to the root book rather than exist as a separate top-level page.
+- Because the chooser page is handwritten outside mdBook's root-book page shell, it visibly diverges from the styling and conventions of mdBook-rendered pages; future work must avoid extending this mismatch.
+- Preserving final authored multi-book output paths, active-book-scoped navigation, and unified search may still require a deeper composition seam, but the next chunk must start by correcting root-book ownership before adding more reader-shell behavior.
+- The public mdBook crate APIs may still prove insufficient for the eventual multi-book shell, in which case the gap must be documented explicitly before any replacement behavior is implemented.
 - Pulling in additional published mdBook crates or versions may require network access or version adjustments before local verification works.
 
 ## Active Chunk
 ```yaml
-chunk_id: DIRECTION-RESET
-title: Remove the custom generator path and re-establish an mdBook-powered baseline
-objective: Leave the repository with only the reusable mdBook-first foundations in place, remove the bespoke HTML/generator implementation, and reset planning before any further `build` / `serve` work proceeds.
-why_now: The user review concluded the implementation had drifted into a custom site generator path; continuing from that baseline would compound the wrong architecture.
-depends_on: []
+chunk_id: PENDING-PLANNING
+title: Select the correction chunk after the CHUNK-012 root-page mismatch
+objective: Identify the smallest follow-up chunk that removes the standalone chooser-page assumption and re-establishes the `Bookshelf` page as part of the root-book experience.
+why_now: User review found that CHUNK-012 violated `bookshelf/handoffs/01-target-site.md` by making `Bookshelf` a separate top-level page with a bespoke shell instead of a page inside the root book. No further feature work should proceed until that direction is corrected.
+depends_on:
+  - CHUNK-011
+  - CHUNK-012
 mdbook_touchpoints:
-  - retain: `mdbook_summary::parse_summary`
-  - retain: `mdbook_driver::MDBook::load_with_config_and_summary`
-  - pending_research: mdBook-powered rendering/build/serve seam for the multi-book shell
+  - retain: approved CHUNK-011 per-book `MDBook::build()` seam
+  - pending_research: the smallest mdBook-first seam for making the `Bookshelf` page root-book-owned instead of a standalone site-root page
+  - avoid: extending the standalone chooser-page shape from CHUNK-012, reopening custom single-book rendering, or using global HTML post-processing over `books/<book-id>/`
 scope_in:
-  - remove bespoke HTML generation and custom public routing code
-  - remove generator-specific CLI behavior and tests
-  - keep reusable mdBook-loading/modeling foundations compiling and tested
-  - record the reset in `progress.md`
+  - planner/researcher selection of the next tractable chunk
+  - root-book ownership and page-shell correction requirements only
 scope_out:
-  - no new `build` or `serve` implementation yet
-  - no attempt to restore removed functionality through another custom renderer path
+  - no unapproved implementation work yet
 target_files:
-  - src/lib.rs
-  - src/main.rs
   - progress.md
-  - src/
-  - tests/
 implementation_tasks:
-  - delete custom HTML/generator modules and their tests/fixtures
-  - leave the binary as a stub that reports `build` / `serve` are not implemented yet
-  - update project status to halted-for-replan with retained foundations and removed drift
+  - ask the planner for the next chunk artifact
+  - ask the researcher for the next seam clarification needed before implementation
+  - do not plan any chunk that extends the standalone site-root chooser page
 acceptance_criteria:
-  - no custom HTML generator code remains in `src/`
-  - no tests remain that assert synthetic `pNNNN.html` output or bespoke page-shell behavior
-  - the remaining repo still compiles and the retained foundational tests pass
+  - the next chunk is small, testable, and explicitly corrects the root-book `Bookshelf` ownership mismatch
 verification:
-  - command: `cargo test`
-    expect: exits 0 with only the retained mdBook-first foundation tests
+  - command: n/a
+    expect: planning only
 review_focus:
-  - the wrong-direction generator path is fully removed
-  - the remaining baseline is honest about the missing `build` / `serve` implementation
+  - the next chunk must treat the standalone chooser page as a mismatch to correct, not as an approved seam to extend
 ```
 
 ## Chunk Ledger
@@ -96,10 +91,12 @@ review_focus:
 - CHUNK-004 approved via commits `963f4bc` and `5d71ebd`: added deterministic multi-book loading into parsed canonical `Summary` plus in-memory `MDBook`, threading one parsed summary through `MDBook::load_with_config_and_summary`, and passing coverage for successful multi-book load, malformed-summary parse failure, and mdBook-load failure with book-scoped context. Verified with `cargo test multi_book_load -- --exact` and `cargo check --offline`.
 - CHUNK-005 approved via commits `66ca7d6` and `5dc7bb3`: added the first explicit bookshelf-owned site model with deterministic per-book ownership/order metadata and exactly one synthetic root `Bookshelf` page generated in memory, owned by the configured root book and excluded from content-book page order. Verified with `cargo test site_model_build -- --exact` and `cargo check --offline`.
 - CHUNK-006 approved via commit `4b2a949`: added deterministic navigation metadata with strict intra-book prev/next boundaries, exact `Book / Page` breadcrumbs for content pages, and page-id-keyed active-book resolution for content plus synthetic Bookshelf pages, all without rendering logic. Verified with `cargo test navigation_metadata -- --exact` and `cargo check --offline`.
+- CHUNK-011 approved via commits `3512051` and `209d682`: restored a real post-reset `build` path by projecting stock mdBook config from `bookshelf.toml`, rendering each configured book through `MDBook::load_with_config_and_summary` + `MDBook::build()` into isolated `books/<book-id>/` output roots, and adding smoke coverage plus a regression fixture proving relative mdBook config paths resolve from the `bookshelf.toml` directory. Verified with `cargo test` and `cargo run -- build bookshelf/handoffs/examples/self-contained/bookshelf.toml --dest-dir .tmp/chunk-011-smoke`.
+- CHUNK-012 commit `babb913` added a synthetic site-root `index.html` chooser page that lists configured books with descriptions and links to each stock per-book mdBook root page under `books/<book-id>/`. On 2026-04-22, user review determined this is not an accepted baseline because `bookshelf/handoffs/01-target-site.md` requires `Bookshelf` to be a page inside the root book and the handwritten chooser shell visibly diverges from mdBook styling. Treat CHUNK-012 as a recorded mismatch to correct, not an approved seam to extend.
 - CHUNK-007 through CHUNK-010 were removed from the active baseline on 2026-04-21 after direction review concluded the repo had drifted into a custom HTML generator path. The removed work included search placeholders, config projection for the bespoke renderer, custom HTML emission, synthetic public routing, custom build CLI behavior, and all generator-specific tests/fixtures.
 
 ## Final Validation
-- Pending replan after the direction reset; the repo now contains only the retained mdBook-first foundations and no active `build` / `serve` implementation.
+- CHUNK-011 remains a valid mdBook-powered build seam, but the current HEAD is not on an accepted path because CHUNK-012 made `Bookshelf` a standalone site-root chooser page instead of a page in the root book. Final acceptance remains blocked until that ownership/style mismatch is corrected, then reader-shell composition, search integration, and `serve` can continue.
 
 ## Activity Log
 - 2026-04-20T13:12:26Z [coordinator] [INIT] [STARTED] Created progress.md and recorded startup constraints, tentative integration strategy, and initial risks.
@@ -237,3 +234,23 @@ review_focus:
 - 2026-04-21T11:59:43Z [external-authority] [DIRECTION-RESET] [STARTED] Recorded user-requested direction reset, marked the custom HTML/generator path as invalid, and moved the repo to a halted-for-replan state.
 - 2026-04-21T12:02:02Z [external-authority] [DIRECTION-RESET] [DONE] Removed custom HTML generation, bespoke renderer config plumbing, generator-specific CLI behavior, and associated tests/fixtures; retained only the mdBook-first foundations and revalidated them with `cargo test`.
 - 2026-04-21T12:14:10Z [external-authority] [DIRECTION-RESET] [DONE] Prepared a commit checkpoint for the mdBook-powered reset, prompt tightening, and wrong-direction code removal.
+- 2026-04-21T12:20:32Z [researcher] [POST-RESET-SEAM] [DONE] Recommended per-book stock build seam: reuse the existing summary-injection loader and end the first real build helper at `MDBook::build()`, leaving `serve` as a later thin wrapper over the same path.
+- 2026-04-21T12:21:23Z [planner] [CHUNK-011] [DONE] Selected the first post-reset chunk: restore a real mdBook `build` path by projecting stock mdBook config from `bookshelf.toml` and invoking `MDBook::build()` per book into isolated output subdirectories.
+- 2026-04-21T12:22:00Z [coordinator] [CHUNK-011] [STARTED] Accepted CHUNK-011, updated the active plan, and began the first post-reset implementation loop on the stock mdBook build seam.
+- 2026-04-21T12:28:50Z [developer] [CHUNK-011] [DONE] Added stock per-book build orchestration, projected mdBook config parsing, a minimal `build` CLI path, and self-contained example smoke coverage; commit `3512051`.
+- 2026-04-21T12:36:00Z [reviewer-subagent] [CHUNK-011] CHANGES_REQUIRED - Shared relative mdBook config paths were resolving against each book root instead of the `bookshelf.toml` directory; add a review fix plus regression coverage.
+- 2026-04-21T12:42:02Z [developer] [CHUNK-011] [DONE] Rooted mdBook loads at the `bookshelf.toml` directory, preserved per-book `book.src`, and added shared-config-root regression coverage; commit `209d682`.
+- 2026-04-21T12:59:12Z [reviewer] [CHUNK-011] [DONE] Approved commit `209d682` for preserving the mdBook-first build seam and avoiding architecture drift.
+- 2026-04-21T13:01:06Z [reviewer-subagent] [CHUNK-011] APPROVED - Inspected commit `209d682d945b82a2fa06310905ee56f80554e216`, confirmed active chunk scope in `progress.md`, reviewed affected files, and passed targeted `build_cli` verification.
+- 2026-04-21T13:01:56Z [reviewer-claude] [CHUNK-011] APPROVED iteration 2 fix anchors mdBook relative paths at bookshelf.toml dir; shared-asset regression test covers the fix; stock MDBook::build() direction preserved.
+- 2026-04-21T13:01:56Z [coordinator] [CHUNK-011] [DONE] Re-ran `cargo test` and the self-contained `build` smoke command after review fixes, confirmed all reviewers approved, and moved CHUNK-011 to the ledger.
+- 2026-04-21T16:44:22Z [planner] [CHUNK-012] [DONE] Selected the smallest acceptance-directed follow-up chunk: add a synthetic site-root Bookshelf chooser page on top of the approved stock per-book build seam.
+- 2026-04-21T16:44:47Z [researcher] [ROOT-COMPOSITION-SEAM] [DONE] Recommended a bookshelf-owned site-root composer that emits only `index.html` above untouched stock per-book mdBook outputs.
+- 2026-04-21T16:46:24Z [coordinator] [CHUNK-012] [STARTED] Accepted CHUNK-012 and began the next implementation loop for the synthetic site-root Bookshelf chooser page.
+- 2026-04-21T16:49:54Z [developer] [CHUNK-012] [DONE] Added a post-build synthetic site-root chooser page and chooser-page assertions while preserving stock per-book mdBook outputs; commit `babb913`.
+- 2026-04-21T16:52:31Z [reviewer] [CHUNK-012] APPROVED - Verified the commit adds only the synthetic root chooser page and does not reintroduce custom single-book rendering or HTML rewriting.
+- 2026-04-21T16:52:31Z [reviewer-subagent] [CHUNK-012] APPROVED - Synthetic site-root chooser page is emitted after stock per-book builds, links target `books/<book-id>/index.html`, and narrow verification passed.
+- 2026-04-22T00:00:00Z [reviewer-claude] [CHUNK-012] APPROVED synthetic site-root chooser added on top of unchanged stock per-book mdBook build; scope, direction, and tests all consistent with CHUNK-012.
+- 2026-04-21T16:52:59Z [coordinator] [CHUNK-012] [DONE] Re-ran `cargo test` and the self-contained `build` smoke command, confirmed reviewer approval, and moved CHUNK-012 to the ledger.
+- 2026-04-22T02:23:34Z [external-authority] [CHUNK-012] CHANGES_REQUIRED - User review rejected the standalone synthetic site-root chooser page because `Bookshelf` must be a page in the root book and should not diverge visibly from mdBook/root-book styling.
+- 2026-04-22T02:23:34Z [coordinator] [DIRECTION-HARDENING] [DONE] Updated the coordinator prompt and current project status so future sessions treat the root-book `Bookshelf` invariant as a hard direction check and do not extend CHUNK-012's standalone chooser page.
