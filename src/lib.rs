@@ -1,3 +1,4 @@
+pub(crate) mod bookshelf_ui;
 pub mod build;
 pub mod catalog;
 pub mod config;

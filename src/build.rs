@@ -1,3 +1,4 @@
+use crate::bookshelf_ui::TransientBookshelfUiAssets;
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
 use crate::root_bookshelf_preprocessor::{
     inject_root_bookshelf_page, site_root_bookshelf_entry_path,
@@ -16,14 +17,31 @@ pub fn build_bookshelf(config_path: impl AsRef<Path>, dest_dir: Option<PathBuf>)
     let site_dest_dir = resolve_site_dest_dir(&catalog.config_dir, &projected_config, dest_dir)?;
     let config_root = catalog.config_dir.clone();
 
-    for book in &catalog.books {
-        build_catalog_book(
-            book,
-            &catalog,
-            &projected_config,
-            &config_root,
-            &site_dest_dir,
-        )?;
+    {
+        let mut ui_assets = TransientBookshelfUiAssets::new(&config_root).with_context(|| {
+            format!(
+                "failed to create transient bookshelf UI assets under {}",
+                config_root.display()
+            )
+        })?;
+
+        for book in &catalog.books {
+            build_catalog_book(
+                book,
+                &catalog,
+                &projected_config,
+                &config_root,
+                &site_dest_dir,
+                &ui_assets,
+            )?;
+        }
+
+        ui_assets.cleanup().with_context(|| {
+            format!(
+                "failed to clean transient bookshelf UI assets under {}",
+                config_root.display()
+            )
+        })?;
     }
 
     write_site_root_index(&catalog, &projected_config, &site_dest_dir)?;
@@ -60,6 +78,7 @@ fn build_catalog_book(
     projected_config: &Config,
     config_root: &Path,
     site_dest_dir: &Path,
+    ui_assets: &TransientBookshelfUiAssets,
 ) -> Result<()> {
     let summary_text = fs::read_to_string(&book.summary_abs).with_context(|| {
         format!(
@@ -79,6 +98,15 @@ fn build_catalog_book(
     let mut config = projected_config.clone();
     config.book.src = book.book_src_rel.clone();
     config.build.build_dir = site_dest_dir.join("books").join(&book.id);
+    ui_assets
+        .inject_bookshelf_return_assets(&mut config, &book.id, &catalog.root_book_id)
+        .with_context(|| {
+            format!(
+                "book '{}' failed to inject bookshelf return assets under {}",
+                book.id,
+                config_root.display()
+            )
+        })?;
 
     let mut mdbook =
         MDBook::load_with_config_and_summary(config_root.to_path_buf(), config, summary)

@@ -4,11 +4,13 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
-fn build_cli_emits_root_book_bookshelf_page_and_preserves_authored_root_index() {
+fn build_cli_emits_bookshelf_return_assets_without_fixture_residue() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook-bookshelf"));
+    let fixture_root = repo_root.join("bookshelf/handoffs/examples/self-contained");
     let config_path = repo_root.join("bookshelf/handoffs/examples/self-contained/bookshelf.toml");
     let output_dir = make_temp_dir("chunk-011-build-cli", &repo_root);
+    let fixture_entries_before = without_bookshelf_ui_entries(collect_tree_entries(&fixture_root));
 
     let output = Command::new(&bin)
         .arg("build")
@@ -75,21 +77,59 @@ fn build_cli_emits_root_book_bookshelf_page_and_preserves_authored_root_index() 
         "Repository-wide onboarding and architecture guidance for the example project.",
     );
     assert_text_contains(&root_index_html, "href=\"onboarding.html\"");
+    assert_text_contains(&root_index_html, "bookshelf-return.css");
+    assert_text_contains(&root_index_html, "bookshelf-return.js");
     assert_text_not_contains(&root_index_html, "Choose a book to enter its root page.");
     assert_text_not_contains(
         &root_index_html,
         "Parser-specific reference pages with their own reading order.",
     );
 
+    let parser_index_html = assert_read_to_string(output_dir.join("books/parser/index.html"));
+    assert_text_contains(&parser_index_html, "bookshelf-return.css");
+    assert_text_contains(&parser_index_html, "bookshelf-return.js");
+
     assert_exists(output_dir.join("books/meta/index.html"));
     assert_exists(output_dir.join("books/meta/bookshelf.html"));
     assert_exists(output_dir.join("books/meta/onboarding.html"));
     assert_exists(output_dir.join("books/meta/toc.html"));
     assert_has_file_with_prefix(&output_dir.join("books/meta"), "book-", ".js");
+    let root_return_script =
+        assert_single_file_named_recursive(&output_dir.join("books/meta"), "bookshelf-return.js");
+    let root_return_css =
+        assert_single_file_named_recursive(&output_dir.join("books/meta"), "bookshelf-return.css");
+    assert_file_contains(
+        root_return_script.clone(),
+        "const bookshelfTarget = \"bookshelf.html\";",
+    );
+    assert_file_contains(
+        root_return_script.clone(),
+        "link.textContent = \"Bookshelf\";",
+    );
+    assert_file_contains(
+        root_return_script.clone(),
+        "document.querySelector(\"#mdbook-menu-bar .right-buttons\")",
+    );
+    assert_file_contains(root_return_script, "currentPage === \"bookshelf.html\"");
+    assert_file_contains(root_return_css, ".bookshelf-return-link");
     assert_exists(output_dir.join("books/parser/index.html"));
     assert_exists(output_dir.join("books/parser/grammar.html"));
     assert_exists(output_dir.join("books/parser/toc.html"));
     assert_has_file_with_prefix(&output_dir.join("books/parser"), "book-", ".js");
+    let parser_return_script =
+        assert_single_file_named_recursive(&output_dir.join("books/parser"), "bookshelf-return.js");
+    let parser_return_css = assert_single_file_named_recursive(
+        &output_dir.join("books/parser"),
+        "bookshelf-return.css",
+    );
+    assert_file_contains(
+        parser_return_script.clone(),
+        "const bookshelfTarget = \"../meta/bookshelf.html\";",
+    );
+    assert_file_contains(parser_return_script, "link.rel = \"up\";");
+    assert_file_contains(parser_return_css, ".bookshelf-return-link");
+    assert!(!fixture_root.join(".mdbook-bookshelf").exists());
+    assert_eq!(collect_tree_entries(&fixture_root), fixture_entries_before);
 
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
@@ -160,6 +200,20 @@ fn assert_has_file_with_prefix(dir: &Path, prefix: &str, suffix: &str) -> String
     matched.expect("matching file should exist")
 }
 
+fn assert_single_file_named_recursive(dir: &Path, name: &str) -> PathBuf {
+    let mut matches = Vec::new();
+    collect_files_named_recursive(dir, name, &mut matches);
+    matches.sort();
+    assert_eq!(
+        matches.len(),
+        1,
+        "expected {} to contain exactly one file named {}",
+        dir.display(),
+        name
+    );
+    matches.pop().expect("matching file should exist")
+}
+
 fn assert_file_contains(path: PathBuf, needle: &str) {
     let content = fs::read_to_string(&path)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
@@ -190,6 +244,56 @@ fn assert_text_not_contains(haystack: &str, needle: &str) {
         "expected text not to contain {:?}",
         needle
     );
+}
+
+fn collect_files_named_recursive(dir: &Path, name: &str, matches: &mut Vec<PathBuf>) {
+    let mut entries = fs::read_dir(dir)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()))
+        .filter_map(|entry| entry.ok())
+        .collect::<Vec<_>>();
+    entries.sort_by_key(|entry| entry.path());
+
+    for entry in entries {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_files_named_recursive(&path, name, matches);
+        } else if path.file_name().is_some_and(|file_name| file_name == name) {
+            matches.push(path);
+        }
+    }
+}
+
+fn collect_tree_entries(root: &Path) -> Vec<PathBuf> {
+    let mut entries = Vec::new();
+    collect_tree_entries_recursive(root, root, &mut entries);
+    entries.sort();
+    entries
+}
+
+fn collect_tree_entries_recursive(root: &Path, dir: &Path, entries: &mut Vec<PathBuf>) {
+    let mut dir_entries = fs::read_dir(dir)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()))
+        .filter_map(|entry| entry.ok())
+        .collect::<Vec<_>>();
+    dir_entries.sort_by_key(|entry| entry.path());
+
+    for entry in dir_entries {
+        let path = entry.path();
+        let relative = path
+            .strip_prefix(root)
+            .unwrap_or_else(|err| panic!("failed to strip prefix {}: {err}", root.display()));
+        entries.push(relative.to_path_buf());
+        if path.is_dir() {
+            collect_tree_entries_recursive(root, &path, entries);
+        }
+    }
+}
+
+fn without_bookshelf_ui_entries(entries: Vec<PathBuf>) -> Vec<PathBuf> {
+    entries
+        .into_iter()
+        .filter(|entry| !entry.starts_with(".mdbook-bookshelf"))
+        .collect()
 }
 
 fn make_temp_dir(tag: &str, root: &Path) -> PathBuf {
