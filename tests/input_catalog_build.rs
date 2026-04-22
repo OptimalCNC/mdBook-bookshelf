@@ -18,7 +18,10 @@ fn input_catalog_build() {
         Path::new("root-book"),
         catalog.books[0].book_root_rel.as_path()
     );
-    assert_eq!(Path::new("root-book/docs"), catalog.books[0].book_src_rel.as_path());
+    assert_eq!(
+        Path::new("root-book/docs"),
+        catalog.books[0].book_src_rel.as_path()
+    );
     assert_eq!(
         fixtures.join("valid/root-book/docs/SUMMARY.md"),
         catalog.books[0].summary_abs
@@ -44,7 +47,10 @@ fn input_catalog_build() {
         build_input_catalog(&top_level_config).expect("top-level docs fixture should build");
     assert_eq!("meta", top_level_catalog.root_book_id);
     assert_eq!(1, top_level_catalog.books.len());
-    assert_eq!(Path::new("."), top_level_catalog.books[0].book_root_rel.as_path());
+    assert_eq!(
+        Path::new("."),
+        top_level_catalog.books[0].book_root_rel.as_path()
+    );
     assert_eq!(
         fixtures.join("valid-top-level"),
         top_level_catalog.books[0].book_root_abs
@@ -80,7 +86,9 @@ fn input_catalog_build() {
     assert_eq!(
         format!(
             "book 'root' missing configured canonical summary 'docs/SUMMARY.md' at {}",
-            fixtures.join("invalid-summary-location/docs/SUMMARY.md").display()
+            fixtures
+                .join("invalid-summary-location/docs/SUMMARY.md")
+                .display()
         ),
         location_err.to_string()
     );

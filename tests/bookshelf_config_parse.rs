@@ -37,7 +37,10 @@ fn bookshelf_config_parse() {
                 assert_eq!("meta", config.root_book);
                 assert_eq!(2, config.books.len());
                 assert_eq!("meta", config.books[0].id);
-                assert_eq!("Root \"book\".", config.books[0].description.as_deref().unwrap());
+                assert_eq!(
+                    "Root \"book\".",
+                    config.books[0].description.as_deref().unwrap()
+                );
                 assert_eq!(Path::new("docs"), config.books[0].book_src.as_path());
                 assert_eq!(
                     config.config_dir.join("docs/SUMMARY.md"),
@@ -47,14 +50,9 @@ fn bookshelf_config_parse() {
         }
     }
 
-    let empty_catalog_dir = make_temp_dir(
-        "chunk-002-empty-catalog",
-        &root,
-    );
-    let empty_catalog_path = write_temp_bookshelf_toml(
-        &empty_catalog_dir,
-        "[bookshelf]\nroot_book = \"meta\"\n",
-    );
+    let empty_catalog_dir = make_temp_dir("chunk-002-empty-catalog", &root);
+    let empty_catalog_path =
+        write_temp_bookshelf_toml(&empty_catalog_dir, "[bookshelf]\nroot_book = \"meta\"\n");
     let empty_catalog_error = load_bookshelf_config(&empty_catalog_path).expect_err("must fail");
     assert_eq!(
         "bookshelf.book catalog cannot be empty",
@@ -62,10 +60,7 @@ fn bookshelf_config_parse() {
     );
     fs::remove_dir_all(&empty_catalog_dir).expect("temp fixture directory should be removed");
 
-    let quoted_semantics_dir = make_temp_dir(
-        "chunk-002-quoted-semantics",
-        &root,
-    );
+    let quoted_semantics_dir = make_temp_dir("chunk-002-quoted-semantics", &root);
     let quoted_semantics_path = write_temp_bookshelf_toml(
         &quoted_semantics_dir,
         r#"

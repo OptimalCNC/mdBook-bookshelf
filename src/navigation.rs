@@ -1,5 +1,5 @@
 use crate::site_model::{SiteModel, SitePageKind};
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,7 +24,9 @@ impl NavigationMetadata {
     }
 
     pub fn resolve_active_book_id(&self, page_id: &str) -> Option<&str> {
-        self.by_page_id.get(page_id).map(|entry| entry.active_book_id.as_str())
+        self.by_page_id
+            .get(page_id)
+            .map(|entry| entry.active_book_id.as_str())
     }
 }
 

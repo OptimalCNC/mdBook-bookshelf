@@ -1,5 +1,5 @@
-use crate::config::{BookshelfConfig, load_bookshelf_config};
-use anyhow::{Context, Result, bail};
+use crate::config::{load_bookshelf_config, BookshelfConfig};
+use anyhow::{bail, Context, Result};
 use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,14 +33,16 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
 
     for book in &config.books {
         let summary_rel = &book.summary_rel;
-        let book_src_rel = summary_rel.parent().ok_or_else(|| {
-            anyhow::anyhow!(
-                "book '{}' has invalid configured summary path '{}'",
-                book.id,
-                summary_rel.display()
-            )
-        })?
-        .to_path_buf();
+        let book_src_rel = summary_rel
+            .parent()
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "book '{}' has invalid configured summary path '{}'",
+                    book.id,
+                    summary_rel.display()
+                )
+            })?
+            .to_path_buf();
         let book_root_rel = book_src_rel
             .parent()
             .map(Path::to_path_buf)

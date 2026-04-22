@@ -1,5 +1,5 @@
 use mdbook_bookshelf::{
-    SitePageKind, build_input_catalog, build_site_model, load_books_from_catalog,
+    build_input_catalog, build_site_model, load_books_from_catalog, SitePageKind,
 };
 use mdbook_driver::book::BookItem;
 use std::path::PathBuf;
@@ -26,13 +26,20 @@ fn site_model_build() {
         .iter()
         .filter(|p| p.kind == SitePageKind::SyntheticBookshelf)
         .collect();
-    assert_eq!(1, synthetic_pages.len(), "must contain exactly one synthetic page");
+    assert_eq!(
+        1,
+        synthetic_pages.len(),
+        "must contain exactly one synthetic page"
+    );
     let synthetic = synthetic_pages[0];
     assert_eq!("bookshelf:root", synthetic.page_id);
     assert_eq!("root", synthetic.owning_book_id);
     assert_eq!(None, synthetic.order_in_book);
     assert!(
-        model.books.iter().all(|book| !book.page_ids_in_order.contains(&synthetic.page_id)),
+        model
+            .books
+            .iter()
+            .all(|book| !book.page_ids_in_order.contains(&synthetic.page_id)),
         "synthetic page must not be represented as a content-book entry"
     );
 

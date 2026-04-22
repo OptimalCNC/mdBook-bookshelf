@@ -1,6 +1,6 @@
 use crate::catalog::InputCatalog;
 use crate::loader::LoadedBooks;
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use mdbook_driver::book::BookItem;
 use std::path::PathBuf;
 
@@ -65,7 +65,8 @@ pub fn build_site_model(catalog: &InputCatalog, loaded: &LoadedBooks) -> Result<
         order_in_book: None,
     });
 
-    for (index, (catalog_book, loaded_book)) in catalog.books.iter().zip(&loaded.books).enumerate() {
+    for (index, (catalog_book, loaded_book)) in catalog.books.iter().zip(&loaded.books).enumerate()
+    {
         if catalog_book.id != loaded_book.book_id {
             bail!(
                 "site model book order mismatch at index {}: catalog='{}' loaded='{}'",
