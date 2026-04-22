@@ -1,4 +1,3 @@
-use crate::bookshelf_ui::inject_bookshelf_return_assets;
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
 use crate::root_bookshelf_preprocessor::{
     inject_root_bookshelf_page, site_root_bookshelf_entry_path,
@@ -80,14 +79,6 @@ fn build_catalog_book(
     let mut config = projected_config.clone();
     config.book.src = book.book_src_rel.clone();
     config.build.build_dir = site_dest_dir.join("books").join(&book.id);
-    inject_bookshelf_return_assets(&mut config, config_root, &book.id, &catalog.root_book_id)
-        .with_context(|| {
-            format!(
-                "book '{}' failed to inject bookshelf return assets under {}",
-                book.id,
-                config_root.display()
-            )
-        })?;
 
     let mut mdbook =
         MDBook::load_with_config_and_summary(config_root.to_path_buf(), config, summary)
