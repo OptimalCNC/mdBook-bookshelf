@@ -3,7 +3,6 @@ pub mod catalog;
 pub mod config;
 pub mod loader;
 pub mod navigation;
-pub mod root_bookshelf_preprocessor;
 pub mod site_model;
 
 pub use build::{build_bookshelf, project_mdbook_config};
@@ -11,10 +10,6 @@ pub use catalog::{build_input_catalog, InputBook, InputCatalog};
 pub use config::{load_bookshelf_config, BookshelfBook, BookshelfConfig};
 pub use loader::{load_books_from_catalog, load_books_from_config, LoadedBook, LoadedBooks};
 pub use navigation::{build_navigation_metadata, NavigationMetadata, PageNavigation};
-pub use root_bookshelf_preprocessor::{
-    inject_root_bookshelf_page, site_root_bookshelf_entry_path, ROOT_BOOKSHELF_CHAPTER_NAME,
-    ROOT_BOOKSHELF_CHAPTER_PATH, ROOT_BOOKSHELF_HTML_PATH,
-};
 pub use site_model::{build_site_model, SiteBook, SiteModel, SitePage, SitePageKind};
 
 use anyhow::{bail, Context, Result};

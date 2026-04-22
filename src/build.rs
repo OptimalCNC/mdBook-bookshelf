@@ -1,7 +1,4 @@
-use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
-use crate::root_bookshelf_preprocessor::{
-    inject_root_bookshelf_page, site_root_bookshelf_entry_path,
-};
+use crate::catalog::{build_input_catalog, InputBook};
 use anyhow::{Context, Result};
 use mdbook_driver::{config::Config, MDBook};
 use mdbook_summary::parse_summary;
@@ -17,13 +14,7 @@ pub fn build_bookshelf(config_path: impl AsRef<Path>, dest_dir: Option<PathBuf>)
     let config_root = catalog.config_dir.clone();
 
     for book in &catalog.books {
-        build_catalog_book(
-            book,
-            &catalog,
-            &projected_config,
-            &config_root,
-            &site_dest_dir,
-        )?;
+        build_catalog_book(book, &projected_config, &config_root, &site_dest_dir)?;
     }
 
     write_site_root_index(&catalog, &projected_config, &site_dest_dir)?;
@@ -56,7 +47,6 @@ pub fn project_mdbook_config(config_path: impl AsRef<Path>) -> Result<Config> {
 
 fn build_catalog_book(
     book: &InputBook,
-    catalog: &InputCatalog,
     projected_config: &Config,
     config_root: &Path,
     site_dest_dir: &Path,
@@ -80,25 +70,15 @@ fn build_catalog_book(
     config.book.src = book.book_src_rel.clone();
     config.build.build_dir = site_dest_dir.join("books").join(&book.id);
 
-    let mut mdbook =
-        MDBook::load_with_config_and_summary(config_root.to_path_buf(), config, summary)
-            .with_context(|| {
-                format!(
-                    "book '{}' failed to load mdbook from root {} and source {}",
-                    book.id,
-                    config_root.display(),
-                    book.book_src_abs.display()
-                )
-            })?;
-
-    if book.is_root_book {
-        inject_root_bookshelf_page(&mut mdbook.book, catalog).with_context(|| {
-            format!(
-                "book '{}' failed to inject synthetic root bookshelf page",
-                book.id
-            )
-        })?;
-    }
+    let mdbook = MDBook::load_with_config_and_summary(config_root.to_path_buf(), config, summary)
+        .with_context(|| {
+        format!(
+            "book '{}' failed to load mdbook from root {} and source {}",
+            book.id,
+            config_root.display(),
+            book.book_src_abs.display()
+        )
+    })?;
 
     let html_build_dir = mdbook.build_dir_for("html");
     mdbook.build().with_context(|| {
@@ -156,7 +136,7 @@ fn write_site_root_index(
     )
     .with_context(|| {
         format!(
-            "failed to write site-root bookshelf entry file at {}",
+            "failed to write synthetic bookshelf chooser page at {}",
             index_path.display()
         )
     })
@@ -166,8 +146,39 @@ fn render_site_root_index(
     catalog: &crate::catalog::InputCatalog,
     projected_config: &Config,
 ) -> String {
+    let mut cards = String::new();
+    for book in &catalog.books {
+        let description = book
+            .description
+            .as_deref()
+            .map(|description| {
+                format!(
+                    "<p class=\"bookshelf-card__description\">{}</p>",
+                    escape_html(description)
+                )
+            })
+            .unwrap_or_default();
+
+        // The root book still enters its stock mdBook content root, not the chooser itself.
+        let href = format!("books/{}/index.html", escape_html_attr(&book.id));
+        cards.push_str(&format!(
+            "<li class=\"bookshelf-card\"><a class=\"bookshelf-card__link\" href=\"{href}\"><h2>{}</h2>{description}</a></li>",
+            escape_html(&book.title),
+        ));
+    }
+
     let lang = projected_config.book.language.as_deref().unwrap_or("en");
-    let target = site_root_bookshelf_entry_path(&catalog.root_book_id);
+    let site_title = projected_config
+        .book
+        .title
+        .as_deref()
+        .unwrap_or("Bookshelf");
+    let site_title = site_title.trim();
+    let site_title = if site_title.is_empty() {
+        "Bookshelf"
+    } else {
+        site_title
+    };
 
     format!(
         "<!DOCTYPE html>\n\
@@ -175,24 +186,46 @@ fn render_site_root_index(
 <head>\n\
   <meta charset=\"utf-8\">\n\
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
-  <title>Redirecting</title>\n\
-  <meta http-equiv=\"refresh\" content=\"0; url={}\">\n\
-  <script>window.location.replace(\"{}\");</script>\n\
+  <title>{} | Bookshelf</title>\n\
+  <style>\n\
+    :root {{ color-scheme: light; }}\n\
+    * {{ box-sizing: border-box; }}\n\
+    body {{ margin: 0; font-family: sans-serif; background: #f5f6f8; color: #1f2933; }}\n\
+    main {{ max-width: 64rem; margin: 0 auto; padding: 3rem 1.5rem 4rem; }}\n\
+    header {{ margin-bottom: 2rem; }}\n\
+    .bookshelf-site-title {{ margin: 0 0 0.5rem; font-size: 0.95rem; letter-spacing: 0.08em; text-transform: uppercase; color: #52606d; }}\n\
+    h1 {{ margin: 0 0 0.75rem; font-size: clamp(2rem, 4vw, 3rem); }}\n\
+    .bookshelf-intro {{ margin: 0; max-width: 42rem; line-height: 1.6; color: #52606d; }}\n\
+    .bookshelf-list {{ list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }}\n\
+    .bookshelf-card__link {{ display: block; padding: 1.25rem 1.5rem; border: 1px solid #d9e2ec; border-radius: 0.9rem; background: #fff; color: inherit; text-decoration: none; box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06); }}\n\
+    .bookshelf-card__link:hover, .bookshelf-card__link:focus-visible {{ border-color: #486581; transform: translateY(-1px); }}\n\
+    .bookshelf-card__link h2 {{ margin: 0; font-size: 1.2rem; }}\n\
+    .bookshelf-card__description {{ margin: 0.75rem 0 0; line-height: 1.6; color: #52606d; }}\n\
+  </style>\n\
 </head>\n\
 <body>\n\
-  <p><a href=\"{}\">Continue</a></p>\n\
+  <main>\n\
+    <header>\n\
+      <p class=\"bookshelf-site-title\">{}</p>\n\
+      <h1>Bookshelf</h1>\n\
+      <p class=\"bookshelf-intro\">Choose a book to enter its stock mdBook root page.</p>\n\
+    </header>\n\
+    <ul class=\"bookshelf-list\">{cards}</ul>\n\
+  </main>\n\
 </body>\n\
 </html>\n",
         escape_html_attr(lang),
-        escape_html_attr(&target),
-        escape_html_attr(&target),
-        escape_html_attr(&target),
+        escape_html(site_title),
+        escape_html(site_title),
     )
 }
 
-fn escape_html_attr(text: &str) -> String {
+fn escape_html(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
-        .replace('"', "&quot;")
+}
+
+fn escape_html_attr(text: &str) -> String {
+    escape_html(text).replace('"', "&quot;")
 }
