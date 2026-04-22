@@ -15,6 +15,13 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 pub fn build_bookshelf(config_path: impl AsRef<Path>, dest_dir: Option<PathBuf>) -> Result<()> {
+    build_bookshelf_site(config_path, dest_dir).map(|_| ())
+}
+
+pub fn build_bookshelf_site(
+    config_path: impl AsRef<Path>,
+    dest_dir: Option<PathBuf>,
+) -> Result<PathBuf> {
     let config_path = config_path.as_ref();
     let catalog = absolutize_catalog_paths(build_input_catalog(config_path)?)
         .context("failed to resolve bookshelf catalog paths")?;
@@ -58,7 +65,7 @@ pub fn build_bookshelf(config_path: impl AsRef<Path>, dest_dir: Option<PathBuf>)
 
     write_site_root_index(&catalog, &projected_config, &site_dest_dir)?;
 
-    Ok(())
+    Ok(site_dest_dir)
 }
 
 pub fn project_mdbook_config(config_path: impl AsRef<Path>) -> Result<Config> {
