@@ -4,7 +4,7 @@ use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
-fn build_cli_emits_stock_mdbook_output_per_book() {
+fn build_cli_emits_root_book_bookshelf_page_and_preserves_authored_root_index() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook-bookshelf"));
     let config_path = repo_root.join("bookshelf/handoffs/examples/self-contained/bookshelf.toml");
@@ -26,35 +26,63 @@ fn build_cli_emits_stock_mdbook_output_per_book() {
         );
     }
 
-    let chooser_html = assert_read_to_string(output_dir.join("index.html"));
-    assert_text_contains(&chooser_html, "<h1>Bookshelf</h1>");
-    assert_text_contains(&chooser_html, "Example Core");
+    let root_entry_html = assert_read_to_string(output_dir.join("index.html"));
     assert_text_contains(
-        &chooser_html,
+        &root_entry_html,
+        "http-equiv=\"refresh\" content=\"0; url=books/meta/bookshelf.html\"",
+    );
+    assert_text_contains(
+        &root_entry_html,
+        "window.location.replace(\"books/meta/bookshelf.html\")",
+    );
+    assert_text_contains(&root_entry_html, "href=\"books/meta/bookshelf.html\"");
+    assert_text_not_contains(&root_entry_html, "bookshelf-card__link");
+    assert_text_not_contains(&root_entry_html, "Example Core");
+
+    let bookshelf_html = assert_read_to_string(output_dir.join("books/meta/bookshelf.html"));
+    assert_text_contains(&bookshelf_html, "<h1 id=\"bookshelf\">");
+    assert_text_contains(&bookshelf_html, "Choose a book to enter its root page.");
+    assert_text_contains(&bookshelf_html, "Example Core");
+    assert_text_contains(
+        &bookshelf_html,
         "Repository-wide onboarding and architecture notes.",
     );
-    assert_text_contains(&chooser_html, "Example Parser");
+    assert_text_contains(&bookshelf_html, "Example Parser");
     assert_text_contains(
-        &chooser_html,
+        &bookshelf_html,
         "Parser-specific reference pages with their own reading order.",
     );
-    assert_text_contains(&chooser_html, "Example UI");
+    assert_text_contains(&bookshelf_html, "Example UI");
     assert_text_contains(
-        &chooser_html,
+        &bookshelf_html,
         "Interface and runtime guides for the UI book.",
     );
-    assert_text_contains(&chooser_html, "href=\"books/meta/index.html\"");
-    assert_text_contains(&chooser_html, "href=\"books/parser/index.html\"");
-    assert_text_contains(&chooser_html, "href=\"books/ui/index.html\"");
-    assert_eq!(
-        chooser_html
-            .matches("class=\"bookshelf-card__link\"")
-            .count(),
-        3
+    assert_text_contains(&bookshelf_html, "href=\"index.html\">Example Core</a>");
+    assert_text_contains(
+        &bookshelf_html,
+        "href=\"../parser/index.html\">Example Parser</a>",
     );
-    assert_eq!(chooser_html.matches("href=\"").count(), 3);
+    assert_text_contains(&bookshelf_html, "href=\"../ui/index.html\">Example UI</a>");
+    assert_text_not_contains(&bookshelf_html, "href=\"bookshelf.html\">Example Core</a>");
+
+    let root_index_html = assert_read_to_string(output_dir.join("books/meta/index.html"));
+    assert_text_contains(
+        &root_index_html,
+        "<title>Example Core - Bookshelf Example</title>",
+    );
+    assert_text_contains(
+        &root_index_html,
+        "Repository-wide onboarding and architecture guidance for the example project.",
+    );
+    assert_text_contains(&root_index_html, "href=\"onboarding.html\"");
+    assert_text_not_contains(&root_index_html, "Choose a book to enter its root page.");
+    assert_text_not_contains(
+        &root_index_html,
+        "Parser-specific reference pages with their own reading order.",
+    );
 
     assert_exists(output_dir.join("books/meta/index.html"));
+    assert_exists(output_dir.join("books/meta/bookshelf.html"));
     assert_exists(output_dir.join("books/meta/onboarding.html"));
     assert_exists(output_dir.join("books/meta/toc.html"));
     assert_has_file_with_prefix(&output_dir.join("books/meta"), "book-", ".js");
@@ -152,6 +180,14 @@ fn assert_text_contains(haystack: &str, needle: &str) {
     assert!(
         haystack.contains(needle),
         "expected text to contain {:?}",
+        needle
+    );
+}
+
+fn assert_text_not_contains(haystack: &str, needle: &str) {
+    assert!(
+        !haystack.contains(needle),
+        "expected text not to contain {:?}",
         needle
     );
 }
