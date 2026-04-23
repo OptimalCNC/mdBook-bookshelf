@@ -13,6 +13,8 @@ The bookshelf feature is accepted only when all items below are satisfied.
 - each shelf item includes a short description
 - every content-book page exposes a visible `Bookshelf` return control
 - content-book pages keep sidebar navigation scoped to the active book only
+- each authored markdown page is published at the canonical URI derived from its
+  site-root-relative source path by changing `.md` to `.html`
 - direct links into a page activate the correct book context automatically
 - previous and next never cross book boundaries
 - breadcrumbs render as `Book / Page`
@@ -24,6 +26,8 @@ The bookshelf feature is accepted only when all items below are satisfied.
 - each book keeps one canonical `SUMMARY.md`
 - the `Bookshelf` page is generated in memory, not authored as a canonical summary entry
 - the implementation does not require authors to duplicate non-root book entries into the root book's summary
+- cross-book links are authored against markdown source paths, not hidden output
+  aliases
 
 ## Architecture Criteria
 
@@ -31,6 +35,8 @@ The bookshelf feature is accepted only when all items below are satisfied.
 - the final site is rendered from the bookshelf-owned site model through an mdBook-centric integration path
 - the implementation does not depend on HTML post-processing over stock mdBook output as its primary architecture
 - the implementation does not rely on copying the full docs tree into a temporary workspace as its primary architecture
+- the author-facing routing contract does not depend on temporary seams such as
+  root-book output aliases or stripped child-book mounts
 
 ## Verification Criteria
 

@@ -4,6 +4,9 @@
 responsible for single-book loading and rendering, while this repo adds the
 bookshelf composition layer on top.
 
+The project is under active development. The intended authoring model matters
+more than preserving temporary routing seams.
+
 ## Quick Start
 
 Build the checked-in self-contained example:
@@ -20,11 +23,55 @@ cargo run --bin book -- serve bookshelf/examples/self-contained/bookshelf.toml -
 
 Then open `http://127.0.0.1:3000`.
 
-Suggested documentation layouts:
+Run the test suite:
 
-For a repo-root bookshelf, define the root book with top-level mdBook `[book]`
-metadata and keep its source at `docs/`. Place additional books under feature
-directories, each with its own `docs/` tree:
+```bash
+cargo test
+```
+
+## Config Model
+
+`bookshelf.toml` is the single human-owned site config.
+
+Example:
+
+```toml
+[book]
+title = "MetaNC"
+src = "docs"
+
+[bookshelf]
+root-id = "metanc"
+
+[[bookshelf.book]]
+title = "G-code Parser"
+src = "modules/gcode-parser/docs"
+
+[[bookshelf.book]]
+title = "HMI"
+src = "modules/hmi/docs"
+```
+
+Rules:
+
+- The directory containing `bookshelf.toml` is the config root and site root.
+- All `src` values are relative to that directory.
+- `src` means only the docs directory for that book.
+- The canonical summary for a book is `<src>/SUMMARY.md`.
+- The stable entry page for a book is `<src>/index.md`.
+- If the implementation needs a per-book filesystem root, it should derive it
+  internally from `dirname(src)`.
+- Do not introduce a separate configurable site root. If a repository wants a
+  different root, move `bookshelf.toml`.
+
+In other words, `src = "modules/parser/docs"` means "this book's markdown lives
+here". It does not also mean public mount root, book identifier, or link
+resolution root.
+
+## Layouts
+
+For a repo-root bookshelf, keep the root book at `docs/` and place additional
+books under feature directories with their own `docs/` trees:
 
 ```text
 my-repo/
@@ -44,7 +91,7 @@ my-repo/
 ```
 
 For a nested workspace layout, every book can live under its own directory as
-long as the root book's top-level `book.src` points at that directory:
+long as each `src` still points at that book's `docs/` directory:
 
 ```text
 my-repo/
@@ -60,12 +107,12 @@ my-repo/
         index.md
 ```
 
-The root book identity is bookshelf-only:
+Example config for that layout:
 
 ```toml
 [book]
 title = "Root Book"
-src = "docs"
+src = "root-book/docs"
 
 [bookshelf]
 root-id = "root"
@@ -75,22 +122,63 @@ title = "Parser"
 src = "modules/parser/docs"
 ```
 
-Child `src` values are mdBook-native and relative to the shared
-`bookshelf.toml` directory. Each book's canonical summary is read from
-`<src>/SUMMARY.md`, and `<src>/index.md` remains its entry page. Concrete
-examples live in
+Concrete examples live in
 [`bookshelf/examples/self-contained/`](./bookshelf/examples/self-contained/)
 and [`tests/fixtures/input-catalog/`](./tests/fixtures/input-catalog/).
 
-`root-id` remains a temporary bookshelf-only seam for the root book's routed
-output under `books/<root-id>/...`, and that key is reserved from child
-source-derived mounts.
+## Rooting And Links
 
-Run the test suite:
+Use one rooting rule everywhere: the parent directory of `bookshelf.toml` is
+the site root.
 
-```bash
-cargo test
+That root is used for:
+
+- resolving `src` values in `bookshelf.toml`
+- resolving leading-`/` links in markdown
+- interpreting other config-root-relative paths unless a field says otherwise
+
+Authoring rules:
+
+- Use leading `/` for site-root-relative links, especially across books.
+- Use `./` or `../` for file-relative links inside one local source tree.
+- Author links against markdown source paths, not build-only aliases.
+
+Examples:
+
+```md
+See [Parser Root](/modules/gcode-parser/docs/index.md).
+See [Sibling Page](./grammar.md).
 ```
+
+The canonical published URI for an authored page is its site-root-relative
+source path with `.md` changed to `.html`.
+
+Examples:
+
+- `docs/index.md` -> `/docs/index.html`
+- `modules/gcode-parser/docs/index.md` -> `/modules/gcode-parser/docs/index.html`
+
+This keeps raw markdown, repository structure, and published page identity in
+sync for humans and AI agents.
+
+Do not make these canonical in authored markdown:
+
+- stripped child-book routes such as `/modules/gcode-parser/index.html`
+- temporary root-book seams such as `books/<root-id>/...`
+- generated `.html` links when the authored target is a markdown page
+
+The detailed routing note is
+[`bookshelf/01a-routing-and-linking-contract.md`](./bookshelf/01a-routing-and-linking-contract.md).
+
+## Current State
+
+`root-id` still exists as a temporary implementation seam for the current
+root-book output under `books/<root-id>/...`, mainly because the site root
+`/index.html` is reserved for the synthetic bookshelf landing flow.
+
+That seam should be treated as implementation detail, not as part of the
+authoring contract. Authors should think in terms of source paths under the
+`bookshelf.toml` root.
 
 ## TODO
 

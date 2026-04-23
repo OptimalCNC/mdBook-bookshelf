@@ -12,6 +12,7 @@ Add unit tests for:
 - parsing `bookshelf.toml`
 - validating required `root_book` and `[[bookshelf.book]]`
 - loading one canonical `SUMMARY.md` per book
+- mapping authored markdown paths to canonical published `.html` paths
 - building the in-memory site model
 - mapping pages to owning books
 - computing per-book reading order
@@ -32,6 +33,10 @@ Add integration tests that render the small self-contained example and assert:
 - the `Bookshelf` affix does not affect chapter numbering
 - previous and next never cross book boundaries
 - breadcrumbs render as `Book / Page`
+- authored site-root-relative links such as `/modules/parser/docs/index.md`
+  resolve to `/modules/parser/docs/index.html`
+- authored file-relative links such as `./sibling.md` resolve the same way mdBook
+  already expects within one source tree
 - direct links activate the correct book context
 - search results include the owning book label
 - the rendered site exposes a user-facing search flow that shows those labeled results
@@ -70,6 +75,7 @@ Add failure tests for:
 - missing or empty `summary`
 - authored `Bookshelf` page inside a canonical `SUMMARY.md`
 - invalid page ownership or unresolved root page
+- links that resolve outside the site root
 
 ## Watch / Serve Tests
 

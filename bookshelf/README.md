@@ -15,6 +15,7 @@ Start here, then read the files in order:
 
 - [00-mdbook-first-scope.md](./00-mdbook-first-scope.md) — the mdBook-first scope and non-goals
 - [01-target-site.md](./01-target-site.md) — what needs to be built and how the resulting site should appear
+- [01a-routing-and-linking-contract.md](./01a-routing-and-linking-contract.md) — canonical URI placement and cross-book link authoring rules
 - [02-implementation-overview.md](./02-implementation-overview.md) — recommended implementation direction
 - [03-examples.md](./03-examples.md) — source examples and target scenarios to test against
 - [04-test-plan.md](./04-test-plan.md) — tests to add beyond mdBook's stock test coverage
