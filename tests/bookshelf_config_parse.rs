@@ -99,7 +99,7 @@ src = "../docs"
     let invalid_parent_src_error =
         load_bookshelf_config(&invalid_parent_src_path).expect_err("must fail");
     assert_eq!(
-        "bookshelf.book 'meta' src path must not contain '.' or '..': '../docs'",
+        "bookshelf.book 'meta' src path must not contain '..': '../docs'",
         invalid_parent_src_error.to_string()
     );
     fs::remove_dir_all(&invalid_parent_src_dir).expect("temp fixture directory should be removed");
@@ -123,6 +123,92 @@ src = ""
         empty_src_error.to_string()
     );
     fs::remove_dir_all(&empty_src_dir).expect("temp fixture directory should be removed");
+
+    let file_like_src_dir = make_temp_dir("chunk-003-file-like-src", &root);
+    let file_like_src_path = write_temp_bookshelf_toml(
+        &file_like_src_dir,
+        r#"
+[bookshelf]
+root_book = "meta"
+
+[[bookshelf.book]]
+id = "meta"
+title = "Meta"
+src = "docs/SUMMARY.md"
+"#,
+    );
+    let file_like_src_error = load_bookshelf_config(&file_like_src_path).expect_err("must fail");
+    assert_eq!(
+        "bookshelf.book 'meta' src path must name a source directory, not SUMMARY.md: 'docs/SUMMARY.md'",
+        file_like_src_error.to_string()
+    );
+    fs::remove_dir_all(&file_like_src_dir).expect("temp fixture directory should be removed");
+
+    let removed_summary_dir = make_temp_dir("chunk-003-removed-summary", &root);
+    let removed_summary_path = write_temp_bookshelf_toml(
+        &removed_summary_dir,
+        r#"
+[bookshelf]
+root_book = "meta"
+
+[[bookshelf.book]]
+id = "meta"
+title = "Meta"
+src = "docs"
+summary = "conflicting/docs/SUMMARY.md"
+"#,
+    );
+    let removed_summary_error =
+        load_bookshelf_config(&removed_summary_path).expect_err("must fail");
+    assert_eq!(
+        "bookshelf.book 'meta' uses removed key 'summary'; use 'src' with the book source directory instead",
+        removed_summary_error.to_string()
+    );
+    fs::remove_dir_all(&removed_summary_dir).expect("temp fixture directory should be removed");
+
+    let current_dir_src_dir = make_temp_dir("chunk-003-current-dir-src", &root);
+    let current_dir_src_path = write_temp_bookshelf_toml(
+        &current_dir_src_dir,
+        r#"
+[bookshelf]
+root_book = "meta"
+
+[[bookshelf.book]]
+id = "meta"
+title = "Meta"
+src = "."
+"#,
+    );
+    let current_dir_src =
+        load_bookshelf_config(&current_dir_src_path).expect("must accept current-dir src");
+    assert_eq!(Path::new("."), current_dir_src.books[0].book_src.as_path());
+    assert_eq!(
+        current_dir_src.config_dir.join(".").join("SUMMARY.md"),
+        current_dir_src.books[0].summary_abs
+    );
+    fs::remove_dir_all(&current_dir_src_dir).expect("temp fixture directory should be removed");
+
+    let dotted_src_dir = make_temp_dir("chunk-003-dotted-src", &root);
+    let dotted_src_path = write_temp_bookshelf_toml(
+        &dotted_src_dir,
+        r#"
+[bookshelf]
+root_book = "meta"
+
+[[bookshelf.book]]
+id = "meta"
+title = "Meta"
+src = "./docs"
+"#,
+    );
+    let dotted_src =
+        load_bookshelf_config(&dotted_src_path).expect("must accept dotted relative src");
+    assert_eq!(Path::new("docs"), dotted_src.books[0].book_src.as_path());
+    assert_eq!(
+        dotted_src.config_dir.join("docs/SUMMARY.md"),
+        dotted_src.books[0].summary_abs
+    );
+    fs::remove_dir_all(&dotted_src_dir).expect("temp fixture directory should be removed");
 }
 
 struct Case {

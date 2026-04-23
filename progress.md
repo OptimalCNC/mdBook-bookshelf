@@ -104,4 +104,8 @@ Activity Log
 2026-04-23T07:30:00Z [coordinator] [chunk-021-bookshelf-src-option] [planned] locked implementation scope around stock mdBook src semantics
 2026-04-23T07:33:29Z [planner] [chunk-021-bookshelf-src-option] [planned] replace per-book summary config with stock mdBook-style src and derive SUMMARY.md internally
 2026-04-23T07:36:24Z [researcher] [content-root-seam] [done] upstream mdBook exposes book.src as the native content-root seam and offers no better stock summary-path option
+2026-04-23T07:41:43Z [implementation-reviewer] [chunk-021-bookshelf-src-option] [changes_required] stale summary keys remain silently accepted and file-like src values are not rejected early
+2026-04-23T07:41:43Z [direction-reviewer] [chunk-021-bookshelf-src-option] [changes_required] parser still rejects mdBook-valid src forms like . and ./docs instead of fully reusing stock src semantics
+2026-04-23T07:41:43Z [coordinator] [chunk-021-bookshelf-src-option] [rework] sent both review findings back to developer for one follow-up iteration
 2026-04-23T07:36:48Z [chunk-003-src-config] [done] switched per-book config to src, derived canonical SUMMARY.md internally, and updated tests/docs/fixtures
+2026-04-23T07:43:02Z [chunk-003-src-config] [done] rejected stale summary keys, rejected file-like src values, and accepted mdBook-valid . / ./docs src forms

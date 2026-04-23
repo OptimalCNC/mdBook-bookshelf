@@ -40,6 +40,7 @@ struct RawBook {
     title: Option<String>,
     description: Option<String>,
     src: Option<String>,
+    summary: Option<String>,
 }
 
 pub fn load_bookshelf_config(path: impl AsRef<Path>) -> Result<BookshelfConfig> {
@@ -74,6 +75,13 @@ fn validate_and_build(
     for raw_book in raw.books {
         let id = required(raw_book.id, "bookshelf.book.id")?;
         let title = required(raw_book.title, "bookshelf.book.title")?;
+
+        if raw_book.summary.is_some() {
+            bail!(
+                "bookshelf.book '{id}' uses removed key 'summary'; use 'src' with the book source directory instead"
+            );
+        }
+
         let book_src = required(raw_book.src, "bookshelf.book.src")?;
 
         if !seen_ids.insert(id.clone()) {
@@ -110,6 +118,7 @@ fn required(value: Option<String>, key: &str) -> Result<String> {
 
 fn normalize_book_src_rel_path(book_id: &str, raw_path: &str) -> Result<PathBuf> {
     let path = Path::new(raw_path);
+    let mut saw_curdir = false;
 
     if raw_path.is_empty() {
         bail!("bookshelf.book '{book_id}' src path must not be empty");
@@ -123,10 +132,9 @@ fn normalize_book_src_rel_path(book_id: &str, raw_path: &str) -> Result<PathBuf>
     for component in path.components() {
         match component {
             Component::Normal(part) => normalized.push(part),
-            Component::CurDir | Component::ParentDir => {
-                bail!(
-                    "bookshelf.book '{book_id}' src path must not contain '.' or '..': '{raw_path}'"
-                )
+            Component::CurDir => saw_curdir = true,
+            Component::ParentDir => {
+                bail!("bookshelf.book '{book_id}' src path must not contain '..': '{raw_path}'")
             }
             Component::RootDir | Component::Prefix(_) => {
                 bail!("bookshelf.book '{book_id}' src path must be relative: '{raw_path}'")
@@ -135,7 +143,20 @@ fn normalize_book_src_rel_path(book_id: &str, raw_path: &str) -> Result<PathBuf>
     }
 
     if normalized.as_os_str().is_empty() {
-        bail!("bookshelf.book '{book_id}' src path must not be empty");
+        if saw_curdir {
+            normalized.push(".");
+        } else {
+            bail!("bookshelf.book '{book_id}' src path must not be empty");
+        }
+    }
+
+    if normalized
+        .file_name()
+        .is_some_and(|name| name == "SUMMARY.md")
+    {
+        bail!(
+            "bookshelf.book '{book_id}' src path must name a source directory, not SUMMARY.md: '{raw_path}'"
+        );
     }
 
     Ok(normalized)
