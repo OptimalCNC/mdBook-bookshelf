@@ -134,13 +134,15 @@ impl TransientBookshelfUiAssets {
             return Ok(());
         }
 
-        if self.build_abs_root.exists() {
-            fs::remove_dir_all(&self.build_abs_root).with_context(|| {
-                format!(
-                    "failed to remove transient bookshelf UI asset root {}",
-                    self.build_abs_root.display()
-                )
-            })?;
+        if let Err(err) = fs::remove_dir_all(&self.build_abs_root) {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                return Err(err).with_context(|| {
+                    format!(
+                        "failed to remove transient bookshelf UI asset root {}",
+                        self.build_abs_root.display()
+                    )
+                });
+            }
         }
 
         prune_empty_bookshelf_ui_dirs(&self.config_root.join(BOOKSHELF_UI_ASSET_DIR))
@@ -216,11 +218,15 @@ fn write_asset_file(path: &Path, contents: &str) -> Result<()> {
 }
 
 fn prune_empty_dir_tree(path: &Path) -> std::io::Result<bool> {
-    if !path.is_dir() {
+    if !path_is_dir(path)? {
         return Ok(false);
     }
 
-    let entries = fs::read_dir(path)?.collect::<Result<Vec<_>, _>>()?;
+    let entries = match fs::read_dir(path) {
+        Ok(entries) => entries.collect::<Result<Vec<_>, _>>()?,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(err) => return Err(err),
+    };
     for entry in entries {
         let child = entry.path();
         if child.is_dir() {
@@ -228,8 +234,17 @@ fn prune_empty_dir_tree(path: &Path) -> std::io::Result<bool> {
         }
     }
 
-    if fs::read_dir(path)?.next().is_none() {
-        fs::remove_dir(path)?;
+    let is_empty = match fs::read_dir(path) {
+        Ok(mut entries) => entries.next().is_none(),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(true),
+        Err(err) => return Err(err),
+    };
+    if is_empty {
+        match fs::remove_dir(path) {
+            Ok(()) => {}
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => return Err(err),
+        }
         return Ok(true);
     }
 
@@ -237,11 +252,15 @@ fn prune_empty_dir_tree(path: &Path) -> std::io::Result<bool> {
 }
 
 fn prune_empty_bookshelf_ui_dirs(path: &Path) -> std::io::Result<bool> {
-    if !path.is_dir() {
+    if !path_is_dir(path)? {
         return Ok(false);
     }
 
-    let entries = fs::read_dir(path)?.collect::<Result<Vec<_>, _>>()?;
+    let entries = match fs::read_dir(path) {
+        Ok(entries) => entries.collect::<Result<Vec<_>, _>>()?,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(err) => return Err(err),
+    };
     for entry in entries {
         let child = entry.path();
         if !child.is_dir() {
@@ -257,12 +276,29 @@ fn prune_empty_bookshelf_ui_dirs(path: &Path) -> std::io::Result<bool> {
         let _ = prune_empty_dir_tree(&child)?;
     }
 
-    if fs::read_dir(path)?.next().is_none() {
-        fs::remove_dir(path)?;
+    let is_empty = match fs::read_dir(path) {
+        Ok(mut entries) => entries.next().is_none(),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(true),
+        Err(err) => return Err(err),
+    };
+    if is_empty {
+        match fs::remove_dir(path) {
+            Ok(()) => {}
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+            Err(err) => return Err(err),
+        }
         return Ok(true);
     }
 
     Ok(false)
+}
+
+fn path_is_dir(path: &Path) -> std::io::Result<bool> {
+    match fs::metadata(path) {
+        Ok(metadata) => Ok(metadata.is_dir()),
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(err) => Err(err),
+    }
 }
 
 fn render_bookshelf_return_js(book_id: &str, root_book_id: &str) -> String {
@@ -629,6 +665,28 @@ mod tests {
         assert!(sibling_build_dir.exists());
         assert!(temp_root.join(BOOKSHELF_UI_ASSET_DIR).exists());
 
+        fs::remove_dir_all(temp_root).expect("temporary asset directory should be removed");
+    }
+
+    #[test]
+    fn cleanup_tolerates_racing_bookshelf_ui_root_removal() {
+        let temp_root = make_temp_dir("mdbook-bookshelf-bookshelf-ui-racing-root");
+
+        let mut ui_assets =
+            TransientBookshelfUiAssets::new(&temp_root).expect("asset root should be created");
+        let mut config = Config::default();
+        ui_assets
+            .inject_bookshelf_ui_assets(&mut config, "meta", "meta", &sample_breadcrumb_pages())
+            .expect("asset injection should succeed");
+
+        fs::remove_dir_all(temp_root.join(BOOKSHELF_UI_ASSET_DIR))
+            .expect("simulated sibling cleanup should remove the ui asset root");
+
+        ui_assets
+            .cleanup()
+            .expect("cleanup should tolerate a missing ui asset root");
+
+        assert!(!temp_root.join(BOOKSHELF_UI_ASSET_DIR).exists());
         fs::remove_dir_all(temp_root).expect("temporary asset directory should be removed");
     }
 
