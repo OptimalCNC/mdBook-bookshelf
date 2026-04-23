@@ -1,7 +1,6 @@
 use anyhow::{bail, Context, Result};
 use mdbook_driver::config::{BookConfig, Config};
 use serde::Deserialize;
-use std::collections::HashSet;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
@@ -55,20 +54,15 @@ fn validate_and_build(
     validate_canonical_output_root(&root_source_rel, "book.src")?;
     mdbook_config.book.src = root_source_rel.clone();
 
-    let mut seen_output_roots = HashSet::from([path_to_key(&root_source_rel)]);
+    let mut seen_output_roots = vec![root_source_rel.clone()];
     let mut books = Vec::with_capacity(raw.books.len());
     for raw_book in raw.books {
         let mut child_book = parse_child_book(raw_book)?;
         validate_book_title(&child_book, "bookshelf.book.title")?;
         let source_rel = normalize_child_source_rel_path(&child_book.src)?;
         validate_canonical_output_root(&source_rel, "bookshelf.book.src")?;
-        if !seen_output_roots.insert(path_to_key(&source_rel)) {
-            bail!(
-                "bookshelf.book.src '{}' resolves to duplicate canonical output root '{}'",
-                source_rel.display(),
-                source_rel.display()
-            );
-        }
+        ensure_output_root_available(&source_rel, &seen_output_roots)?;
+        seen_output_roots.push(source_rel.clone());
 
         child_book.src = derive_local_book_src(&source_rel)?;
 
@@ -144,10 +138,6 @@ fn derive_local_book_src(source_rel: &Path) -> Result<PathBuf> {
         .ok_or_else(|| anyhow::anyhow!("bookshelf.book.src must name a source directory"))
 }
 
-fn path_to_key(path: &Path) -> String {
-    path.to_string_lossy().replace('\\', "/")
-}
-
 fn validate_canonical_output_root(output_rel: &Path, key: &str) -> Result<()> {
     if output_rel == Path::new(".") {
         bail!(
@@ -157,6 +147,36 @@ fn validate_canonical_output_root(output_rel: &Path, key: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn ensure_output_root_available(candidate: &Path, existing_roots: &[PathBuf]) -> Result<()> {
+    for existing in existing_roots {
+        if existing == candidate {
+            bail!(
+                "bookshelf.book.src '{}' resolves to duplicate canonical output root '{}'",
+                candidate.display(),
+                candidate.display()
+            );
+        }
+
+        if is_ancestor_or_descendant(existing, candidate) {
+            bail!(
+                "bookshelf.book.src '{}' resolves to overlapping canonical output root '{}'",
+                candidate.display(),
+                existing.display()
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn is_ancestor_or_descendant(left: &Path, right: &Path) -> bool {
+    is_ancestor(left, right) || is_ancestor(right, left)
+}
+
+fn is_ancestor(ancestor: &Path, path: &Path) -> bool {
+    ancestor != path && path.starts_with(ancestor)
 }
 
 fn normalize_rel_dir_path(

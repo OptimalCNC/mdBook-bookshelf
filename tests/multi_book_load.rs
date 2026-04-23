@@ -1,6 +1,9 @@
 use mdbook_bookshelf::{build_input_catalog, load_books_from_catalog};
 use mdbook_driver::book::BookItem;
+use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn multi_book_load() {
@@ -71,4 +74,89 @@ fn multi_book_load() {
         ),
         load_err.to_string()
     );
+}
+
+#[test]
+fn rejects_authored_bookshelf_page_in_child_book() {
+    let temp = TempDir::new("chunk-06d-authored-child-bookshelf");
+    write_file(
+        temp.path(),
+        "docs/SUMMARY.md",
+        "# Summary\n\n- [Root](index.md)\n",
+    );
+    write_file(temp.path(), "docs/index.md", "# Root\n");
+    write_file(
+        temp.path(),
+        "modules/child/docs/SUMMARY.md",
+        "# Summary\n\n- [Child](index.md)\n- [Bookshelf](bookshelf.md)\n",
+    );
+    write_file(temp.path(), "modules/child/docs/index.md", "# Child\n");
+    write_file(temp.path(), "modules/child/docs/bookshelf.md", "# Child Bookshelf\n");
+    let config_path = write_file(
+        temp.path(),
+        "bookshelf.toml",
+        r#"
+[book]
+title = "Root"
+src = "docs"
+
+[bookshelf]
+
+[[bookshelf.book]]
+title = "Child"
+src = "modules/child/docs"
+"#,
+    );
+
+    let catalog = build_input_catalog(&config_path).expect("catalog should build");
+    let error = match load_books_from_catalog(&catalog) {
+        Ok(_) => panic!("reserved child bookshelf page must fail"),
+        Err(error) => error,
+    };
+    let error_text = format!("{error:#}");
+    assert!(
+        error_text.contains(
+            "book 'modules/child/docs' already contains reserved bookshelf path 'bookshelf.md'"
+        ),
+        "unexpected error: {error_text}"
+    );
+}
+
+struct TempDir {
+    path: PathBuf,
+}
+
+impl TempDir {
+    fn new(tag: &str) -> Self {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock should be valid")
+            .as_nanos();
+        let path = std::env::temp_dir()
+            .join("mdbook-bookshelf")
+            .join(root.file_name().unwrap_or_default())
+            .join(format!("{tag}-{nanos}"));
+        fs::create_dir_all(&path).expect("temp fixture directory should be created");
+        Self { path }
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.path);
+    }
+}
+
+fn write_file(dir: &Path, rel: &str, content: &str) -> PathBuf {
+    let path = dir.join(rel);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).expect("parent directory should be created");
+    }
+    fs::write(&path, content).expect("fixture file should be written");
+    path
 }

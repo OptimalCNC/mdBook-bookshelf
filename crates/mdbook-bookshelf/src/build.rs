@@ -3,13 +3,15 @@ use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
 use crate::loader::load_books_from_catalog;
 use crate::navigation::build_navigation_metadata;
 use crate::root_bookshelf_preprocessor::{
-    inject_root_bookshelf_page, site_root_bookshelf_entry_path,
+    ensure_reserved_bookshelf_path_is_available, inject_root_bookshelf_page,
+    site_root_bookshelf_entry_path,
 };
 use crate::route_paths::{path_to_string, relative_path};
 use crate::search::{write_site_wide_search_index, LOCAL_SHARED_SEARCH_INDEX_NAME};
 use crate::site_model::{build_site_model, SitePageKind};
+use crate::load_single_book_with_config_and_parsed_summary;
 use anyhow::{Context, Result};
-use mdbook_driver::{config::Config, MDBook};
+use mdbook_driver::config::Config;
 use mdbook_summary::parse_summary;
 use std::collections::BTreeMap;
 use std::fs;
@@ -124,16 +126,27 @@ fn build_catalog_book(
             )
         })?;
 
-    let mut mdbook =
-        MDBook::load_with_config_and_summary(book.book_root_abs.clone(), config, summary)
-            .with_context(|| {
-                format!(
-                    "book '{}' failed to load mdbook from root {} and source {}",
-                    book.id,
-                    book.book_root_abs.display(),
-                    book.book_src_abs.display()
-                )
-            })?;
+    let mut mdbook = load_single_book_with_config_and_parsed_summary(
+        &book.book_root_abs,
+        &book.book_src_rel,
+        config,
+        summary,
+    )
+    .with_context(|| {
+        format!(
+            "book '{}' failed to load mdbook from root {} and source {}",
+            book.id,
+            book.book_root_abs.display(),
+            book.book_src_abs.display()
+        )
+    })?;
+    ensure_reserved_bookshelf_path_is_available(&mdbook.book, &book.id).with_context(|| {
+        format!(
+            "book '{}' uses a reserved bookshelf content path while building {}",
+            book.id,
+            book.summary_abs.display()
+        )
+    })?;
 
     if book.is_root_book {
         inject_root_bookshelf_page(&mut mdbook.book, catalog).with_context(|| {

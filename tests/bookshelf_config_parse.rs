@@ -85,6 +85,59 @@ src = "docs"
 }
 
 #[test]
+fn rejects_overlapping_canonical_output_roots() {
+    let root_child_temp = TempDir::new("chunk-06a-config-parse-overlap-root-child");
+    let root_child_config_path = write_temp_bookshelf_toml(
+        root_child_temp.path(),
+        r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+
+[[bookshelf.book]]
+title = "Nested Child"
+src = "docs/api"
+"#,
+    );
+
+    let root_child_error =
+        load_bookshelf_config(&root_child_config_path).expect_err("overlap must fail");
+    assert_eq!(
+        "bookshelf.book.src 'docs/api' resolves to overlapping canonical output root 'docs'",
+        root_child_error.to_string()
+    );
+
+    let child_child_temp = TempDir::new("chunk-06a-config-parse-overlap-child-child");
+    let child_child_config_path = write_temp_bookshelf_toml(
+        child_child_temp.path(),
+        r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+
+[[bookshelf.book]]
+title = "Parser Docs"
+src = "modules/parser/docs"
+
+[[bookshelf.book]]
+title = "Parser API"
+src = "modules/parser/docs/reference"
+"#,
+    );
+
+    let child_child_error =
+        load_bookshelf_config(&child_child_config_path).expect_err("nested child overlap must fail");
+    assert_eq!(
+        "bookshelf.book.src 'modules/parser/docs/reference' resolves to overlapping canonical output root 'modules/parser/docs'",
+        child_child_error.to_string()
+    );
+}
+
+#[test]
 fn rejects_site_root_output_roots() {
     let root_temp = TempDir::new("chunk-06a-config-parse-root-site-root");
     let root_config_path = write_temp_bookshelf_toml(

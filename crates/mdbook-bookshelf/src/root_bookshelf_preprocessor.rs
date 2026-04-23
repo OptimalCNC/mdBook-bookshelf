@@ -9,7 +9,7 @@ pub const ROOT_BOOKSHELF_CHAPTER_PATH: &str = "bookshelf.md";
 pub const ROOT_BOOKSHELF_HTML_PATH: &str = "bookshelf.html";
 
 pub fn inject_root_bookshelf_page(book: &mut Book, catalog: &InputCatalog) -> Result<()> {
-    ensure_reserved_bookshelf_path_is_available(book)?;
+    ensure_reserved_bookshelf_path_is_available(book, "root book")?;
     book.push_item(build_root_bookshelf_chapter(catalog)?);
     Ok(())
 }
@@ -18,14 +18,15 @@ pub fn site_root_bookshelf_entry_path(root_output_rel: impl AsRef<Path>) -> Stri
     path_to_string(&root_output_rel.as_ref().join(ROOT_BOOKSHELF_HTML_PATH))
 }
 
-fn ensure_reserved_bookshelf_path_is_available(book: &Book) -> Result<()> {
+pub fn ensure_reserved_bookshelf_path_is_available(book: &Book, book_id: &str) -> Result<()> {
     let reserved_path = Path::new(ROOT_BOOKSHELF_CHAPTER_PATH);
     if book
         .chapters()
         .any(|chapter| chapter.path.as_deref() == Some(reserved_path))
     {
         bail!(
-            "root book already contains reserved synthetic bookshelf path '{}'",
+            "book '{}' already contains reserved bookshelf path '{}'",
+            book_id,
             ROOT_BOOKSHELF_CHAPTER_PATH
         );
     }
@@ -141,7 +142,7 @@ mod tests {
             inject_root_bookshelf_page(&mut book, &sample_catalog()).expect_err("must fail");
         assert!(error
             .to_string()
-            .contains("reserved synthetic bookshelf path"));
+            .contains("reserved bookshelf path"));
     }
 
     fn sample_catalog() -> InputCatalog {
