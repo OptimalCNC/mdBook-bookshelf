@@ -6,7 +6,5 @@ src = "docs"
 root-id = "meta"
 
 [[bookshelf.book]]
-id = "meta"
-root = "modules/parser"
 title = "Parser Docs"
-src = "docs"
+src = "books/meta/docs"

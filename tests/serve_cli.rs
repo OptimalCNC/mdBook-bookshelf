@@ -72,7 +72,7 @@ fn serve_cli_serves_built_site() {
         &stderr_lines,
         &mut stderr_log,
         &server_address,
-        "/books/parser/grammar.html",
+        "/modules/parser/grammar.html",
     );
     assert_status_ok(&parser_response);
     assert_text_contains(response_body(&parser_response), "<h1 id=\"grammar\">");

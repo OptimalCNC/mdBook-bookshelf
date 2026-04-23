@@ -6,13 +6,9 @@ src = "docs"
 root-id = "meta"
 
 [[bookshelf.book]]
-id = "parser"
-root = "modules/parser"
 title = "Parser Docs"
-src = "docs"
+src = "modules/parser/docs"
 
 [[bookshelf.book]]
-id = "parser"
-root = "modules/duplicate"
 title = "Duplicate"
-src = "docs"
+src = "modules/parser"

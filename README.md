@@ -71,18 +71,20 @@ src = "docs"
 root-id = "root"
 
 [[bookshelf.book]]
-id = "parser"
-root = "modules/parser"
 title = "Parser"
-src = "docs"
+src = "modules/parser/docs"
 ```
 
-Child `src` values are mdBook-native and relative to each child `root`, not to
-the shared `bookshelf.toml` directory. Each book's canonical summary is read
-from `<book-root>/<src>/SUMMARY.md`, and `<src>/index.md` remains its entry
-page. Concrete examples live in
+Child `src` values are mdBook-native and relative to the shared
+`bookshelf.toml` directory. Each book's canonical summary is read from
+`<src>/SUMMARY.md`, and `<src>/index.md` remains its entry page. Concrete
+examples live in
 [`bookshelf/handoffs/examples/self-contained/`](./bookshelf/handoffs/examples/self-contained/)
 and [`tests/fixtures/input-catalog/`](./tests/fixtures/input-catalog/).
+
+`root-id` remains a temporary bookshelf-only seam for the root book's routed
+output under `books/<root-id>/...`, and that key is reserved from child
+source-derived mounts.
 
 Run the test suite:
 

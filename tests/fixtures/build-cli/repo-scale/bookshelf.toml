@@ -12,15 +12,11 @@ preferred-dark-theme = "ayu"
 root-id = "metanc"
 
 [[bookshelf.book]]
-id = "gcode-parser"
-root = "modules/gcode-parser"
 title = "G-code Parser"
 description = "Grammar, modal semantics, and parser diagnostics."
-src = "docs"
+src = "modules/gcode-parser/docs"
 
 [[bookshelf.book]]
-id = "hmi"
-root = "modules/hmi"
 title = "HMI"
 description = "Operator workflows and runtime notes for the interface book."
-src = "docs"
+src = "modules/hmi/docs"

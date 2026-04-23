@@ -1,4 +1,5 @@
 use crate::catalog::{InputBook, InputCatalog};
+use crate::route_paths::{path_to_string, relative_path};
 use anyhow::{bail, Result};
 use mdbook_driver::book::{Book, Chapter};
 use std::path::{Path, PathBuf};
@@ -46,12 +47,13 @@ fn build_root_bookshelf_chapter(catalog: &InputCatalog) -> Chapter {
 
 fn render_root_bookshelf_markdown(catalog: &InputCatalog) -> String {
     let mut markdown = String::from("# Bookshelf\n\nChoose a book to enter its root page.\n");
+    let root_output_rel = PathBuf::from("books").join(&catalog.root_book_id);
 
     for book in &catalog.books {
         markdown.push_str("\n- [");
         markdown.push_str(&escape_markdown_text(&book.title));
         markdown.push_str("](<");
-        markdown.push_str(&bookshelf_book_href(book, &catalog.root_book_id));
+        markdown.push_str(&bookshelf_book_href(book, &root_output_rel));
         markdown.push_str(">)");
 
         if let Some(description) = book.description.as_deref() {
@@ -65,12 +67,9 @@ fn render_root_bookshelf_markdown(catalog: &InputCatalog) -> String {
     markdown
 }
 
-fn bookshelf_book_href(book: &InputBook, root_book_id: &str) -> String {
-    if book.id == root_book_id {
-        "index.html".to_string()
-    } else {
-        format!("../{}/index.html", book.id)
-    }
+fn bookshelf_book_href(book: &InputBook, root_output_rel: &Path) -> String {
+    let target = book.output_rel.join("index.html");
+    path_to_string(&relative_path(root_output_rel, &target))
 }
 
 fn escape_markdown_text(text: &str) -> String {
@@ -125,7 +124,7 @@ mod tests {
         assert!(synthetic.content.contains("Repository-wide onboarding"));
         assert!(synthetic
             .content
-            .contains("[Example Parser](<../parser/index.html>)"));
+            .contains("[Example Parser](<../../parser/index.html>)"));
     }
 
     #[test]
@@ -181,6 +180,11 @@ mod tests {
 
         InputBook {
             id: id.to_string(),
+            output_rel: if is_root_book {
+                PathBuf::from("books").join(id)
+            } else {
+                PathBuf::from(id)
+            },
             book_config,
             title: title.to_string(),
             description: description.map(str::to_string),

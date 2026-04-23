@@ -6,7 +6,5 @@ src = "root-book/docs"
 root-id = "root"
 
 [[bookshelf.book]]
-id = "child"
-root = "modules/child-book"
 title = "Child Book"
-src = "docs"
+src = "modules/child-book/docs"

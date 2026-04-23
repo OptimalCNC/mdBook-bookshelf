@@ -12,15 +12,11 @@ preferred-dark-theme = "ayu"
 root-id = "meta"
 
 [[bookshelf.book]]
-id = "parser"
-root = "modules/parser"
 title = "Example Parser"
 description = "Parser-specific reference pages with their own reading order."
-src = "docs"
+src = "modules/parser/docs"
 
 [[bookshelf.book]]
-id = "ui"
-root = "modules/ui"
 title = "Example UI"
 description = "Interface and runtime guides for the UI book."
-src = "docs"
+src = "modules/ui/docs"

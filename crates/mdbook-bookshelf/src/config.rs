@@ -17,8 +17,8 @@ pub struct BookshelfConfig {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BookshelfBook {
-    pub id: String,
-    pub root: PathBuf,
+    pub source_rel: PathBuf,
+    pub mount_rel: PathBuf,
     pub book: BookConfig,
 }
 
@@ -28,12 +28,6 @@ struct RawBookshelf {
     root_id: Option<String>,
     #[serde(default, rename = "book")]
     books: Vec<toml::Table>,
-}
-
-struct RawChildBook {
-    id: String,
-    root: PathBuf,
-    book: BookConfig,
 }
 
 pub fn load_bookshelf_config(path: impl AsRef<Path>) -> Result<BookshelfConfig> {
@@ -66,29 +60,44 @@ fn validate_and_build(
     validate_book_title(&mdbook_config.book, "book.title")?;
     mdbook_config.book.src = normalize_book_src_rel_path(&root_book_id, &mdbook_config.book.src)?;
 
-    let mut seen_ids = HashSet::new();
-    seen_ids.insert(root_book_id.clone());
+    let mut seen_mounts = HashSet::new();
+    let root_output_rel = PathBuf::from("books").join(&root_book_id);
     let mut books = Vec::with_capacity(raw.books.len());
     for raw_book in raw.books {
-        let mut child = parse_child_book(raw_book)?;
-        child.id = normalize_book_id(child.id, "bookshelf.book.id")?;
-        let id = child.id.clone();
+        let mut child_book = parse_child_book(raw_book)?;
+        validate_book_title(&child_book, "bookshelf.book.title")?;
+        let source_rel = normalize_child_source_rel_path(&child_book.src)?;
+        let mount_rel = derive_child_mount_rel(&source_rel)?;
+        let mount_key = path_to_key(&mount_rel);
 
-        if !seen_ids.insert(id.clone()) {
-            if id == root_book_id {
-                bail!("duplicate bookshelf.book id: '{id}' collides with bookshelf.root-id");
-            }
-            bail!("duplicate bookshelf.book id: '{id}'");
+        if mount_rel == root_output_rel {
+            bail!(
+                "bookshelf.book.src '{}' resolves to reserved mount path '{}'",
+                source_rel.display(),
+                mount_rel.display()
+            );
+        }
+        if mount_key == root_book_id {
+            bail!(
+                "bookshelf.book.src '{}' resolves to reserved mount key '{}' owned by bookshelf.root-id",
+                source_rel.display(),
+                mount_key
+            );
+        }
+        if !seen_mounts.insert(mount_rel.clone()) {
+            bail!(
+                "bookshelf.book.src '{}' resolves to duplicate mount path '{}'",
+                source_rel.display(),
+                mount_rel.display()
+            );
         }
 
-        validate_book_title(&child.book, &format!("bookshelf.book '{id}' title"))?;
-        child.root = normalize_book_root_rel_path(&id, &child.root)?;
-        child.book.src = normalize_book_src_rel_path(&id, &child.book.src)?;
+        child_book.src = derive_local_book_src(&source_rel)?;
 
         books.push(BookshelfBook {
-            id: child.id,
-            root: child.root,
-            book: child.book,
+            source_rel,
+            mount_rel,
+            book: child_book,
         });
     }
 
@@ -130,36 +139,10 @@ fn parse_mdbook_config(toml_root: toml::Table, config_path: &Path) -> Result<Con
     })
 }
 
-fn parse_child_book(mut raw: toml::Table) -> Result<RawChildBook> {
-    let id = remove_required_non_empty_string(&mut raw, "id", "bookshelf.book.id")?;
-    let root = remove_required_path(&mut raw, "root", &format!("bookshelf.book '{id}' root"))?;
-    let book = toml::Value::Table(raw)
+fn parse_child_book(raw: toml::Table) -> Result<BookConfig> {
+    toml::Value::Table(raw)
         .try_into::<BookConfig>()
-        .with_context(|| format!("failed to parse mdBook book config for bookshelf.book '{id}'"))?;
-
-    Ok(RawChildBook { id, root, book })
-}
-
-fn remove_required_non_empty_string(
-    raw: &mut toml::Table,
-    key: &str,
-    display_key: &str,
-) -> Result<String> {
-    match raw.remove(key) {
-        Some(toml::Value::String(value)) if !value.is_empty() => Ok(value),
-        Some(toml::Value::String(_)) => bail!("{display_key} must not be empty"),
-        Some(_) => bail!("{display_key} must be a string"),
-        None => bail!("missing required key {display_key}"),
-    }
-}
-
-fn remove_required_path(raw: &mut toml::Table, key: &str, display_key: &str) -> Result<PathBuf> {
-    match raw.remove(key) {
-        Some(value) => value
-            .try_into::<PathBuf>()
-            .with_context(|| format!("{display_key} must be a string path")),
-        None => bail!("missing required key {display_key}"),
-    }
+        .with_context(|| "failed to parse mdBook book config for bookshelf.book")
 }
 
 fn required_non_empty(value: Option<String>, key: &str) -> Result<String> {
@@ -192,12 +175,42 @@ fn normalize_book_id(raw_id: String, key: &str) -> Result<String> {
     Ok(raw_id)
 }
 
-fn normalize_book_root_rel_path(book_id: &str, raw_path: &Path) -> Result<PathBuf> {
-    normalize_rel_dir_path(book_id, raw_path, "root path", false)
-}
-
 fn normalize_book_src_rel_path(book_id: &str, raw_path: &Path) -> Result<PathBuf> {
     normalize_rel_dir_path(book_id, raw_path, "src path", true)
+}
+
+fn normalize_child_source_rel_path(raw_path: &Path) -> Result<PathBuf> {
+    normalize_rel_dir_path("bookshelf.book", raw_path, "src path", true)
+}
+
+fn derive_child_mount_rel(source_rel: &Path) -> Result<PathBuf> {
+    let mount_rel = match source_rel.file_name() {
+        Some(name) if name == "docs" => source_rel
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from(".")),
+        _ => source_rel.to_path_buf(),
+    };
+
+    if mount_rel.as_os_str().is_empty() || mount_rel == Path::new(".") {
+        bail!(
+            "bookshelf.book.src must not resolve to the site root mount path: '{}'",
+            source_rel.display()
+        );
+    }
+
+    Ok(mount_rel)
+}
+
+fn derive_local_book_src(source_rel: &Path) -> Result<PathBuf> {
+    source_rel
+        .file_name()
+        .map(PathBuf::from)
+        .ok_or_else(|| anyhow::anyhow!("bookshelf.book.src must name a source directory"))
+}
+
+fn path_to_key(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }
 
 fn normalize_rel_dir_path(

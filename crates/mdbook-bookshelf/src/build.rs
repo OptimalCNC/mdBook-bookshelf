@@ -2,10 +2,11 @@ use crate::bookshelf_ui::{BookshelfBreadcrumbPage, TransientBookshelfUiAssets};
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
 use crate::loader::load_books_from_catalog;
 use crate::navigation::build_navigation_metadata;
+use crate::route_paths::{path_to_string, relative_path};
 use crate::root_bookshelf_preprocessor::{
     inject_root_bookshelf_page, site_root_bookshelf_entry_path,
 };
-use crate::search::write_site_wide_search_index;
+use crate::search::{write_site_wide_search_index, LOCAL_SHARED_SEARCH_INDEX_NAME};
 use crate::site_model::{build_site_model, SitePageKind};
 use anyhow::{Context, Result};
 use mdbook_driver::{config::Config, MDBook};
@@ -77,7 +78,7 @@ fn build_catalog_book(
 
     let mut config = shared_config.clone();
     config.book = book.book_config.clone();
-    config.build.build_dir = site_dest_dir.join("books").join(&book.id);
+    config.build.build_dir = site_dest_dir.join(&book.output_rel);
     let mut ui_assets =
         TransientBookshelfUiAssets::new(&book.book_root_abs).with_context(|| {
             format!(
@@ -96,11 +97,16 @@ fn build_catalog_book(
                 book.book_root_abs.display()
             )
         })?;
+    let root_bookshelf_rel = PathBuf::from(site_root_bookshelf_entry_path(&catalog.root_book_id));
+    let return_target = path_to_string(&relative_path(&book.output_rel, &root_bookshelf_rel));
+    let searchindex_target = LOCAL_SHARED_SEARCH_INDEX_NAME.to_string();
+
     ui_assets
         .inject_bookshelf_ui_assets(
             &mut config,
             &book.id,
-            &catalog.root_book_id,
+            &return_target,
+            &searchindex_target,
             breadcrumb_pages,
         )
         .with_context(|| {

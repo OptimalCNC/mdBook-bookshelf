@@ -15,8 +15,12 @@ fn navigation_metadata() {
 
     let root_first = nav.for_page("root:0000").expect("root first page nav");
     let root_last = nav.for_page("root:0001").expect("root last page nav");
-    let child_first = nav.for_page("child:0000").expect("child first page nav");
-    let child_last = nav.for_page("child:0001").expect("child last page nav");
+    let child_first = nav
+        .for_page("modules/child:0000")
+        .expect("child first page nav");
+    let child_last = nav
+        .for_page("modules/child:0001")
+        .expect("child last page nav");
 
     assert_eq!(None, root_first.prev_page_id);
     assert_eq!(Some("root:0001".to_string()), root_first.next_page_id);
@@ -35,25 +39,28 @@ fn navigation_metadata() {
     assert_eq!("root", root_last.active_book_id);
 
     assert_eq!(None, child_first.prev_page_id);
-    assert_eq!(Some("child:0001".to_string()), child_first.next_page_id);
+    assert_eq!(Some("modules/child:0001".to_string()), child_first.next_page_id);
     assert_eq!(
         Some("Child Book / Child Intro".to_string()),
         child_first.breadcrumb
     );
-    assert_eq!("child", child_first.active_book_id);
+    assert_eq!("modules/child", child_first.active_book_id);
 
-    assert_eq!(Some("child:0000".to_string()), child_last.prev_page_id);
+    assert_eq!(Some("modules/child:0000".to_string()), child_last.prev_page_id);
     assert_eq!(None, child_last.next_page_id);
     assert_eq!(
         Some("Child Book / Child Next".to_string()),
         child_last.breadcrumb
     );
-    assert_eq!("child", child_last.active_book_id);
+    assert_eq!("modules/child", child_last.active_book_id);
 
-    assert_ne!(Some("child:0000".to_string()), root_last.next_page_id);
+    assert_ne!(Some("modules/child:0000".to_string()), root_last.next_page_id);
     assert_ne!(Some("root:0001".to_string()), child_first.prev_page_id);
 
     assert_eq!(Some("root"), nav.resolve_active_book_id("bookshelf:root"));
     assert_eq!(Some("root"), nav.resolve_active_book_id("root:0000"));
-    assert_eq!(Some("child"), nav.resolve_active_book_id("child:0001"));
+    assert_eq!(
+        Some("modules/child"),
+        nav.resolve_active_book_id("modules/child:0001")
+    );
 }

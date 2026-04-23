@@ -1,43 +1,48 @@
 Objective
 
-Replace the custom bookshelf config model with one composed from mdBook's native
-`Config` and `BookConfig` types so the top level behaves like a normal
-`book.toml`, the top-level `book` section defines the root book, and
-`[[bookshelf.book]]` defines the additional content books.
+Keep the mdBook-native top-level config model, but simplify child bookshelf
+config further by removing explicit child `id` and `root`, deriving child mount
+paths and ownership keys from config-root-relative child `src` instead.
 
 Global Constraints
 
-- Project is under active development; do not preserve compatibility with the old
-  bookshelf config model when a better mdBook-native model exists.
-- Prefer mdBook's existing `Config` and `BookConfig` types over custom top-level
-  config structs.
-- Keep one canonical `SUMMARY.md` per book under that book's configured `src`.
+- Project is under active development; do not preserve compatibility with old
+  child `id` / `root` config when a source-derived mount model is better.
+- Prefer stock mdBook config types where possible.
+- Be prudent about any config that is not part of stock mdBook.
+- Keep one canonical `SUMMARY.md` per book under that book's configured source
+  directory.
 - Stay within the existing mdBook-first architecture.
 
 Integration Strategy
 
-- Base the root-book config on mdBook's native top-level `Config`.
-- Represent each additional content book with mdBook `BookConfig`-shaped data
-  instead of a bespoke bookshelf-only book config.
-- Keep bookshelf-only metadata limited to what mdBook does not model.
-- Update fixtures, docs, and tests to reflect the new config shape.
+- Keep the top level rooted in mdBook's native `Config`.
+- Interpret child `[[bookshelf.book]].src` as a config-root-relative source
+  directory.
+- Derive each child's public mount path from its source location.
+- Remove explicit child `id` and `root` from human config.
+- Keep `[bookshelf].root-id` only as a temporary root-book routing seam because
+  root-book public routing still collides with the synthetic site-root
+  `index.html` redirect.
+- Update fixtures, docs, and tests to the new child routing model.
 
 Current State
 
-- The top level now parses into native mdBook `Config`, stored in
-  `BookshelfConfig.mdbook_config`.
-- The root book now comes from top-level `[book]` plus `[bookshelf].root-id`.
-- Non-root books now use `[[bookshelf.book]]` entries shaped as `id` + `root` +
-  flattened mdBook `BookConfig`.
-- The build and loader paths now reuse the stored native mdBook config instead
-  of re-projecting the top-level config or defaulting it away.
-- Shared config-root CSS/JS assets are staged per build under a non-hidden,
-  hash-friendly source path, and relative shared `output.html.input-404` is
-  explicitly rejected when child books use different roots.
+- The top level already parses into native mdBook `Config`.
+- The root book still uses `[bookshelf].root-id` as a temporary public-routing
+  seam.
+- Child books no longer use human-authored `id` or `root`.
+- Child `src` is now config-root-relative, child mounts are derived from source
+  location, and child output routes follow source-tree paths like
+  `modules/parser/...`.
+- Search now writes a canonical site-wide payload plus localized
+  `bookshelf-searchindex.js` wrappers per book root so cross-book search still
+  works with non-sibling output mounts.
 
 Open Risks
 
-- No known blocking risks.
+- Full `root-id` removal is still blocked by the root-book `index.html`
+  collision with the site-root redirect and synthetic bookshelf landing flow.
 
 Active Chunk
 
@@ -45,66 +50,65 @@ Active Chunk
 
 Chunk Ledger
 
-- chunk_id: chunk-022-native-root-mdbook-config
-  title: Promote the top-level mdBook config to the root book and reserve
-    `[[bookshelf.book]]` for non-root books
-  objective: Use mdBook's native top-level `Config` for the root book and shared
-    build/output/preprocessor behavior, while keeping only bookshelf-specific
-    identity and child-book root location as custom metadata.
-  why_now: The current design parses the same file twice, duplicates root-book
-    metadata, and still reimplements mdBook-owned config fields in custom
-    structs.
+- chunk_id: chunk-023-derived-child-mount-from-src
+  title: Remove child `root` and child `id` by deriving child mounts from `src`
+  objective: Collapse child book location and public child routing onto one
+    config-root-relative `src` field.
+  why_now: Child `root` and `id` are currently redundant seams; `id` acts as a
+    route alias, and `root` mainly reconstructs the real source directory.
   depends_on: []
   touchpoints:
     - `crates/mdbook-bookshelf/src/config.rs`
     - `crates/mdbook-bookshelf/src/catalog.rs`
     - `crates/mdbook-bookshelf/src/build.rs`
-    - `crates/mdbook-bookshelf/src/lib.rs`
+    - `crates/mdbook-bookshelf/src/root_bookshelf_preprocessor.rs`
+    - `crates/mdbook-bookshelf/src/bookshelf_ui.rs`
+    - `crates/mdbook-bookshelf/src/search.rs`
     - `README.md`
-    - test files and fixture `bookshelf.toml` files
+    - `tests/bookshelf_config_parse.rs`
+    - `tests/input_catalog_build.rs`
+    - `tests/build_cli.rs`
+    - `tests/fixtures/**/bookshelf.toml`
   scope_in:
-    - top-level mdBook config parsed into native `Config`
-    - root book synthesized from top-level `[book]`
-    - `[bookshelf].root-id` as the root identity seam
-    - child books modeled as `id` + `root` + flattened `BookConfig`
-    - build path reuses stored native `Config` instead of re-projecting config
-    - fixtures/docs/tests updated to remove duplicated root book entries
+    - remove child `id` and child `root` from human config
+    - interpret child `src` as config-root-relative
+    - derive child mount path and internal ownership key from `src`
+    - route child output/search/links from the derived mount path
+    - update fixtures/docs/tests for child routes like `/modules/parser/...`
   scope_out:
-    - per-child build/output/preprocessor overrides
-    - navigation/output/search redesign
-    - removing the need for stable book ids
+    - removing `[bookshelf].root-id`
+    - redesigning root-book site-root landing semantics
   target_files:
     - `crates/mdbook-bookshelf/src/config.rs`
     - `crates/mdbook-bookshelf/src/catalog.rs`
     - `crates/mdbook-bookshelf/src/build.rs`
+    - `crates/mdbook-bookshelf/src/root_bookshelf_preprocessor.rs`
+    - `crates/mdbook-bookshelf/src/bookshelf_ui.rs`
+    - `crates/mdbook-bookshelf/src/search.rs`
     - `README.md`
     - `tests/bookshelf_config_parse.rs`
     - `tests/input_catalog_build.rs`
-    - `tests/multi_book_load.rs`
     - `tests/build_cli.rs`
-    - `tests/serve_cli.rs`
     - `tests/fixtures/**/bookshelf.toml`
   implementation_tasks:
-    - parse `[bookshelf]` separately from a top-level TOML table while
-      deserializing the rest into native mdBook `Config`
-    - define minimal bookshelf-only metadata for root identity and child roots
-    - synthesize the root catalog/book entry from top-level `config.book`
-    - remove duplicated root-book declarations from fixtures/docs
-    - validate titles, ids, root-id collisions, and derived summary paths
+    - parse child books from flattened `BookConfig` only
+    - derive child mount path from config-root-relative `src`
+    - project mdBook-native `{book_root, book.src}` internally from that source
+    - replace child `books/<id>` routing with source-derived child routes
+    - update runtime JS and search URL rewriting for multi-segment child mounts
   acceptance_criteria:
-    - the top-level `book`, `build`, `output`, and `preprocessor` config is
-      owned by mdBook `Config`, not a parallel bookshelf struct
-    - the root book comes only from top-level `[book]`
-    - child books use `root` plus mdBook-native `BookConfig` fields
-    - the build path reuses stored native mdBook config directly
+    - child books no longer accept human-authored `id` or `root`
+    - child location and routing are driven from `src`
+    - child output paths follow source-tree mounts like `modules/parser`
+    - root-book public routing remains unchanged for this chunk
     - full tests pass after fixture/doc updates
   verification:
     - command: `cargo test`
-      expect: full suite passes with the mdBook-native config model
+      expect: full suite passes with source-derived child mount paths
   review_focus:
-    - no duplicated root book inside `[[bookshelf.book]]`
-    - child `src` remains mdBook-native relative to child `root`
-    - no new custom top-level mdBook config class is invented
+    - child `root` is actually gone
+    - child routing is derived from `src` rather than a parallel slug
+    - `[bookshelf].root-id` is the only temporary remaining custom route seam
 
 Final Validation
 
@@ -112,13 +116,12 @@ Final Validation
 
 Activity Log
 
-2026-04-23T07:50:00Z [coordinator] [init] [done] retargeted coordination to the mdBook-native config model refactor and adopted config.progress.md as the shared artifact
-2026-04-23T08:18:23Z [planner] [chunk-022-native-root-mdbook-config] [planned] parse top level as native mdBook Config and move root-book metadata to top-level book section
-2026-04-23T08:18:23Z [researcher] [mdbook-native-config-model] [done] use top-level Config plus tiny bookshelf metadata with child id and root instead of duplicating the root book
-2026-04-23T08:40:00Z [developer] [chunk-022-native-root-mdbook-config] [done] refactored config parsing around native mdBook Config and BookConfig, updated build/catalog paths, and rewrote fixtures/docs
-2026-04-23T08:44:00Z [direction-reviewer] [chunk-022-native-root-mdbook-config] [approved] native mdBook Config and BookConfig are now the owning config model with only minimal bookshelf metadata left
-2026-04-23T08:47:00Z [coordinator] [chunk-022-native-root-mdbook-config] [rework] aligned loader with the stored native mdBook config path before final review
-2026-04-23T08:52:00Z [implementation-reviewer] [chunk-022-native-root-mdbook-config] [changes_required] ids needed safe path-segment validation and shared output paths still had staging regressions
-2026-04-23T08:58:00Z [coordinator] [chunk-022-native-root-mdbook-config] [rework] fixed id validation, staged shared assets under non-hidden hashed paths, and added input-404 regression coverage
-2026-04-23T08:59:23Z [implementation-reviewer] [chunk-022-native-root-mdbook-config] [approved] prior id, staged-asset cleanup, and disabled input-404 regressions are resolved and verified
-2026-04-23T08:59:23Z [coordinator] [chunk-022-native-root-mdbook-config] [done] final validation passed and both review tracks approved the completed chunk
+2026-04-23T09:05:00Z [coordinator] [init] [done] retargeted coordination to source-derived child mount paths while retaining root-id temporarily
+2026-04-23T09:05:30Z [researcher] [mount-path-identity] [done] current code uses child id as a route alias and child root mainly to reconstruct source location
+2026-04-23T09:06:00Z [planner] [chunk-023-derived-child-mount-from-src] [planned] remove child root/id in favor of config-root-relative child src and derived child mounts
+2026-04-23T09:30:00Z [developer] [chunk-023-derived-child-mount-from-src] [done] removed child id/root from config, derived child mounts from src, updated search routing, and rewrote fixtures/docs/tests
+2026-04-23T09:41:00Z [implementation-reviewer] [chunk-023-derived-child-mount-from-src] [approved] derived child mounts, routing, and localized search behavior are coherent
+2026-04-23T09:45:30Z [direction-reviewer] [chunk-023-derived-child-mount-from-src] [changes_required] child source-derived keys still needed to reserve the temporary root-id namespace
+2026-04-23T09:46:57Z [coordinator] [chunk-023-derived-child-mount-from-src] [rework] reserved the root-id ownership namespace for child derived mounts and added regression coverage
+2026-04-23T09:46:57Z [direction-reviewer] [chunk-023-derived-child-mount-from-src] [approved] child mounts now reserve the temporary root-id namespace and the regression is covered
+2026-04-23T09:46:57Z [coordinator] [chunk-023-derived-child-mount-from-src] [done] final validation passed and both review tracks approved the completed chunk

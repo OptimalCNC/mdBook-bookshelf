@@ -14,7 +14,7 @@ fn multi_book_load() {
     assert_eq!("root", loaded.root_book_id);
     assert_eq!(2, loaded.books.len());
     assert_eq!("root", loaded.books[0].book_id);
-    assert_eq!("child", loaded.books[1].book_id);
+    assert_eq!("modules/child", loaded.books[1].book_id);
     assert!(
         !loaded.books[0].summary.numbered_chapters.is_empty(),
         "root summary should contain chapter entries"
@@ -46,7 +46,7 @@ fn multi_book_load() {
     };
     assert_eq!(
         format!(
-            "book 'broken' failed to parse canonical summary at {}",
+            "book 'broken-book' failed to parse canonical summary at {}",
             fixtures
                 .join("invalid-summary-parse/broken-book/docs/SUMMARY.md")
                 .display()
@@ -63,7 +63,7 @@ fn multi_book_load() {
     };
     assert_eq!(
         format!(
-            "book 'missing' failed to load mdbook from root {} and source {}",
+            "book 'missing-book' failed to load mdbook from root {} and source {}",
             fixtures.join("invalid-mdbook-load/missing-book").display(),
             fixtures
                 .join("invalid-mdbook-load/missing-book/docs")

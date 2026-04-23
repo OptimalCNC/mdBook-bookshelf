@@ -12,7 +12,5 @@ no-section-label = true # standard mdBook boolean field
 root-id = "meta" # inline comment should be ignored
 
 [[bookshelf.book]]
-id = "parser"
-root = "modules/parser"
 title = "Parser Docs"
-src = "docs"
+src = "modules/parser/docs"

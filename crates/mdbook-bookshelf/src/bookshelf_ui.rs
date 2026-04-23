@@ -1,5 +1,4 @@
 use crate::root_bookshelf_preprocessor::ROOT_BOOKSHELF_HTML_PATH;
-use crate::search::SHARED_SEARCH_INDEX_NAME;
 use anyhow::{bail, Context, Result};
 use mdbook_driver::config::Config;
 use std::fs;
@@ -78,14 +77,15 @@ impl TransientBookshelfUiAssets {
     pub fn inject_bookshelf_ui_assets(
         &self,
         config: &mut Config,
-        book_id: &str,
-        root_book_id: &str,
+        asset_key: &str,
+        return_target: &str,
+        searchindex_target: &str,
         breadcrumb_pages: &[BookshelfBreadcrumbPage],
     ) -> Result<()> {
         let return_css_rel_path = self.bookshelf_return_css_path();
-        let return_js_rel_path = self.bookshelf_return_js_path(book_id);
+        let return_js_rel_path = self.bookshelf_return_js_path(asset_key);
         let breadcrumb_css_rel_path = self.bookshelf_breadcrumb_css_path();
-        let breadcrumb_js_rel_path = self.bookshelf_breadcrumb_js_path(book_id);
+        let breadcrumb_js_rel_path = self.bookshelf_breadcrumb_js_path(asset_key);
         let search_js_rel_path = self.bookshelf_search_js_path();
 
         write_asset_file(
@@ -94,7 +94,7 @@ impl TransientBookshelfUiAssets {
         )?;
         write_asset_file(
             &self.config_root.join(&return_js_rel_path),
-            &render_bookshelf_return_js(book_id, root_book_id),
+            &render_bookshelf_return_js(return_target),
         )?;
         write_asset_file(
             &self.config_root.join(&breadcrumb_css_rel_path),
@@ -106,7 +106,7 @@ impl TransientBookshelfUiAssets {
         )?;
         write_asset_file(
             &self.config_root.join(&search_js_rel_path),
-            &render_bookshelf_search_js(),
+            &render_bookshelf_search_js(searchindex_target),
         )?;
 
         append_output_asset(config, "output.html.additional-css", return_css_rel_path).context(
@@ -462,9 +462,7 @@ fn path_is_dir(path: &Path) -> std::io::Result<bool> {
     }
 }
 
-fn render_bookshelf_return_js(book_id: &str, root_book_id: &str) -> String {
-    let target = bookshelf_return_target_from_book_root(book_id, root_book_id);
-
+fn render_bookshelf_return_js(target: &str) -> String {
     format!(
         "(() => {{\n\
 const bookshelfTarget = \"{target}\";\n\
@@ -490,7 +488,7 @@ buttonContainer.prepend(link);\n\
         link_class = BOOKSHELF_RETURN_LINK_CLASS,
         link_id = BOOKSHELF_RETURN_LINK_ID,
         root_bookshelf_html_path = ROOT_BOOKSHELF_HTML_PATH,
-        target = target,
+        target = escape_js_string(target),
     )
 }
 
@@ -596,22 +594,14 @@ main.prepend(breadcrumb);\n\
     )
 }
 
-fn render_bookshelf_search_js() -> String {
+fn render_bookshelf_search_js(searchindex_target: &str) -> String {
     format!(
         "(() => {{\n\
 const rootPath = typeof path_to_root === \"string\" ? path_to_root : \"\";\n\
-window.path_to_searchindex_js = `${{rootPath}}../../{shared_search_index_name}`;\n\
+window.path_to_searchindex_js = `${{rootPath}}{searchindex_target}`;\n\
 }})();\n",
-        shared_search_index_name = SHARED_SEARCH_INDEX_NAME,
+        searchindex_target = escape_js_string(searchindex_target),
     )
-}
-
-fn bookshelf_return_target_from_book_root(book_id: &str, root_book_id: &str) -> String {
-    if book_id == root_book_id {
-        ROOT_BOOKSHELF_HTML_PATH.to_string()
-    } else {
-        format!("../{root_book_id}/{ROOT_BOOKSHELF_HTML_PATH}")
-    }
 }
 
 fn escape_js_string(text: &str) -> String {
@@ -640,18 +630,14 @@ mod tests {
 
     #[test]
     fn root_book_return_target_points_to_local_bookshelf_page() {
-        assert_eq!(
-            bookshelf_return_target_from_book_root("meta", "meta"),
-            "bookshelf.html"
-        );
+        let script = render_bookshelf_return_js("bookshelf.html");
+        assert!(script.contains("const bookshelfTarget = \"bookshelf.html\";"));
     }
 
     #[test]
     fn non_root_book_return_target_points_back_to_root_bookshelf_page() {
-        assert_eq!(
-            bookshelf_return_target_from_book_root("parser", "meta"),
-            "../meta/bookshelf.html"
-        );
+        let script = render_bookshelf_return_js("../../books/meta/bookshelf.html");
+        assert!(script.contains("const bookshelfTarget = \"../../books/meta/bookshelf.html\";"));
     }
 
     #[test]
@@ -674,7 +660,13 @@ mod tests {
             .expect("existing js should be configured");
 
         ui_assets
-            .inject_bookshelf_ui_assets(&mut config, "parser", "meta", &sample_breadcrumb_pages())
+            .inject_bookshelf_ui_assets(
+                &mut config,
+                "parser",
+                "../../books/meta/bookshelf.html",
+                "bookshelf-searchindex.js",
+                &sample_breadcrumb_pages(),
+            )
             .expect("asset injection should succeed");
 
         let css_assets = config
@@ -710,7 +702,7 @@ mod tests {
         let search_js = fs::read_to_string(temp_root.join(&js_assets[3]))
             .expect("search override should be readable");
         assert!(search_js.contains("window.path_to_searchindex_js"));
-        assert!(search_js.contains("../../searchindex.js"));
+        assert!(search_js.contains("bookshelf-searchindex.js"));
 
         ui_assets.cleanup().expect("asset root should be removed");
         assert!(!temp_root.join(BOOKSHELF_UI_ASSET_DIR).exists());
@@ -730,13 +722,15 @@ mod tests {
 
     #[test]
     fn render_bookshelf_search_js_points_to_site_root_shared_index() {
-        let script = render_bookshelf_search_js();
+        let script = render_bookshelf_search_js("bookshelf-searchindex.js");
 
         assert!(script.contains(
             "const rootPath = typeof path_to_root === \"string\" ? path_to_root : \"\";"
         ));
         assert!(
-            script.contains("window.path_to_searchindex_js = `${rootPath}../../searchindex.js`;")
+            script.contains(
+                "window.path_to_searchindex_js = `${rootPath}bookshelf-searchindex.js`;"
+            )
         );
     }
 
@@ -749,7 +743,13 @@ mod tests {
                 TransientBookshelfUiAssets::new(&temp_root).expect("asset root should be created");
             let mut config = Config::default();
             ui_assets
-                .inject_bookshelf_ui_assets(&mut config, "meta", "meta", &sample_breadcrumb_pages())
+                .inject_bookshelf_ui_assets(
+                    &mut config,
+                    "meta",
+                    "bookshelf.html",
+                    "bookshelf-searchindex.js",
+                    &sample_breadcrumb_pages(),
+                )
                 .expect("asset injection should succeed");
             assert!(temp_root.join(BOOKSHELF_UI_ASSET_DIR).exists());
         }
@@ -779,7 +779,13 @@ mod tests {
             TransientBookshelfUiAssets::new(&temp_root).expect("asset root should be created");
         let mut config = Config::default();
         ui_assets
-            .inject_bookshelf_ui_assets(&mut config, "meta", "meta", &sample_breadcrumb_pages())
+            .inject_bookshelf_ui_assets(
+                &mut config,
+                "meta",
+                "bookshelf.html",
+                "bookshelf-searchindex.js",
+                &sample_breadcrumb_pages(),
+            )
             .expect("asset injection should succeed");
 
         ui_assets.cleanup().expect("cleanup should succeed");
@@ -813,7 +819,13 @@ mod tests {
             TransientBookshelfUiAssets::new(&temp_root).expect("asset root should be created");
         let mut config = Config::default();
         ui_assets
-            .inject_bookshelf_ui_assets(&mut config, "meta", "meta", &sample_breadcrumb_pages())
+            .inject_bookshelf_ui_assets(
+                &mut config,
+                "meta",
+                "bookshelf.html",
+                "bookshelf-searchindex.js",
+                &sample_breadcrumb_pages(),
+            )
             .expect("asset injection should succeed");
 
         ui_assets.cleanup().expect("cleanup should succeed");
@@ -837,7 +849,13 @@ mod tests {
             TransientBookshelfUiAssets::new(&temp_root).expect("asset root should be created");
         let mut config = Config::default();
         ui_assets
-            .inject_bookshelf_ui_assets(&mut config, "meta", "meta", &sample_breadcrumb_pages())
+            .inject_bookshelf_ui_assets(
+                &mut config,
+                "meta",
+                "bookshelf.html",
+                "bookshelf-searchindex.js",
+                &sample_breadcrumb_pages(),
+            )
             .expect("asset injection should succeed");
 
         fs::remove_dir_all(temp_root.join(BOOKSHELF_UI_ASSET_DIR))

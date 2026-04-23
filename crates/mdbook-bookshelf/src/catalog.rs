@@ -15,6 +15,7 @@ pub struct InputCatalog {
 #[derive(Debug, Clone, PartialEq)]
 pub struct InputBook {
     pub id: String,
+    pub output_rel: PathBuf,
     pub book_config: BookConfig,
     pub title: String,
     pub description: Option<String>,
@@ -37,6 +38,7 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
     books.push(build_catalog_book(
         &config.config_dir,
         &config.root_book_id,
+        PathBuf::from("books").join(&config.root_book_id),
         PathBuf::from("."),
         &config.mdbook_config.book,
         true,
@@ -45,8 +47,9 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
     for book in &config.books {
         books.push(build_catalog_book(
             &config.config_dir,
-            &book.id,
-            book.root.clone(),
+            &path_to_book_key(&book.mount_rel),
+            book.mount_rel.clone(),
+            book_root_from_source_rel(&book.source_rel),
             &book.book,
             false,
         )?);
@@ -73,6 +76,7 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
 fn build_catalog_book(
     config_dir: &Path,
     id: &str,
+    output_rel: PathBuf,
     book_root_rel: PathBuf,
     book_config: &BookConfig,
     is_root_book: bool,
@@ -102,6 +106,7 @@ fn build_catalog_book(
 
     Ok(InputBook {
         id: id.to_string(),
+        output_rel,
         book_config: book_config.clone(),
         title: book_config
             .title
@@ -123,4 +128,15 @@ fn join_rel_dir(base: &Path, rel: &Path) -> PathBuf {
     } else {
         base.join(rel)
     }
+}
+
+fn book_root_from_source_rel(source_rel: &Path) -> PathBuf {
+    source_rel
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."))
+}
+
+fn path_to_book_key(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
 }

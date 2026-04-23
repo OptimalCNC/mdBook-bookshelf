@@ -6,7 +6,5 @@ src = "root-book/docs"
 root-id = "root"
 
 [[bookshelf.book]]
-id = "missing"
-root = "missing-book"
 title = "Missing Chapter Book"
-src = "docs"
+src = "missing-book/docs"

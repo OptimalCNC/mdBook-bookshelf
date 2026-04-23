@@ -1,4 +1,5 @@
 use crate::catalog::InputCatalog;
+use crate::route_paths::{path_to_string, relative_path};
 use anyhow::{anyhow, bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -7,6 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 pub(crate) const SHARED_SEARCH_INDEX_NAME: &str = "searchindex.js";
+pub(crate) const LOCAL_SHARED_SEARCH_INDEX_NAME: &str = "bookshelf-searchindex.js";
 
 const SEARCH_INDEX_JS_PREFIX: &str = "window.search = Object.assign(window.search, JSON.parse('";
 const SEARCH_INDEX_JS_SUFFIX: &str = "'));";
@@ -26,7 +28,12 @@ pub(crate) fn write_site_wide_search_index(
             "failed to write site-wide shared search index at {}",
             output_path.display()
         )
-    })
+    })?;
+
+    write_localized_search_indexes(catalog, site_dest_dir, &payload)
+        .context("failed to write localized shared search indexes")?;
+
+    Ok(())
 }
 
 fn compose_shared_search_index(
@@ -36,7 +43,7 @@ fn compose_shared_search_index(
     let mut shared: Option<SearchPayload> = None;
 
     for book in &catalog.books {
-        let searchindex_path = find_emitted_searchindex_path(site_dest_dir, &book.id)?;
+        let searchindex_path = find_emitted_searchindex_path(site_dest_dir, &book.output_rel)?;
         let payload = parse_search_index_file(&searchindex_path).with_context(|| {
             format!(
                 "failed to decode emitted search index for book '{}' at {}",
@@ -47,10 +54,10 @@ fn compose_shared_search_index(
 
         if let Some(existing) = shared.as_mut() {
             ensure_payload_compatibility(existing, &payload, &book.id)?;
-            ingest_book_payload(existing, &book.id, payload)?;
+            ingest_book_payload(existing, &book.output_rel, &book.id, payload)?;
         } else {
             let mut initial = SearchPayload::empty_from(&payload);
-            ingest_book_payload(&mut initial, &book.id, payload)?;
+            ingest_book_payload(&mut initial, &book.output_rel, &book.id, payload)?;
             shared = Some(initial);
         }
     }
@@ -59,8 +66,8 @@ fn compose_shared_search_index(
         .ok_or_else(|| anyhow!("cannot compose a shared search index without any configured books"))
 }
 
-fn find_emitted_searchindex_path(site_dest_dir: &Path, book_id: &str) -> Result<PathBuf> {
-    let book_dir = site_dest_dir.join("books").join(book_id);
+fn find_emitted_searchindex_path(site_dest_dir: &Path, output_rel: &Path) -> Result<PathBuf> {
+    let book_dir = site_dest_dir.join(output_rel);
     let mut matches = fs::read_dir(&book_dir)
         .with_context(|| format!("failed to read built book directory {}", book_dir.display()))?
         .filter_map(|entry| entry.ok())
@@ -176,6 +183,7 @@ fn ensure_payload_compatibility(
 
 fn ingest_book_payload(
     shared: &mut SearchPayload,
+    output_rel: &Path,
     book_id: &str,
     payload: SearchPayload,
 ) -> Result<()> {
@@ -225,7 +233,7 @@ fn ingest_book_payload(
         })?;
 
         doc.insert("id".to_string(), Value::String(new_id.clone()));
-        shared.doc_urls.push(translate_doc_url(book_id, &doc_url));
+        shared.doc_urls.push(translate_doc_url(output_rel, &doc_url));
         shared.index.document_store.docs.insert(new_id.clone(), doc);
         shared
             .index
@@ -266,10 +274,66 @@ fn ingest_book_payload(
     Ok(())
 }
 
-fn translate_doc_url(book_id: &str, doc_url: &str) -> String {
-    let normalized = doc_url.replace('\\', "/");
+fn translate_doc_url(output_rel: &Path, doc_url: &str) -> String {
+    let (path_part, anchor) = split_doc_url_anchor(doc_url);
+    let normalized = path_part.replace('\\', "/");
     let relative = normalized.strip_prefix("./").unwrap_or(normalized.as_str());
-    format!("../{book_id}/{relative}")
+    let target = output_rel.join(relative);
+    with_anchor(path_to_string(&target), anchor)
+}
+
+fn localize_doc_url(current_output_rel: &Path, canonical_doc_url: &str) -> String {
+    let (path_part, anchor) = split_doc_url_anchor(canonical_doc_url);
+    let relative = relative_path(current_output_rel, Path::new(path_part));
+    with_anchor(path_to_string(&relative), anchor)
+}
+
+fn split_doc_url_anchor(doc_url: &str) -> (&str, Option<&str>) {
+    match doc_url.split_once('#') {
+        Some((path, anchor)) => (path, Some(anchor)),
+        None => (doc_url, None),
+    }
+}
+
+fn with_anchor(path: String, anchor: Option<&str>) -> String {
+    match anchor {
+        Some(anchor) => format!("{path}#{anchor}"),
+        None => path,
+    }
+}
+
+fn write_localized_search_indexes(
+    catalog: &InputCatalog,
+    site_dest_dir: &Path,
+    canonical_payload: &SearchPayload,
+) -> Result<()> {
+    for book in &catalog.books {
+        let localized_payload = localize_search_payload(&book.output_rel, canonical_payload);
+        let output_path = site_dest_dir
+            .join(&book.output_rel)
+            .join(LOCAL_SHARED_SEARCH_INDEX_NAME);
+        let contents = render_search_index_js(&localized_payload)
+            .context("failed to render localized shared search index")?;
+        fs::write(&output_path, contents).with_context(|| {
+            format!(
+                "failed to write localized shared search index for book '{}' at {}",
+                book.id,
+                output_path.display()
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
+fn localize_search_payload(current_output_rel: &Path, canonical_payload: &SearchPayload) -> SearchPayload {
+    let mut localized = canonical_payload.clone();
+    localized.doc_urls = canonical_payload
+        .doc_urls
+        .iter()
+        .map(|doc_url| localize_doc_url(current_output_rel, doc_url))
+        .collect();
+    localized
 }
 
 fn remap_inverted_index_doc_refs(
@@ -473,12 +537,19 @@ mod tests {
     #[test]
     fn translate_doc_url_targets_book_siblings() {
         assert_eq!(
-            translate_doc_url("parser", "grammar.html#grammar"),
-            "../parser/grammar.html#grammar"
+            translate_doc_url(Path::new("modules/parser"), "grammar.html#grammar"),
+            "modules/parser/grammar.html#grammar"
         );
         assert_eq!(
-            translate_doc_url("meta", "./architecture.html#architecture"),
-            "../meta/architecture.html#architecture"
+            translate_doc_url(Path::new("books/meta"), "./architecture.html#architecture"),
+            "books/meta/architecture.html#architecture"
+        );
+        assert_eq!(
+            localize_doc_url(
+                Path::new("modules/parser"),
+                "books/meta/architecture.html#architecture"
+            ),
+            "../../books/meta/architecture.html#architecture"
         );
     }
 

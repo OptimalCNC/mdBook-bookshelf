@@ -17,7 +17,7 @@ fn site_model_build() {
     assert_eq!("bookshelf:root", model.synthetic_bookshelf_page_id);
     assert_eq!(2, model.books.len());
     assert_eq!("root", model.books[0].book_id);
-    assert_eq!("child", model.books[1].book_id);
+    assert_eq!("modules/child", model.books[1].book_id);
     assert!(model.books[0].is_root_book);
     assert!(!model.books[1].is_root_book);
 

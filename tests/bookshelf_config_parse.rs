@@ -15,12 +15,14 @@ fn bookshelf_config_parse() {
         },
         Case {
             path: fixtures.join("invalid-duplicate-id/bookshelf.toml"),
-            expected_error: Some("duplicate bookshelf.book id: 'parser'"),
+            expected_error: Some(
+                "bookshelf.book.src 'modules/parser' resolves to duplicate mount path 'modules/parser'",
+            ),
         },
         Case {
             path: fixtures.join("invalid-missing-root/bookshelf.toml"),
             expected_error: Some(
-                "duplicate bookshelf.book id: 'meta' collides with bookshelf.root-id",
+                "bookshelf.book.src 'books/meta/docs' resolves to reserved mount path 'books/meta'",
             ),
         },
     ];
@@ -45,14 +47,17 @@ fn bookshelf_config_parse() {
                 );
                 assert_eq!(Path::new("docs"), config.mdbook_config.book.src.as_path());
                 assert_eq!(1, config.books.len());
-                assert_eq!("parser", config.books[0].id);
-                assert_eq!(Path::new("modules/parser"), config.books[0].root.as_path());
+                assert_eq!(
+                    Path::new("modules/parser/docs"),
+                    config.books[0].source_rel.as_path()
+                );
+                assert_eq!(Path::new("modules/parser"), config.books[0].mount_rel.as_path());
                 assert_eq!(Path::new("docs"), config.books[0].book.src.as_path());
             }
         }
     }
 
-    let missing_root_title_dir = make_temp_dir("chunk-022-missing-root-title", &root);
+    let missing_root_title_dir = make_temp_dir("chunk-023-missing-root-title", &root);
     let missing_root_title_path = write_temp_bookshelf_toml(
         &missing_root_title_dir,
         r#"
@@ -71,7 +76,7 @@ root-id = "meta"
     );
     fs::remove_dir_all(&missing_root_title_dir).expect("temp fixture directory should be removed");
 
-    let quoted_semantics_dir = make_temp_dir("chunk-003-quoted-semantics", &root);
+    let quoted_semantics_dir = make_temp_dir("chunk-023-quoted-semantics", &root);
     let quoted_semantics_path = write_temp_bookshelf_toml(
         &quoted_semantics_dir,
         r#"
@@ -87,10 +92,8 @@ no-section-label = false
 root-id = "meta" # comment
 
 [[bookshelf.book]]
-id = "parser"
-root = "modules/parser"
 title = "Core #1 = Intro"
-src = "docs"
+src = "modules/parser/docs"
 "#,
     );
     let quoted_semantics = load_bookshelf_config(&quoted_semantics_path).expect("must parse");
@@ -100,7 +103,7 @@ src = "docs"
     );
     fs::remove_dir_all(&quoted_semantics_dir).expect("temp fixture directory should be removed");
 
-    let invalid_parent_src_dir = make_temp_dir("chunk-003-invalid-parent-src", &root);
+    let invalid_parent_src_dir = make_temp_dir("chunk-023-invalid-parent-src", &root);
     let invalid_parent_src_path = write_temp_bookshelf_toml(
         &invalid_parent_src_dir,
         r#"
@@ -112,21 +115,19 @@ src = "docs"
 root-id = "meta"
 
 [[bookshelf.book]]
-id = "parser"
-root = "modules/parser"
 title = "Parser"
-src = "../docs"
+src = "../modules/parser/docs"
 "#,
     );
     let invalid_parent_src_error =
         load_bookshelf_config(&invalid_parent_src_path).expect_err("must fail");
     assert_eq!(
-        "book 'parser' src path must not contain '..': '../docs'",
+        "book 'bookshelf.book' src path must not contain '..': '../modules/parser/docs'",
         invalid_parent_src_error.to_string()
     );
     fs::remove_dir_all(&invalid_parent_src_dir).expect("temp fixture directory should be removed");
 
-    let empty_src_dir = make_temp_dir("chunk-003-empty-src", &root);
+    let empty_src_dir = make_temp_dir("chunk-023-empty-src", &root);
     let empty_src_path = write_temp_bookshelf_toml(
         &empty_src_dir,
         r#"
@@ -138,20 +139,18 @@ src = "docs"
 root-id = "meta"
 
 [[bookshelf.book]]
-id = "parser"
-root = "modules/parser"
 title = "Parser"
 src = ""
 "#,
     );
     let empty_src_error = load_bookshelf_config(&empty_src_path).expect_err("must fail");
     assert_eq!(
-        "book 'parser' src path must not be empty",
+        "book 'bookshelf.book' src path must not be empty",
         empty_src_error.to_string()
     );
     fs::remove_dir_all(&empty_src_dir).expect("temp fixture directory should be removed");
 
-    let file_like_src_dir = make_temp_dir("chunk-003-file-like-src", &root);
+    let file_like_src_dir = make_temp_dir("chunk-023-file-like-src", &root);
     let file_like_src_path = write_temp_bookshelf_toml(
         &file_like_src_dir,
         r#"
@@ -163,20 +162,18 @@ src = "docs"
 root-id = "meta"
 
 [[bookshelf.book]]
-id = "parser"
-root = "modules/parser"
 title = "Parser"
-src = "docs/SUMMARY.md"
+src = "modules/parser/docs/SUMMARY.md"
 "#,
     );
     let file_like_src_error = load_bookshelf_config(&file_like_src_path).expect_err("must fail");
     assert_eq!(
-        "book 'parser' src path must name a source directory, not SUMMARY.md: 'docs/SUMMARY.md'",
+        "book 'bookshelf.book' src path must name a source directory, not SUMMARY.md: 'modules/parser/docs/SUMMARY.md'",
         file_like_src_error.to_string()
     );
     fs::remove_dir_all(&file_like_src_dir).expect("temp fixture directory should be removed");
 
-    let removed_summary_dir = make_temp_dir("chunk-003-removed-summary", &root);
+    let removed_summary_dir = make_temp_dir("chunk-023-removed-summary", &root);
     let removed_summary_path = write_temp_bookshelf_toml(
         &removed_summary_dir,
         r#"
@@ -188,22 +185,68 @@ src = "docs"
 root-id = "meta"
 
 [[bookshelf.book]]
-id = "parser"
-root = "modules/parser"
 title = "Parser"
-src = "docs"
+src = "modules/parser/docs"
 summary = "conflicting/docs/SUMMARY.md"
 "#,
     );
     let removed_summary_error =
         load_bookshelf_config(&removed_summary_path).expect_err("must fail");
     assert_eq!(
-        "failed to parse mdBook book config for bookshelf.book 'parser'",
+        "failed to parse mdBook book config for bookshelf.book",
         removed_summary_error.to_string()
     );
     fs::remove_dir_all(&removed_summary_dir).expect("temp fixture directory should be removed");
 
-    let current_dir_src_dir = make_temp_dir("chunk-003-current-dir-src", &root);
+    let legacy_root_dir = make_temp_dir("chunk-023-legacy-root", &root);
+    let legacy_root_path = write_temp_bookshelf_toml(
+        &legacy_root_dir,
+        r#"
+[book]
+title = "Meta"
+src = "docs"
+
+[bookshelf]
+root-id = "meta"
+
+[[bookshelf.book]]
+title = "Parser"
+root = "modules/parser"
+src = "modules/parser/docs"
+"#,
+    );
+    let legacy_root_error = load_bookshelf_config(&legacy_root_path).expect_err("must fail");
+    assert_eq!(
+        "failed to parse mdBook book config for bookshelf.book",
+        legacy_root_error.to_string()
+    );
+    fs::remove_dir_all(&legacy_root_dir).expect("temp fixture directory should be removed");
+
+    let legacy_id_dir = make_temp_dir("chunk-023-legacy-id", &root);
+    let legacy_id_path = write_temp_bookshelf_toml(
+        &legacy_id_dir,
+        r#"
+[book]
+title = "Meta"
+src = "docs"
+
+[bookshelf]
+root-id = "meta"
+
+[[bookshelf.book]]
+id = "parser"
+title = "Parser"
+src = "modules/parser/docs"
+"#,
+    );
+    let legacy_id_error = load_bookshelf_config(&legacy_id_path).expect_err("must fail");
+    assert_eq!(
+        "failed to parse mdBook book config for bookshelf.book",
+        legacy_id_error.to_string()
+    );
+    fs::remove_dir_all(&legacy_id_dir).expect("temp fixture directory should be removed");
+
+    let current_dir_src_dir = make_temp_dir("chunk-023-current-dir-src", &root);
     let current_dir_src_path = write_temp_bookshelf_toml(
         &current_dir_src_dir,
         r#"
@@ -215,18 +258,19 @@ src = "docs"
 root-id = "meta"
 
 [[bookshelf.book]]
-id = "parser"
-root = "modules/parser"
 title = "Parser"
 src = "."
 "#,
     );
-    let current_dir_src =
-        load_bookshelf_config(&current_dir_src_path).expect("must accept current-dir src");
-    assert_eq!(Path::new("."), current_dir_src.books[0].book.src.as_path());
+    let current_dir_src_error =
+        load_bookshelf_config(&current_dir_src_path).expect_err("must fail");
+    assert_eq!(
+        "bookshelf.book.src must not resolve to the site root mount path: '.'",
+        current_dir_src_error.to_string()
+    );
     fs::remove_dir_all(&current_dir_src_dir).expect("temp fixture directory should be removed");
 
-    let dotted_src_dir = make_temp_dir("chunk-003-dotted-src", &root);
+    let dotted_src_dir = make_temp_dir("chunk-023-dotted-src", &root);
     let dotted_src_path = write_temp_bookshelf_toml(
         &dotted_src_dir,
         r#"
@@ -238,18 +282,21 @@ src = "docs"
 root-id = "meta"
 
 [[bookshelf.book]]
-id = "parser"
-root = "modules/parser"
 title = "Parser"
-src = "./docs"
+src = "./modules/parser/docs"
 "#,
     );
     let dotted_src =
         load_bookshelf_config(&dotted_src_path).expect("must accept dotted relative src");
+    assert_eq!(
+        Path::new("modules/parser/docs"),
+        dotted_src.books[0].source_rel.as_path()
+    );
+    assert_eq!(Path::new("modules/parser"), dotted_src.books[0].mount_rel.as_path());
     assert_eq!(Path::new("docs"), dotted_src.books[0].book.src.as_path());
     fs::remove_dir_all(&dotted_src_dir).expect("temp fixture directory should be removed");
 
-    let invalid_root_id_dir = make_temp_dir("chunk-022-invalid-root-id", &root);
+    let invalid_root_id_dir = make_temp_dir("chunk-023-invalid-root-id", &root);
     let invalid_root_id_path = write_temp_bookshelf_toml(
         &invalid_root_id_dir,
         r#"
@@ -269,9 +316,9 @@ root-id = "../../escape"
     );
     fs::remove_dir_all(&invalid_root_id_dir).expect("temp fixture directory should be removed");
 
-    let invalid_child_id_dir = make_temp_dir("chunk-022-invalid-child-id", &root);
-    let invalid_child_id_path = write_temp_bookshelf_toml(
-        &invalid_child_id_dir,
+    let reserved_root_key_dir = make_temp_dir("chunk-023-reserved-root-key", &root);
+    let reserved_root_key_path = write_temp_bookshelf_toml(
+        &reserved_root_key_dir,
         r#"
 [book]
 title = "Meta"
@@ -281,19 +328,17 @@ src = "docs"
 root-id = "meta"
 
 [[bookshelf.book]]
-id = "parser/child"
-root = "modules/parser"
-title = "Parser"
-src = "docs"
+title = "Child"
+src = "meta/docs"
 "#,
     );
-    let invalid_child_id_error =
-        load_bookshelf_config(&invalid_child_id_path).expect_err("must fail");
+    let reserved_root_key_error =
+        load_bookshelf_config(&reserved_root_key_path).expect_err("must fail");
     assert_eq!(
-        "bookshelf.book.id must be a single safe path segment: 'parser/child'",
-        invalid_child_id_error.to_string()
+        "bookshelf.book.src 'meta/docs' resolves to reserved mount key 'meta' owned by bookshelf.root-id",
+        reserved_root_key_error.to_string()
     );
-    fs::remove_dir_all(&invalid_child_id_dir).expect("temp fixture directory should be removed");
+    fs::remove_dir_all(&reserved_root_key_dir).expect("temp fixture directory should be removed");
 }
 
 struct Case {

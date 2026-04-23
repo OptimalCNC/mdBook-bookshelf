@@ -4,6 +4,7 @@ pub mod catalog;
 pub mod config;
 pub mod loader;
 pub mod navigation;
+pub(crate) mod route_paths;
 pub mod root_bookshelf_preprocessor;
 pub(crate) mod search;
 pub mod serve;

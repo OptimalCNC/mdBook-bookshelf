@@ -24,11 +24,15 @@ fn input_catalog_build() {
         catalog.books[0].summary_abs
     );
 
-    assert_eq!("child", catalog.books[1].id);
+    assert_eq!("modules/child-book", catalog.books[1].id);
     assert!(!catalog.books[1].is_root_book);
     assert_eq!(
         Path::new("modules/child-book"),
         catalog.books[1].book_root_rel.as_path()
+    );
+    assert_eq!(
+        Path::new("modules/child-book"),
+        catalog.books[1].output_rel.as_path()
     );
     assert_eq!(Path::new("docs"), catalog.books[1].book_src_rel.as_path());
     assert_eq!(
