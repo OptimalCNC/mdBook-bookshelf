@@ -22,8 +22,9 @@ Then open `http://127.0.0.1:3000`.
 
 Suggested documentation layouts:
 
-For a repo-root bookshelf, keep the root book at `docs/` and place additional
-books under feature directories, each with its own `docs/` tree:
+For a repo-root bookshelf, define the root book with top-level mdBook `[book]`
+metadata and keep its source at `docs/`. Place additional books under feature
+directories, each with its own `docs/` tree:
 
 ```text
 my-repo/
@@ -43,7 +44,7 @@ my-repo/
 ```
 
 For a nested workspace layout, every book can live under its own directory as
-long as its mdBook source directory is `docs/`:
+long as the root book's top-level `book.src` points at that directory:
 
 ```text
 my-repo/
@@ -59,9 +60,27 @@ my-repo/
         index.md
 ```
 
-Across both layouts, use `src = ".../docs"` in `[[bookshelf.book]]` entries.
-Each book's canonical summary is always read from `<src>/SUMMARY.md`, and
-`<src>/index.md` remains its entry page. Concrete examples live in
+The root book identity is bookshelf-only:
+
+```toml
+[book]
+title = "Root Book"
+src = "docs"
+
+[bookshelf]
+root-id = "root"
+
+[[bookshelf.book]]
+id = "parser"
+root = "modules/parser"
+title = "Parser"
+src = "docs"
+```
+
+Child `src` values are mdBook-native and relative to each child `root`, not to
+the shared `bookshelf.toml` directory. Each book's canonical summary is read
+from `<book-root>/<src>/SUMMARY.md`, and `<src>/index.md` remains its entry
+page. Concrete examples live in
 [`bookshelf/handoffs/examples/self-contained/`](./bookshelf/handoffs/examples/self-contained/)
 and [`tests/fixtures/input-catalog/`](./tests/fixtures/input-catalog/).
 

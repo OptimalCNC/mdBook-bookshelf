@@ -1,7 +1,6 @@
-[bookshelf]
-root_book = "meta"
-
-[[bookshelf.book]]
-id = "meta"
+[book]
 title = "Meta Root"
 src = "docs"
+
+[bookshelf]
+root-id = "meta"

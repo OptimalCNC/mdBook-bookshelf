@@ -9,7 +9,7 @@ pub(crate) mod search;
 pub mod serve;
 pub mod site_model;
 
-pub use build::{build_bookshelf, build_bookshelf_site, project_mdbook_config};
+pub use build::{build_bookshelf, build_bookshelf_site};
 pub use catalog::{build_input_catalog, InputBook, InputCatalog};
 pub use config::{load_bookshelf_config, BookshelfBook, BookshelfConfig};
 pub use loader::{load_books_from_catalog, load_books_from_config, LoadedBook, LoadedBooks};

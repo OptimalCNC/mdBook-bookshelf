@@ -10,6 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const BOOKSHELF_UI_ASSET_DIR: &str = ".mdbook-bookshelf";
 const BOOKSHELF_UI_SHARED_DIR: &str = "shared";
 const BOOKSHELF_UI_BOOKS_DIR: &str = "books";
+const BOOKSHELF_STAGED_CONFIG_ASSET_DIR: &str = "bookshelf-config-assets";
 const BOOKSHELF_BREADCRUMB_CSS_NAME: &str = "bookshelf-breadcrumb.css";
 const BOOKSHELF_BREADCRUMB_JS_NAME: &str = "bookshelf-breadcrumb.js";
 const BOOKSHELF_BREADCRUMB_CLASS: &str = "bookshelf-breadcrumb";
@@ -129,6 +130,38 @@ impl TransientBookshelfUiAssets {
         Ok(())
     }
 
+    pub fn stage_config_root_output_assets(
+        &self,
+        config: &mut Config,
+        config_root: &Path,
+    ) -> Result<()> {
+        if let Some(theme) = config.get::<PathBuf>("output.html.theme")? {
+            if !theme.is_absolute() {
+                config.set("output.html.theme", config_root.join(theme))?;
+            }
+        }
+
+        if self.config_root == config_root {
+            return Ok(());
+        }
+
+        if let Some(input_404) = config.get::<String>("output.html.input-404")? {
+            if !input_404.is_empty() && !Path::new(&input_404).is_absolute() {
+                bail!(
+                    "relative output.html.input-404 cannot be shared across books with different roots: {}",
+                    input_404
+                );
+            }
+        }
+
+        stage_output_asset_list(config, "output.html.additional-css", config_root, self)
+            .context("failed to stage config-root output.html.additional-css assets")?;
+        stage_output_asset_list(config, "output.html.additional-js", config_root, self)
+            .context("failed to stage config-root output.html.additional-js assets")?;
+
+        Ok(())
+    }
+
     pub fn cleanup(&mut self) -> Result<()> {
         if self.cleaned {
             return Ok(());
@@ -140,6 +173,18 @@ impl TransientBookshelfUiAssets {
                     format!(
                         "failed to remove transient bookshelf UI asset root {}",
                         self.build_abs_root.display()
+                    )
+                });
+            }
+        }
+
+        let staged_config_assets_root = self.config_root.join(self.staged_config_rel_root());
+        if let Err(err) = fs::remove_dir_all(&staged_config_assets_root) {
+            if err.kind() != std::io::ErrorKind::NotFound {
+                return Err(err).with_context(|| {
+                    format!(
+                        "failed to remove staged config-root asset directory {}",
+                        staged_config_assets_root.display()
                     )
                 });
             }
@@ -188,6 +233,15 @@ impl TransientBookshelfUiAssets {
             .join(BOOKSHELF_UI_SHARED_DIR)
             .join(BOOKSHELF_SEARCH_JS_NAME)
     }
+
+    fn staged_config_rel_root(&self) -> PathBuf {
+        let suffix = self
+            .build_rel_root
+            .file_name()
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("build"));
+        PathBuf::from(BOOKSHELF_STAGED_CONFIG_ASSET_DIR).join(suffix)
+    }
 }
 
 impl Drop for TransientBookshelfUiAssets {
@@ -203,6 +257,113 @@ fn append_output_asset(config: &mut Config, key: &str, asset_path: PathBuf) -> R
     }
     config.set(key, assets)?;
     Ok(())
+}
+
+fn stage_output_asset_list(
+    config: &mut Config,
+    key: &str,
+    config_root: &Path,
+    ui_assets: &TransientBookshelfUiAssets,
+) -> Result<()> {
+    let Some(assets) = config.get::<Vec<PathBuf>>(key)? else {
+        return Ok(());
+    };
+
+    let staged_assets = assets
+        .into_iter()
+        .map(|asset_path| stage_output_asset(config_root, ui_assets, &asset_path))
+        .collect::<Result<Vec<_>>>()?;
+    config.set(key, staged_assets)?;
+
+    Ok(())
+}
+
+fn stage_output_asset(
+    config_root: &Path,
+    ui_assets: &TransientBookshelfUiAssets,
+    asset_path: &Path,
+) -> Result<PathBuf> {
+    let input_path = resolve_config_root_asset_path(config_root, asset_path)?;
+    let stage_rel_path = ui_assets
+        .staged_config_rel_root()
+        .join(safe_stage_asset_path(config_root, asset_path)?);
+    let output_path = ui_assets.config_root.join(&stage_rel_path);
+    let parent = output_path.parent().with_context(|| {
+        format!(
+            "staged output asset path {} is missing a parent directory",
+            output_path.display()
+        )
+    })?;
+
+    fs::create_dir_all(parent).with_context(|| {
+        format!(
+            "failed to create staged asset directory {}",
+            parent.display()
+        )
+    })?;
+    fs::copy(&input_path, &output_path).with_context(|| {
+        format!(
+            "failed to stage output asset {} at {}",
+            input_path.display(),
+            output_path.display()
+        )
+    })?;
+
+    Ok(stage_rel_path)
+}
+
+fn resolve_config_root_asset_path(config_root: &Path, asset_path: &Path) -> Result<PathBuf> {
+    if asset_path.is_absolute() {
+        asset_path.strip_prefix(config_root).with_context(|| {
+            format!(
+                "output asset path must stay under the shared config root {}: {}",
+                config_root.display(),
+                asset_path.display()
+            )
+        })?;
+        Ok(asset_path.to_path_buf())
+    } else {
+        Ok(config_root.join(asset_path))
+    }
+}
+
+fn safe_stage_asset_path(config_root: &Path, asset_path: &Path) -> Result<PathBuf> {
+    let logical_path = if asset_path.is_absolute() {
+        asset_path.strip_prefix(config_root).with_context(|| {
+            format!(
+                "output asset path must stay under the shared config root {}: {}",
+                config_root.display(),
+                asset_path.display()
+            )
+        })?
+    } else {
+        asset_path
+    };
+    let mut safe_path = PathBuf::new();
+
+    for component in logical_path.components() {
+        match component {
+            std::path::Component::Normal(part) => safe_path.push(part),
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir
+            | std::path::Component::RootDir
+            | std::path::Component::Prefix(_) => {
+                bail!(
+                    "output asset path must stay under the shared config root: {}",
+                    asset_path.display()
+                );
+            }
+        }
+    }
+
+    if safe_path.as_os_str().is_empty() {
+        bail!(
+            "output asset path must name a file: {}",
+            asset_path.display()
+        );
+    }
+
+    Ok(safe_path)
 }
 
 fn write_asset_file(path: &Path, contents: &str) -> Result<()> {

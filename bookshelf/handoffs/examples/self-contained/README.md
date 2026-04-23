@@ -8,6 +8,7 @@ Layout:
 - root book under `docs/`
 - parser book under `modules/parser/docs/`
 - UI book under `modules/ui/docs/`
-- config in `bookshelf.toml` with standard mdBook tables plus `[bookshelf]`
+- config in `bookshelf.toml` with root-book mdBook `[book]` metadata plus `[bookshelf]`
+- child books use bookshelf-only `root` plus mdBook-native `src = "docs"`
 - root-book content uses `docs/index.md`, like the other module books use their own `docs/index.md`
 - the `Bookshelf` page is generated in memory, not authored in `docs/SUMMARY.md`

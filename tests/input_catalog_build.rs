@@ -14,10 +14,7 @@ fn input_catalog_build() {
 
     assert_eq!("root", catalog.books[0].id);
     assert!(catalog.books[0].is_root_book);
-    assert_eq!(
-        Path::new("root-book"),
-        catalog.books[0].book_root_rel.as_path()
-    );
+    assert_eq!(Path::new("."), catalog.books[0].book_root_rel.as_path());
     assert_eq!(
         Path::new("root-book/docs"),
         catalog.books[0].book_src_rel.as_path()
@@ -33,9 +30,10 @@ fn input_catalog_build() {
         Path::new("modules/child-book"),
         catalog.books[1].book_root_rel.as_path()
     );
+    assert_eq!(Path::new("docs"), catalog.books[1].book_src_rel.as_path());
     assert_eq!(
-        Path::new("modules/child-book/docs"),
-        catalog.books[1].book_src_rel.as_path()
+        fixtures.join("valid/modules/child-book/docs"),
+        catalog.books[1].book_src_abs
     );
     assert_eq!(
         fixtures.join("valid/modules/child-book/docs/SUMMARY.md"),

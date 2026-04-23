@@ -1,7 +1,12 @@
+[book]
+title = "Core Docs"
+src = "docs"
+
 [bookshelf]
-root_book = "meta"
+root-id = "meta"
 
 [[bookshelf.book]]
-id = "parser"
+id = "meta"
+root = "modules/parser"
 title = "Parser Docs"
-src = "modules/parser/docs"
+src = "docs"

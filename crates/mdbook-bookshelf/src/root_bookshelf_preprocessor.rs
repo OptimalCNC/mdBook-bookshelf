@@ -149,6 +149,7 @@ mod tests {
         InputCatalog {
             config_path: PathBuf::from("bookshelf.toml"),
             config_dir: PathBuf::from("."),
+            mdbook_config: mdbook_driver::config::Config::default(),
             root_book_id: "meta".to_string(),
             books: vec![
                 sample_book(
@@ -173,8 +174,14 @@ mod tests {
         description: Option<&str>,
         is_root_book: bool,
     ) -> InputBook {
+        let mut book_config = mdbook_driver::config::BookConfig::default();
+        book_config.title = Some(title.to_string());
+        book_config.description = description.map(str::to_string);
+        book_config.src = PathBuf::from("docs");
+
         InputBook {
             id: id.to_string(),
+            book_config,
             title: title.to_string(),
             description: description.map(str::to_string),
             book_root_rel: PathBuf::from("."),

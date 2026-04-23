@@ -1,19 +1,16 @@
 [book]
-title = "Shared Config Root Example"
+title = "Root Book"
 language = "en"
+src = "docs"
 
 [output.html]
 additional-css = ["shared/site.css"]
 
 [bookshelf]
-root_book = "root"
-
-[[bookshelf.book]]
-id = "root"
-title = "Root Book"
-src = "docs"
+root-id = "root"
 
 [[bookshelf.book]]
 id = "child"
+root = "modules/child"
 title = "Child Book"
-src = "modules/child/docs"
+src = "docs"

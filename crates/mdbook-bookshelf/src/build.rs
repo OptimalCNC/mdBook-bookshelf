@@ -13,7 +13,6 @@ use mdbook_summary::parse_summary;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
 pub fn build_bookshelf(config_path: impl AsRef<Path>, dest_dir: Option<PathBuf>) -> Result<()> {
     build_bookshelf_site(config_path, dest_dir).map(|_| ())
@@ -26,80 +25,39 @@ pub fn build_bookshelf_site(
     let config_path = config_path.as_ref();
     let catalog = absolutize_catalog_paths(build_input_catalog(config_path)?)
         .context("failed to resolve bookshelf catalog paths")?;
-    let projected_config = project_mdbook_config(config_path)?;
-    let site_dest_dir = resolve_site_dest_dir(&catalog.config_dir, &projected_config, dest_dir)?;
+    let mdbook_config = catalog.mdbook_config.clone();
+    let site_dest_dir = resolve_site_dest_dir(&catalog.config_dir, &mdbook_config, dest_dir)?;
     let config_root = catalog.config_dir.clone();
     let book_breadcrumbs = build_book_breadcrumbs(&catalog)
         .context("failed to build exact book/page breadcrumb metadata")?;
 
-    {
-        let mut ui_assets = TransientBookshelfUiAssets::new(&config_root).with_context(|| {
-            format!(
-                "failed to create transient bookshelf UI assets under {}",
-                config_root.display()
-            )
-        })?;
-
-        for book in &catalog.books {
-            let breadcrumb_pages: &[BookshelfBreadcrumbPage] = book_breadcrumbs
-                .get(&book.id)
-                .map(Vec::as_slice)
-                .unwrap_or(&[]);
-            build_catalog_book(
-                book,
-                &catalog,
-                &projected_config,
-                &config_root,
-                &site_dest_dir,
-                &ui_assets,
-                breadcrumb_pages,
-            )?;
-        }
-
-        ui_assets.cleanup().with_context(|| {
-            format!(
-                "failed to clean transient bookshelf UI assets under {}",
-                config_root.display()
-            )
-        })?;
+    for book in &catalog.books {
+        let breadcrumb_pages: &[BookshelfBreadcrumbPage] = book_breadcrumbs
+            .get(&book.id)
+            .map(Vec::as_slice)
+            .unwrap_or(&[]);
+        build_catalog_book(
+            book,
+            &catalog,
+            &mdbook_config,
+            &config_root,
+            &site_dest_dir,
+            breadcrumb_pages,
+        )?;
     }
 
     write_site_wide_search_index(&catalog, &site_dest_dir)?;
-    write_site_root_index(&catalog, &projected_config, &site_dest_dir)?;
+    write_site_root_index(&catalog, &mdbook_config, &site_dest_dir)?;
 
     Ok(site_dest_dir)
-}
-
-pub fn project_mdbook_config(config_path: impl AsRef<Path>) -> Result<Config> {
-    let config_path = config_path.as_ref();
-    let raw = fs::read_to_string(config_path)
-        .with_context(|| format!("failed to read {}", config_path.display()))?;
-    let mut toml_root: toml::Table = toml::from_str(&raw)
-        .with_context(|| format!("failed to parse TOML in {}", config_path.display()))?;
-    toml_root.remove("bookshelf");
-
-    let projected = toml::to_string(&toml_root).with_context(|| {
-        format!(
-            "failed to serialize projected mdBook config from {}",
-            config_path.display()
-        )
-    })?;
-
-    Config::from_str(&projected).with_context(|| {
-        format!(
-            "failed to parse projected mdBook config from {} after removing [bookshelf]",
-            config_path.display()
-        )
-    })
 }
 
 fn build_catalog_book(
     book: &InputBook,
     catalog: &InputCatalog,
-    projected_config: &Config,
+    shared_config: &Config,
     config_root: &Path,
     site_dest_dir: &Path,
-    ui_assets: &TransientBookshelfUiAssets,
     breadcrumb_pages: &[BookshelfBreadcrumbPage],
 ) -> Result<()> {
     let summary_text = fs::read_to_string(&book.summary_abs).with_context(|| {
@@ -117,9 +75,27 @@ fn build_catalog_book(
         )
     })?;
 
-    let mut config = projected_config.clone();
-    config.book.src = book.book_src_rel.clone();
+    let mut config = shared_config.clone();
+    config.book = book.book_config.clone();
     config.build.build_dir = site_dest_dir.join("books").join(&book.id);
+    let mut ui_assets =
+        TransientBookshelfUiAssets::new(&book.book_root_abs).with_context(|| {
+            format!(
+                "book '{}' failed to create transient bookshelf UI assets under {}",
+                book.id,
+                book.book_root_abs.display()
+            )
+        })?;
+    ui_assets
+        .stage_config_root_output_assets(&mut config, config_root)
+        .with_context(|| {
+            format!(
+                "book '{}' failed to stage shared mdBook output assets from {} into {}",
+                book.id,
+                config_root.display(),
+                book.book_root_abs.display()
+            )
+        })?;
     ui_assets
         .inject_bookshelf_ui_assets(
             &mut config,
@@ -136,12 +112,12 @@ fn build_catalog_book(
         })?;
 
     let mut mdbook =
-        MDBook::load_with_config_and_summary(config_root.to_path_buf(), config, summary)
+        MDBook::load_with_config_and_summary(book.book_root_abs.clone(), config, summary)
             .with_context(|| {
                 format!(
                     "book '{}' failed to load mdbook from root {} and source {}",
                     book.id,
-                    config_root.display(),
+                    book.book_root_abs.display(),
                     book.book_src_abs.display()
                 )
             })?;
@@ -161,6 +137,14 @@ fn build_catalog_book(
             "book '{}' failed to build mdbook output at {}",
             book.id,
             html_build_dir.display()
+        )
+    })?;
+
+    ui_assets.cleanup().with_context(|| {
+        format!(
+            "book '{}' failed to clean transient bookshelf UI assets under {}",
+            book.id,
+            book.book_root_abs.display()
         )
     })
 }

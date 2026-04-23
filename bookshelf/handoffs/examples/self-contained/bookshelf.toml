@@ -1,28 +1,26 @@
 [book]
-title = "Bookshelf Example"
+title = "Example Core"
+description = "Repository-wide onboarding and architecture notes."
 language = "en"
+src = "docs"
 
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "ayu"
 
 [bookshelf]
-root_book = "meta"
-
-[[bookshelf.book]]
-id = "meta"
-title = "Example Core"
-description = "Repository-wide onboarding and architecture notes."
-src = "docs"
+root-id = "meta"
 
 [[bookshelf.book]]
 id = "parser"
+root = "modules/parser"
 title = "Example Parser"
 description = "Parser-specific reference pages with their own reading order."
-src = "modules/parser/docs"
+src = "docs"
 
 [[bookshelf.book]]
 id = "ui"
+root = "modules/ui"
 title = "Example UI"
 description = "Interface and runtime guides for the UI book."
-src = "modules/ui/docs"
+src = "docs"

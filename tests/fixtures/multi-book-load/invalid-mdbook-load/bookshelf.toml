@@ -1,12 +1,12 @@
-[bookshelf]
-root_book = "root"
-
-[[bookshelf.book]]
-id = "root"
+[book]
 title = "Root Book"
 src = "root-book/docs"
 
+[bookshelf]
+root-id = "root"
+
 [[bookshelf.book]]
 id = "missing"
+root = "missing-book"
 title = "Missing Chapter Book"
-src = "missing-book/docs"
+src = "docs"

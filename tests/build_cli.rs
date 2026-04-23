@@ -683,7 +683,7 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     let root_index_html = assert_read_to_string(output_dir.join("books/meta/index.html"));
     assert_text_contains(
         &root_index_html,
-        "<title>Example Core - Bookshelf Example</title>",
+        "<title>Example Core - Example Core</title>",
     );
     assert_text_contains(
         &root_index_html,
@@ -879,6 +879,12 @@ fn build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir() {
     let fixture_root = repo_root.join("tests/fixtures/build-cli/shared-config-root");
     let config_path = fixture_root.join("bookshelf.toml");
     let output_dir = make_temp_dir("chunk-011-shared-config-root", &repo_root);
+    let preserved_asset_dir = fixture_root.join("modules/child/bookshelf-config-assets");
+    let preserved_asset_file = preserved_asset_dir.join("user.txt");
+
+    fs::create_dir_all(&preserved_asset_dir).expect("preexisting asset directory should exist");
+    fs::write(&preserved_asset_file, "keep me\n")
+        .expect("preexisting staged asset file should be written");
 
     let output = Command::new(&bin)
         .arg("build")
@@ -898,19 +904,190 @@ fn build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir() {
 
     let root_css =
         assert_has_file_with_prefix(&output_dir.join("books/root/shared"), "site-", ".css");
-    let child_css =
-        assert_has_file_with_prefix(&output_dir.join("books/child/shared"), "site-", ".css");
-    assert_eq!(root_css, child_css);
+    let child_css_path =
+        assert_single_file_with_prefix_recursive(&output_dir.join("books/child"), "site-", ".css");
+    let child_css = child_css_path
+        .strip_prefix(output_dir.join("books/child"))
+        .expect("child css should be emitted under child book output")
+        .to_string_lossy()
+        .replace('\\', "/");
 
     assert_file_contains(
         output_dir.join("books/root/index.html"),
         &format!("shared/{root_css}"),
     );
-    assert_file_contains(
-        output_dir.join("books/child/index.html"),
-        &format!("shared/{child_css}"),
+    assert_file_contains(output_dir.join("books/child/index.html"), &child_css);
+    assert_file_contains(child_css_path, "border-top: 4px solid #0b7285");
+    assert!(
+        !child_css.contains(".mdbook-bookshelf/"),
+        "child staged mdBook assets should not use hidden output paths"
+    );
+    assert!(
+        !fixture_root
+            .join("modules/child/.mdbook-bookshelf")
+            .exists(),
+        "transient staged mdBook assets should not remain in the child book root"
+    );
+    assert_file_contains(preserved_asset_file.clone(), "keep me");
+    assert_eq!(
+        vec![PathBuf::from("user.txt")],
+        collect_tree_entries(&preserved_asset_dir),
+        "temporary staged config assets should be cleaned without deleting user-owned files"
     );
 
+    fs::remove_file(&preserved_asset_file)
+        .expect("preexisting staged asset file should be removed");
+    fs::remove_dir(&preserved_asset_dir)
+        .expect("preexisting staged asset directory should be removable after cleanup");
+
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+}
+
+#[test]
+fn build_cli_rejects_shared_relative_input_404_for_child_roots() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let fixture_root = make_temp_dir("chunk-022-shared-input-404", &repo_root);
+    let config_path = fixture_root.join("bookshelf.toml");
+    let output_dir = make_temp_dir("chunk-022-shared-input-404-out", &repo_root);
+
+    fs::create_dir_all(fixture_root.join("docs")).expect("root docs directory should be created");
+    fs::create_dir_all(fixture_root.join("modules/child/docs"))
+        .expect("child docs directory should be created");
+    fs::write(
+        &config_path,
+        r#"
+[book]
+title = "Root Book"
+src = "docs"
+
+[output.html]
+input-404 = "missing.md"
+
+[bookshelf]
+root-id = "root"
+
+[[bookshelf.book]]
+id = "child"
+root = "modules/child"
+title = "Child Book"
+src = "docs"
+"#,
+    )
+    .expect("bookshelf config should be written");
+    fs::write(
+        fixture_root.join("docs/SUMMARY.md"),
+        "# Summary\n\n- [Root](index.md)\n",
+    )
+    .expect("root summary should be written");
+    fs::write(fixture_root.join("docs/index.md"), "# Root\n")
+        .expect("root index should be written");
+    fs::write(
+        fixture_root.join("docs/missing.md"),
+        "# Shared Missing Page\n",
+    )
+    .expect("shared 404 input should be written");
+    fs::write(
+        fixture_root.join("modules/child/docs/SUMMARY.md"),
+        "# Summary\n\n- [Child](index.md)\n",
+    )
+    .expect("child summary should be written");
+    fs::write(
+        fixture_root.join("modules/child/docs/index.md"),
+        "# Child\n",
+    )
+    .expect("child index should be written");
+
+    let output = Command::new(&bin)
+        .arg("build")
+        .arg(&config_path)
+        .arg("--dest-dir")
+        .arg(&output_dir)
+        .output()
+        .expect("build command should run");
+
+    assert!(
+        !output.status.success(),
+        "build should fail when shared relative input-404 is reused across child roots"
+    );
+    assert_text_contains(
+        &String::from_utf8_lossy(&output.stderr),
+        "book 'child' failed to stage shared mdBook output assets",
+    );
+
+    fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+}
+
+#[test]
+fn build_cli_allows_disabled_input_404_for_child_roots() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let fixture_root = make_temp_dir("chunk-022-disabled-input-404", &repo_root);
+    let config_path = fixture_root.join("bookshelf.toml");
+    let output_dir = make_temp_dir("chunk-022-disabled-input-404-out", &repo_root);
+
+    fs::create_dir_all(fixture_root.join("docs")).expect("root docs directory should be created");
+    fs::create_dir_all(fixture_root.join("modules/child/docs"))
+        .expect("child docs directory should be created");
+    fs::write(
+        &config_path,
+        r#"
+[book]
+title = "Root Book"
+src = "docs"
+
+[output.html]
+input-404 = ""
+
+[bookshelf]
+root-id = "root"
+
+[[bookshelf.book]]
+id = "child"
+root = "modules/child"
+title = "Child Book"
+src = "docs"
+"#,
+    )
+    .expect("bookshelf config should be written");
+    fs::write(
+        fixture_root.join("docs/SUMMARY.md"),
+        "# Summary\n\n- [Root](index.md)\n",
+    )
+    .expect("root summary should be written");
+    fs::write(fixture_root.join("docs/index.md"), "# Root\n")
+        .expect("root index should be written");
+    fs::write(
+        fixture_root.join("modules/child/docs/SUMMARY.md"),
+        "# Summary\n\n- [Child](index.md)\n",
+    )
+    .expect("child summary should be written");
+    fs::write(
+        fixture_root.join("modules/child/docs/index.md"),
+        "# Child\n",
+    )
+    .expect("child index should be written");
+
+    let output = Command::new(&bin)
+        .arg("build")
+        .arg(&config_path)
+        .arg("--dest-dir")
+        .arg(&output_dir)
+        .output()
+        .expect("build command should run");
+
+    if !output.status.success() {
+        panic!(
+            "build command failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    assert!(!output_dir.join("books/child/404.html").exists());
+
+    fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
 
@@ -1328,6 +1505,32 @@ fn assert_single_file_named_recursive(dir: &Path, name: &str) -> PathBuf {
         name
     );
     matches.pop().expect("matching file should exist")
+}
+
+fn assert_single_file_with_prefix_recursive(dir: &Path, prefix: &str, suffix: &str) -> PathBuf {
+    let matches = collect_tree_entries(dir)
+        .into_iter()
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with(prefix) && name.ends_with(suffix))
+        })
+        .map(|path| dir.join(path))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        matches.len(),
+        1,
+        "expected {} to contain exactly one file matching {}*{} recursively",
+        dir.display(),
+        prefix,
+        suffix
+    );
+
+    matches
+        .into_iter()
+        .next()
+        .expect("matching file should exist")
 }
 
 fn assert_file_contains(path: PathBuf, needle: &str) {

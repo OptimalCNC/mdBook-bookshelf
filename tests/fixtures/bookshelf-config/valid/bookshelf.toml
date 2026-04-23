@@ -1,21 +1,18 @@
 [book]
-title = "Bookshelf Example"
+title = "Core Docs"
 authors = ["Ada Lovelace", "Grace Hopper"] # standard mdBook array field
+description = "Root \"book\"." # escaped quote should parse by TOML semantics
+src = "docs" # inline comment
 
 [output.html]
 default-theme = "light"
 no-section-label = true # standard mdBook boolean field
 
 [bookshelf]
-root_book = "meta" # inline comment should be ignored
-
-[[bookshelf.book]]
-id = "meta"
-title = "Core Docs"
-description = "Root \"book\"." # escaped quote should parse by TOML semantics
-src = "docs" # inline comment
+root-id = "meta" # inline comment should be ignored
 
 [[bookshelf.book]]
 id = "parser"
+root = "modules/parser"
 title = "Parser Docs"
-src = "modules/parser/docs"
+src = "docs"
