@@ -24,23 +24,20 @@ Integration Strategy
 
 Current State
 
-- Repo currently parses `bookshelf.book.summary`, validates it ends with
-  `SUMMARY.md`, and derives `book_src` from that path.
-- Build/load paths already set `config.book.src` before delegating to mdBook.
-- README TODO explicitly asks to switch to `src`.
-- Upstream mdBook 0.5.2 documents `[book].src` and loads from `root.join(config.book.src)`.
+- Repo now parses `bookshelf.book.src` as the only supported per-book content
+  root option.
+- Canonical summaries are derived internally as `<src>/SUMMARY.md`.
+- The parser rejects removed `summary` keys and file-like `src = ".../SUMMARY.md"`
+  values, while accepting mdBook-valid `src = "."` and `src = "./docs"` forms.
+- Checked-in configs, fixtures, and README examples now use `src = "..."`.
 
 Open Risks
 
-- Error messages and fixture expectations will need coordinated updates.
-- Documentation references to `summary =` are widespread and can drift if not
-  updated together.
+- No known blocking risks.
 
 Active Chunk
 
-- `chunk-021-bookshelf-src-option`: replace custom per-book `summary` config
-  with mdBook-style per-book `src`, deriving `src/SUMMARY.md` internally and
-  updating tests, fixtures, and docs in the same loop.
+- Complete.
 
 Chunk Ledger
 
@@ -96,7 +93,9 @@ Chunk Ledger
 
 Final Validation
 
-- Pending.
+- `cargo test`
+- `rg -n 'summary\s*=\s*"' README.md bookshelf tests crates cli`
+  - only matched the intentional negative test in `tests/bookshelf_config_parse.rs`
 
 Activity Log
 
@@ -107,5 +106,8 @@ Activity Log
 2026-04-23T07:41:43Z [implementation-reviewer] [chunk-021-bookshelf-src-option] [changes_required] stale summary keys remain silently accepted and file-like src values are not rejected early
 2026-04-23T07:41:43Z [direction-reviewer] [chunk-021-bookshelf-src-option] [changes_required] parser still rejects mdBook-valid src forms like . and ./docs instead of fully reusing stock src semantics
 2026-04-23T07:41:43Z [coordinator] [chunk-021-bookshelf-src-option] [rework] sent both review findings back to developer for one follow-up iteration
-2026-04-23T07:36:48Z [chunk-003-src-config] [done] switched per-book config to src, derived canonical SUMMARY.md internally, and updated tests/docs/fixtures
-2026-04-23T07:43:02Z [chunk-003-src-config] [done] rejected stale summary keys, rejected file-like src values, and accepted mdBook-valid . / ./docs src forms
+2026-04-23T07:36:48Z [developer] [chunk-021-bookshelf-src-option] [done] switched per-book config to src, derived canonical SUMMARY.md internally, and updated tests/docs/fixtures
+2026-04-23T07:43:02Z [developer] [chunk-021-bookshelf-src-option] [done] rejected stale summary keys, rejected file-like src values, and accepted mdBook-valid . / ./docs src forms
+2026-04-23T07:45:49Z [direction-reviewer] [chunk-021-bookshelf-src-option] [approved] parser now matches the intended mdBook-style src seam
+2026-04-23T07:45:49Z [implementation-reviewer] [chunk-021-bookshelf-src-option] [approved] stale summary is rejected, file-like src is rejected early, and mdBook-valid dot forms work
+2026-04-23T07:45:49Z [coordinator] [chunk-021-bookshelf-src-option] [done] final validation passed and both review tracks approved the completed chunk
