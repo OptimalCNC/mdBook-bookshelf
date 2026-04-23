@@ -389,6 +389,169 @@ process.stdout.write(
 );
 "##;
 
+const SEARCH_COLD_LOAD_AUDIT_HARNESS: &str = r##"
+const fs = require("node:fs");
+
+const [searcherPath, pageHref, pathToRoot, initialSearchIndex] = process.argv.slice(1);
+const pageUrl = new URL(pageHref);
+const appendedScripts = [];
+
+class FakeClassList {
+  constructor(initialValue = "") {
+    this.values = new Set(String(initialValue).split(/\s+/).filter(Boolean));
+  }
+
+  add(...names) {
+    for (const name of names) {
+      if (name) {
+        this.values.add(String(name));
+      }
+    }
+  }
+
+  remove(...names) {
+    for (const name of names) {
+      this.values.delete(String(name));
+    }
+  }
+
+  contains(name) {
+    return this.values.has(String(name));
+  }
+}
+
+function createElement(id, initialClassName = "") {
+  return {
+    id,
+    value: "",
+    attributes: {},
+    children: [],
+    classList: new FakeClassList(initialClassName),
+    addEventListener() {},
+    appendChild(child) {
+      this.children.push(child);
+      return child;
+    },
+    removeChild(child) {
+      const index = this.children.indexOf(child);
+      if (index !== -1) {
+        this.children.splice(index, 1);
+      }
+      return child;
+    },
+    setAttribute(name, value) {
+      this.attributes[String(name)] = String(value);
+    },
+    focus() {},
+    select() {},
+    querySelector() {
+      return null;
+    },
+    get firstChild() {
+      return this.children[0] || null;
+    },
+    get firstElementChild() {
+      return this.children[0] || null;
+    },
+  };
+}
+
+function createAnchorElement() {
+  let resolvedHref = pageHref;
+  return {
+    get href() {
+      return resolvedHref;
+    },
+    set href(value) {
+      const url = new URL(String(value), pageHref);
+      resolvedHref = url.toString();
+      this.protocol = url.protocol;
+      this.hostname = url.hostname;
+      this.port = url.port;
+      this.search = url.search;
+      this.pathname = url.pathname;
+      this.hash = url.hash;
+    },
+    protocol: pageUrl.protocol,
+    hostname: pageUrl.hostname,
+    port: pageUrl.port,
+    search: "",
+    pathname: pageUrl.pathname,
+    hash: "",
+  };
+}
+
+const elements = new Map([
+  ["mdbook-search-wrapper", createElement("mdbook-search-wrapper", "hidden")],
+  ["mdbook-searchbar-outer", createElement("mdbook-searchbar-outer")],
+  ["mdbook-searchbar", createElement("mdbook-searchbar")],
+  ["mdbook-searchresults", createElement("mdbook-searchresults")],
+  ["mdbook-searchresults-outer", createElement("mdbook-searchresults-outer", "hidden")],
+  ["mdbook-searchresults-header", createElement("mdbook-searchresults-header")],
+  ["mdbook-search-toggle", createElement("mdbook-search-toggle")],
+  ["mdbook-content", createElement("mdbook-content")],
+]);
+
+globalThis.Mark = function Mark() {
+  return {
+    mark() {},
+    unmark() {},
+  };
+};
+globalThis.elasticlunr = {};
+globalThis.history = {
+  pushState() {},
+  replaceState() {},
+};
+globalThis.window = {
+  location: {
+    href: pageHref,
+    pathname: pageUrl.pathname,
+  },
+  path_to_searchindex_js: initialSearchIndex,
+  scrollTo() {},
+  setTimeout() {},
+  search: {},
+};
+globalThis.document = {
+  activeElement: null,
+  head: {
+    append(node) {
+      appendedScripts.push({
+        id: node.id || "",
+        src: node.src || "",
+      });
+    },
+  },
+  addEventListener() {},
+  getElementById(id) {
+    return elements.get(String(id)) || null;
+  },
+  querySelectorAll() {
+    return [];
+  },
+  createElement(tagName) {
+    const normalized = String(tagName).toLowerCase();
+    if (normalized === "a") {
+      return createAnchorElement();
+    }
+    return createElement(normalized);
+  },
+};
+globalThis.path_to_root = pathToRoot;
+
+eval(fs.readFileSync(searcherPath, "utf8"));
+
+const first = appendedScripts[0] || null;
+process.stdout.write(
+  [
+    `requested=${first ? first.src : ""}`,
+    `requestedId=${first ? first.id : ""}`,
+    `configured=${window.path_to_searchindex_js || ""}`,
+  ].join("\n"),
+);
+"##;
+
 #[test]
 fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -770,6 +933,262 @@ fn build_cli_uses_shared_site_wide_search_index() {
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
 
+#[test]
+fn build_cli_repo_scale_whole_system_acceptance_audit() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook"));
+    let fixture_root = repo_root.join("tests/fixtures/build-cli/repo-scale");
+    let config_path = fixture_root.join("bookshelf.toml");
+    let output_dir = make_temp_dir("chunk-020-repo-scale", &repo_root);
+
+    run_build_cli(&bin, &config_path, &output_dir);
+
+    let root_entry_html = assert_read_to_string(output_dir.join("index.html"));
+    assert_text_contains(
+        &root_entry_html,
+        "http-equiv=\"refresh\" content=\"0; url=books/metanc/bookshelf.html\"",
+    );
+    assert_text_contains(
+        &root_entry_html,
+        "window.location.replace(\"books/metanc/bookshelf.html\")",
+    );
+    assert_text_contains(&root_entry_html, "href=\"books/metanc/bookshelf.html\"");
+    assert!(!output_dir.join("bookshelf.html").exists());
+
+    let bookshelf_html = assert_read_to_string(output_dir.join("books/metanc/bookshelf.html"));
+    assert_text_contains(&bookshelf_html, "<h1 id=\"bookshelf\">");
+    assert_text_contains(&bookshelf_html, "Choose a book to enter its root page.");
+    assert_text_contains(&bookshelf_html, "href=\"index.html\">MetaNC</a>");
+    assert_text_contains(
+        &bookshelf_html,
+        "href=\"../gcode-parser/index.html\">G-code Parser</a>",
+    );
+    assert_text_contains(&bookshelf_html, "href=\"../hmi/index.html\">HMI</a>");
+    assert_text_not_contains(&bookshelf_html, "href=\"bookshelf.html\">MetaNC</a>");
+    assert_text_not_contains(&bookshelf_html, "data-bookshelf-breadcrumb");
+
+    let metanc_index_html = assert_read_to_string(output_dir.join("books/metanc/index.html"));
+    let architecture_html =
+        assert_read_to_string(output_dir.join("books/metanc/architecture.html"));
+    let parser_index_html = assert_read_to_string(output_dir.join("books/gcode-parser/index.html"));
+    let modal_groups_html =
+        assert_read_to_string(output_dir.join("books/gcode-parser/modal-groups.html"));
+    let hmi_index_html = assert_read_to_string(output_dir.join("books/hmi/index.html"));
+
+    assert_stock_search_contract(&output_dir.join("books/metanc"), &metanc_index_html);
+    assert_stock_search_contract(&output_dir.join("books/gcode-parser"), &parser_index_html);
+    assert_stock_search_contract(&output_dir.join("books/hmi"), &hmi_index_html);
+    assert_text_contains(&architecture_html, "bookshelf-breadcrumb.css");
+    assert_text_contains(&architecture_html, "bookshelf-breadcrumb.js");
+    assert_text_contains(&architecture_html, "bookshelf-search.js");
+    assert_text_contains(&modal_groups_html, "bookshelf-breadcrumb.css");
+    assert_text_contains(&modal_groups_html, "bookshelf-breadcrumb.js");
+    assert_text_contains(&modal_groups_html, "bookshelf-search.js");
+
+    let root_toc_html = assert_read_to_string(output_dir.join("books/metanc/toc.html"));
+    assert_sidebar_toc_scope(
+        &root_toc_html,
+        &["MetaNC", "Getting Started", "Architecture", "Bookshelf"],
+        &["G-code Parser", "Modal Groups", "HMI", "Operator Panels"],
+    );
+    assert_root_bookshelf_affix_for(
+        &root_toc_html,
+        "MetaNC",
+        &["Getting Started", "Architecture"],
+    );
+
+    let parser_toc_html = assert_read_to_string(output_dir.join("books/gcode-parser/toc.html"));
+    assert_sidebar_toc_scope(
+        &parser_toc_html,
+        &["G-code Parser", "Grammar", "Modal Groups", "Diagnostics"],
+        &[
+            "MetaNC",
+            "Bookshelf",
+            "HMI",
+            "Operator Panels",
+            "Alarm Flow",
+        ],
+    );
+    assert_text_contains(&parser_toc_html, "1.1.1.</strong> Modal Groups");
+    assert_text_contains(&parser_toc_html, "1.2.</strong> Diagnostics");
+
+    let hmi_toc_html = assert_read_to_string(output_dir.join("books/hmi/toc.html"));
+    assert_sidebar_toc_scope(
+        &hmi_toc_html,
+        &["HMI", "Operator Panels", "Alarm Flow"],
+        &[
+            "MetaNC",
+            "Bookshelf",
+            "G-code Parser",
+            "Grammar",
+            "Modal Groups",
+        ],
+    );
+
+    let metanc_breadcrumb_script = assert_single_file_named_recursive(
+        &output_dir.join("books/metanc"),
+        "bookshelf-breadcrumb.js",
+    );
+    assert_runtime_breadcrumb(
+        &metanc_breadcrumb_script,
+        "https://example.test/books/metanc/architecture.html",
+        "MetaNC / Architecture",
+    );
+
+    let parser_breadcrumb_script = assert_single_file_named_recursive(
+        &output_dir.join("books/gcode-parser"),
+        "bookshelf-breadcrumb.js",
+    );
+    assert_runtime_breadcrumb(
+        &parser_breadcrumb_script,
+        "https://example.test/books/gcode-parser/modal-groups.html",
+        "G-code Parser / Modal Groups",
+    );
+
+    let parser_toc_script =
+        output_dir
+            .join("books/gcode-parser")
+            .join(assert_has_file_with_prefix(
+                &output_dir.join("books/gcode-parser"),
+                "toc-",
+                ".js",
+            ));
+    assert_runtime_toc(
+        &parser_toc_script,
+        "https://example.test/books/gcode-parser/modal-groups.html#group-one",
+        "",
+        &["G-code Parser", "Grammar", "Modal Groups", "Diagnostics"],
+        "Modal Groups",
+        "https://example.test/books/gcode-parser/modal-groups.html",
+    );
+
+    let shared_search_path = output_dir.join("searchindex.js");
+    let shared_search_js = assert_read_to_string(shared_search_path.clone());
+    assert_text_contains(
+        &shared_search_js,
+        "\"../gcode-parser/modal-groups.html#modal-groups\"",
+    );
+    assert_text_contains(
+        &shared_search_js,
+        "\"../metanc/architecture.html#architecture\"",
+    );
+    assert_text_contains(
+        &shared_search_js,
+        "\"../hmi/operator-panels.html#operator-panels\"",
+    );
+
+    let elasticlunr_js = output_dir
+        .join("books/metanc")
+        .join(assert_has_file_with_prefix(
+            &output_dir.join("books/metanc"),
+            "elasticlunr-",
+            ".min.js",
+        ));
+    assert_runtime_search_result(
+        &elasticlunr_js,
+        &shared_search_path,
+        "https://example.test/books/metanc/index.html",
+        "",
+        "modal latch witness token",
+        "G-code Parser » Grammar » Modal Groups » Modal Groups",
+        "https://example.test/books/gcode-parser/modal-groups.html?highlight=modal%20latch%20witness%20token#modal-groups",
+    );
+    assert_runtime_search_result(
+        &elasticlunr_js,
+        &shared_search_path,
+        "https://example.test/books/gcode-parser/modal-groups.html",
+        "",
+        "site-wide breadcrumb label audit witness",
+        "MetaNC » Architecture » Architecture",
+        "https://example.test/books/metanc/architecture.html?highlight=site-wide%20breadcrumb%20label%20audit%20witness#architecture",
+    );
+    assert_runtime_search_result(
+        &elasticlunr_js,
+        &shared_search_path,
+        "https://example.test/books/metanc/index.html",
+        "",
+        "interface regions",
+        "HMI » Operator Panels » Operator Panels",
+        "https://example.test/books/hmi/operator-panels.html?highlight=interface%20regions#operator-panels",
+    );
+
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+}
+
+#[test]
+fn build_cli_audits_search_cold_load_residual_on_repo_scale_output() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook"));
+    let fixture_root = repo_root.join("tests/fixtures/build-cli/repo-scale");
+    let config_path = fixture_root.join("bookshelf.toml");
+    let output_dir = make_temp_dir("chunk-020-search-cold-load", &repo_root);
+
+    run_build_cli(&bin, &config_path, &output_dir);
+
+    let parser_page_html =
+        assert_read_to_string(output_dir.join("books/gcode-parser/modal-groups.html"));
+    let local_search_index = extract_inline_searchindex_path(&parser_page_html);
+    assert_text_contains(
+        &parser_page_html,
+        &format!("window.path_to_searchindex_js = \"{local_search_index}\""),
+    );
+
+    let searcher_name =
+        assert_has_file_with_prefix(&output_dir.join("books/gcode-parser"), "searcher-", ".js");
+    assert_script_order(&parser_page_html, &searcher_name, "bookshelf-search.js");
+
+    let search_override = assert_single_file_named_recursive(
+        &output_dir.join("books/gcode-parser"),
+        "bookshelf-search.js",
+    );
+    assert_file_contains(
+        search_override,
+        "window.path_to_searchindex_js = `${rootPath}../../searchindex.js`;",
+    );
+
+    let audit = run_search_cold_load_audit(
+        &output_dir.join("books/gcode-parser").join(&searcher_name),
+        "https://example.test/books/gcode-parser/modal-groups.html?search=modal%20latch%20witness%20token",
+        "",
+        &local_search_index,
+    );
+    assert_eq!(
+        audit.requested_src.as_deref(),
+        Some(local_search_index.as_str()),
+        "expected initial ?search= cold load to request the page-local search index before the bookshelf override runs"
+    );
+    assert_eq!(
+        audit.requested_id.as_deref(),
+        Some("mdbook-search-index"),
+        "expected searcher.js to request the initial cold-load search index script"
+    );
+    assert_eq!(
+        audit.configured_path.as_deref(),
+        Some(local_search_index.as_str()),
+        "expected the initial configured search index path to remain page-local during searcher.js startup"
+    );
+
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+}
+
+fn run_build_cli(bin: &Path, config_path: &Path, output_dir: &Path) {
+    let output = Command::new(bin)
+        .arg("build")
+        .arg(config_path)
+        .arg("--dest-dir")
+        .arg(output_dir)
+        .output()
+        .expect("build command should run");
+
+    if !output.status.success() {
+        panic!(
+            "build command failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
 fn assert_exists(path: PathBuf) {
     assert!(path.exists(), "expected {} to exist", path.display());
 }
@@ -829,15 +1248,26 @@ fn assert_sidebar_toc_scope(toc_html: &str, expected_labels: &[&str], unexpected
 }
 
 fn assert_root_bookshelf_affix(root_toc_html: &str) {
+    assert_root_bookshelf_affix_for(
+        root_toc_html,
+        "Example Core",
+        &["Onboarding", "Architecture"],
+    );
+}
+
+fn assert_root_bookshelf_affix_for(root_toc_html: &str, root_title: &str, chapter_labels: &[&str]) {
     let root_index = root_toc_html
-        .find("1.</strong> Example Core")
-        .expect("root TOC should contain numbered root-book index entry");
-    let onboarding = root_toc_html
-        .find("1.1.</strong> Onboarding")
-        .expect("root TOC should contain numbered onboarding entry");
-    let architecture = root_toc_html
-        .find("1.2.</strong> Architecture")
-        .expect("root TOC should contain numbered architecture entry");
+        .find(&format!("1.</strong> {root_title}"))
+        .unwrap_or_else(|| panic!("root TOC should contain numbered root-book index entry"));
+    let chapter_positions = chapter_labels
+        .iter()
+        .enumerate()
+        .map(|(idx, label)| {
+            root_toc_html
+                .find(&format!("1.{}.</strong> {label}", idx + 1))
+                .unwrap_or_else(|| panic!("root TOC should contain numbered entry for {label}"))
+        })
+        .collect::<Vec<_>>();
     let bookshelf_link = "<a href=\"bookshelf.html\" target=\"_parent\">Bookshelf</a>";
     let bookshelf = root_toc_html
         .find(bookshelf_link)
@@ -846,10 +1276,14 @@ fn assert_root_bookshelf_affix(root_toc_html: &str) {
         .rfind("<a href=")
         .expect("root TOC should contain sidebar links");
 
-    assert!(
-        root_index < onboarding && onboarding < architecture && architecture < bookshelf,
-        "expected root-book numbered chapters before trailing Bookshelf affix"
-    );
+    let mut previous = root_index;
+    for position in chapter_positions {
+        assert!(
+            previous < position && position < bookshelf,
+            "expected root-book numbered chapters before trailing Bookshelf affix"
+        );
+        previous = position;
+    }
     assert_eq!(
         last_link, bookshelf,
         "expected Bookshelf affix to be the trailing root-book sidebar entry"
@@ -1076,6 +1510,30 @@ fn assert_text_not_contains(haystack: &str, needle: &str) {
     );
 }
 
+fn assert_script_order(page_html: &str, earlier: &str, later: &str) {
+    let earlier_index = page_html
+        .find(earlier)
+        .unwrap_or_else(|| panic!("expected page HTML to reference {earlier}"));
+    let later_index = page_html
+        .find(later)
+        .unwrap_or_else(|| panic!("expected page HTML to reference {later}"));
+
+    assert!(
+        earlier_index < later_index,
+        "expected {earlier} to appear before {later} in page HTML"
+    );
+}
+
+fn extract_inline_searchindex_path(page_html: &str) -> String {
+    let (_, rest) = page_html
+        .split_once("window.path_to_searchindex_js = \"")
+        .expect("page HTML should configure an initial search index path");
+    let (path, _) = rest
+        .split_once('"')
+        .expect("initial search index assignment should terminate");
+    path.to_string()
+}
+
 fn collect_files_named_recursive(dir: &Path, name: &str, matches: &mut Vec<PathBuf>) {
     let mut entries = fs::read_dir(dir)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()))
@@ -1187,6 +1645,13 @@ struct SearchRuntimeResult {
     first_href: Option<String>,
 }
 
+#[derive(Debug, Default, PartialEq, Eq)]
+struct SearchColdLoadAuditResult {
+    requested_src: Option<String>,
+    requested_id: Option<String>,
+    configured_path: Option<String>,
+}
+
 fn parse_toc_runtime_output(output: &str) -> TocRuntimeResult {
     let mut result = TocRuntimeResult::default();
 
@@ -1230,6 +1695,56 @@ fn parse_search_runtime_output(output: &str) -> SearchRuntimeResult {
         } else if let Some(value) = line.strip_prefix("href=") {
             if !value.is_empty() {
                 result.first_href = Some(value.to_string());
+            }
+        }
+    }
+
+    result
+}
+
+fn run_search_cold_load_audit(
+    searcher_path: &Path,
+    page_href: &str,
+    path_to_root: &str,
+    initial_searchindex_path: &str,
+) -> SearchColdLoadAuditResult {
+    let output = Command::new("node")
+        .arg("-e")
+        .arg(SEARCH_COLD_LOAD_AUDIT_HARNESS)
+        .arg(searcher_path)
+        .arg(page_href)
+        .arg(path_to_root)
+        .arg(initial_searchindex_path)
+        .output()
+        .expect("node search cold-load harness should run");
+
+    if !output.status.success() {
+        panic!(
+            "node search cold-load harness failed for {}\nstdout:\n{}\nstderr:\n{}",
+            searcher_path.display(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    parse_search_cold_load_audit_output(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn parse_search_cold_load_audit_output(output: &str) -> SearchColdLoadAuditResult {
+    let mut result = SearchColdLoadAuditResult::default();
+
+    for line in output.lines() {
+        if let Some(value) = line.strip_prefix("requested=") {
+            if !value.is_empty() {
+                result.requested_src = Some(value.to_string());
+            }
+        } else if let Some(value) = line.strip_prefix("requestedId=") {
+            if !value.is_empty() {
+                result.requested_id = Some(value.to_string());
+            }
+        } else if let Some(value) = line.strip_prefix("configured=") {
+            if !value.is_empty() {
+                result.configured_path = Some(value.to_string());
             }
         }
     }
