@@ -5,11 +5,11 @@ edition = "2021"
 
 [lib]
 name = "mdbook_bookshelf"
-path = "src/lib.rs"
+path = "crates/mdbook-bookshelf/src/lib.rs"
 
 [[bin]]
 name = "mdbook-bookshelf"
-path = "src/main.rs"
+path = "cli/mdbook-bookshelf/src/main.rs"
 
 [dependencies]
 anyhow = "1.0"
