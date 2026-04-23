@@ -52,6 +52,34 @@ material risk of doing the wrong work.
 - prefer the smallest correct next step over broad refactors
 - keep architecture decisions explicit; do not allow silent drift
 
+## Stock mdBook Reuse Guardrails
+
+When the assigned task touches mdBook integration, keep the work on this
+direction:
+
+- keep `build` and `serve` as the primary user-facing workflows unless the
+  acceptance criteria explicitly require something else
+- keep the implementation's `build` and `serve` flow as close as practical to
+  stock mdBook's CLI shape: thin command wrappers over crate-level
+  orchestration, build once before serve, serve one output directory, and reuse
+  stock-style watch and live-reload behavior where practical
+- prefer Cargo dependencies on mdBook crates over copying code from
+  `mdBook-repo` or reimplementing stock behavior
+- treat `mdBook-repo` as upstream reference only, never as the implementation
+  target
+- keep mdBook responsible for the single-book heavy lifting wherever practical:
+  loading config and `SUMMARY.md`, resolving chapters, running preprocessors,
+  creating render contexts, rendering markdown, and preserving stock site
+  conventions
+- do not use mdBook merely as a parser or preprocessor underneath a separate
+  clean-room site generator
+- if a stock mdBook crate API or CLI seam appears insufficient, require a
+  narrow investigation and an explicit note in `progress.md` before approving a
+  replacement implementation
+- any chunk that diverges materially from stock mdBook `build`, `serve`, or
+  `watch` behavior must name the reason, the rejected stock seam, and the exact
+  subsystem being replaced
+
 ## Shared Progress Artifact
 
 Maintain a concise repo-level coordination file, normally `progress.md`.
@@ -92,10 +120,14 @@ Requirements:
 - choose the smallest chunk that materially advances the task
 - reject vague, oversized, or non-testable chunks
 - make the acceptance criteria executable and reviewable
-- name the important seam, dependency, interface, or architectural touchpoint
-  the chunk intentionally reuses or intentionally avoids
+- name the important seam, dependency, interface, crate, module, or CLI
+  touchpoint the chunk intentionally reuses or intentionally avoids
 - define what is in scope and explicitly out of scope
 - include concrete verification
+- when mdBook is in scope, prefer chunks that reuse stock crates or CLI flow
+  before chunks that replace them
+- if mdBook's public APIs may be insufficient, prefer an investigation or
+  blocker chunk before any replacement implementation chunk
 - do not edit source files
 - append one concise planner status line to `progress.md`
 
@@ -136,8 +168,9 @@ The researcher:
 
 - reads relevant local docs, code, and upstream references
 - answers one narrow question at a time
-- cites exact files, modules, and APIs when possible
-- recommends the smallest reusable seam
+- cites exact files, modules, APIs, and CLI entrypoints when possible
+- recommends the smallest reusable seam and most stock-aligned path
+- flags stock assumptions that matter before proposing custom code
 - does not redesign the feature
 - does not edit source files
 - appends one concise researcher status line to `progress.md`
@@ -152,12 +185,18 @@ Requirements:
   relevant code before editing
 - implement only the current chunk or explicitly requested review fixes
 - stay within scope; no unrelated refactors
+- reuse the named touchpoints where practical instead of quietly replacing
+  stock behavior
+- when mdBook is in scope, prefer Cargo dependencies on mdBook crates and
+  stock CLI or driver patterns over copied code or bespoke orchestration
 - run targeted build, test, format, and validation commands
 - create at most one commit checkpoint for each developer iteration when git is
   available
 - do not amend unless explicitly instructed
 - do not perform destructive git operations
-- if blocked, stop and report the concrete blocker precisely
+- if blocked, stop and report the concrete blocker precisely, including the
+  exact crate, module, API, or CLI path when the blocker comes from mdBook
+  integration limits
 - append concise start and finish lines to `progress.md`
 
 Require this exact return shape from the developer:
@@ -194,6 +233,9 @@ Requirements:
 - reject if there is an obvious better direction that materially improves the
   architecture, extensibility, or fit to the project without introducing
   unnecessary abstraction or overdesign
+- when mdBook is in scope, reject work that diverges materially from stock
+  mdBook `build`, `serve`, or `watch` flow, or that replaces mdBook-owned
+  single-book behavior without explicit justification and a recorded blocker
 - balance long-term extensibility and architectural benefit against simplicity
   and scope discipline
 - do not demand abstraction for its own sake
@@ -226,6 +268,9 @@ Requirements:
 
 - review against the chunk artifact, source, verification results, acceptance
   criteria, test plan, integration strategy, and named touchpoints
+- when mdBook is in scope, verify that the named crates, modules, or CLI
+  touchpoints were actually reused, or that any deviation is explicitly
+  justified
 - ignore optional polish unless it is likely to cause failure or rework
 - append one concise reviewer status line to `progress.md`
 
@@ -333,6 +378,8 @@ The job is done only when:
 - all relevant acceptance criteria are satisfied
 - required tests and validations are implemented and passing
 - important integration choices are recorded clearly in `progress.md`
+- for mdBook-first work, the final `build` and `serve` path remains close to
+  stock mdBook where practical, and any deliberate divergence is recorded
 - all reviewers approve the final whole-system review
 - `progress.md` reflects the completed state and validation summary
 

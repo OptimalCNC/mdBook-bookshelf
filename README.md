@@ -9,13 +9,13 @@ bookshelf composition layer on top.
 Build the checked-in self-contained example:
 
 ```bash
-cargo run --bin book -- build bookshelf/handoffs/examples/self-contained/bookshelf.toml --dest-dir .tmp/bookshelf-site
+cargo run --bin book -- build bookshelf/examples/self-contained/bookshelf.toml --dest-dir .tmp/bookshelf-site
 ```
 
 Serve the same example locally:
 
 ```bash
-cargo run --bin book -- serve bookshelf/handoffs/examples/self-contained/bookshelf.toml --dest-dir .tmp/bookshelf-site --hostname 127.0.0.1 --port 3000
+cargo run --bin book -- serve bookshelf/examples/self-contained/bookshelf.toml --dest-dir .tmp/bookshelf-site --hostname 127.0.0.1 --port 3000
 ```
 
 Then open `http://127.0.0.1:3000`.
@@ -79,7 +79,7 @@ Child `src` values are mdBook-native and relative to the shared
 `bookshelf.toml` directory. Each book's canonical summary is read from
 `<src>/SUMMARY.md`, and `<src>/index.md` remains its entry page. Concrete
 examples live in
-[`bookshelf/handoffs/examples/self-contained/`](./bookshelf/handoffs/examples/self-contained/)
+[`bookshelf/examples/self-contained/`](./bookshelf/examples/self-contained/)
 and [`tests/fixtures/input-catalog/`](./tests/fixtures/input-catalog/).
 
 `root-id` remains a temporary bookshelf-only seam for the root book's routed
