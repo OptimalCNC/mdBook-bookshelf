@@ -8,7 +8,7 @@ name = "mdbook_bookshelf"
 path = "crates/mdbook-bookshelf/src/lib.rs"
 
 [[bin]]
-name = "mdbook"
+name = "book"
 path = "cli/mdbook-bookshelf/src/main.rs"
 
 [dependencies]

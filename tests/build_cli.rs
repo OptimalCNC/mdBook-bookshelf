@@ -619,7 +619,7 @@ process.stdout.write(
 #[test]
 fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
     let fixture_root = repo_root.join("bookshelf/handoffs/examples/self-contained");
     let config_path = repo_root.join("bookshelf/handoffs/examples/self-contained/bookshelf.toml");
     let output_dir = make_temp_dir("chunk-011-build-cli", &repo_root);
@@ -875,7 +875,7 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
 #[test]
 fn build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
     let fixture_root = repo_root.join("tests/fixtures/build-cli/shared-config-root");
     let config_path = fixture_root.join("bookshelf.toml");
     let output_dir = make_temp_dir("chunk-011-shared-config-root", &repo_root);
@@ -917,7 +917,7 @@ fn build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir() {
 #[test]
 fn build_cli_uses_shared_site_wide_search_index() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
     let config_path = repo_root.join("bookshelf/handoffs/examples/self-contained/bookshelf.toml");
     let output_dir = make_temp_dir("chunk-019-build-cli", &repo_root);
 
@@ -1000,7 +1000,7 @@ fn build_cli_uses_shared_site_wide_search_index() {
 #[test]
 fn build_cli_repo_scale_whole_system_acceptance_audit() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
     let fixture_root = repo_root.join("tests/fixtures/build-cli/repo-scale");
     let config_path = fixture_root.join("bookshelf.toml");
     let output_dir = make_temp_dir("chunk-020-repo-scale", &repo_root);
@@ -1183,7 +1183,7 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
 #[test]
 fn build_cli_audits_search_cold_load_residual_on_repo_scale_output() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
     let fixture_root = repo_root.join("tests/fixtures/build-cli/repo-scale");
     let config_path = fixture_root.join("bookshelf.toml");
     let output_dir = make_temp_dir("chunk-020-search-cold-load", &repo_root);

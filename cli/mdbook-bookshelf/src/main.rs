@@ -25,12 +25,12 @@ fn run() -> Result<()> {
 }
 
 fn create_clap_command() -> Command {
-    Command::new("mdbook")
+    Command::new("book")
         .about("Build and serve a multi-book mdBook bookshelf site")
         .version(concat!("v", env!("CARGO_PKG_VERSION")))
         .propagate_version(true)
         .arg_required_else_help(true)
-        .after_help("For more information about a specific command, try `mdbook <command> --help`.")
+        .after_help("For more information about a specific command, try `book <command> --help`.")
         .subcommand(cmd::build::make_subcommand())
         .subcommand(cmd::serve::make_subcommand())
 }

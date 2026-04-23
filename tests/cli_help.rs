@@ -3,7 +3,7 @@ use std::process::Command;
 
 #[test]
 fn top_level_help_lists_build_and_serve_subcommands() {
-    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
 
     let output = Command::new(&bin)
         .arg("--help")
@@ -24,7 +24,7 @@ fn top_level_help_lists_build_and_serve_subcommands() {
 
 #[test]
 fn serve_help_lists_network_flags() {
-    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
 
     let output = Command::new(&bin)
         .arg("serve")
