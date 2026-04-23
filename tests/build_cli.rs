@@ -1083,7 +1083,7 @@ src = "modules/child/docs"
         );
     }
 
-    assert!(!output_dir.join("modules/child/404.html").exists());
+    assert!(!output_dir.join("modules/child/docs/404.html").exists());
 
     fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
