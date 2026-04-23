@@ -2,10 +2,10 @@ use crate::bookshelf_ui::{BookshelfBreadcrumbPage, TransientBookshelfUiAssets};
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
 use crate::loader::load_books_from_catalog;
 use crate::navigation::build_navigation_metadata;
-use crate::route_paths::{path_to_string, relative_path};
 use crate::root_bookshelf_preprocessor::{
     inject_root_bookshelf_page, site_root_bookshelf_entry_path,
 };
+use crate::route_paths::{path_to_string, relative_path};
 use crate::search::{write_site_wide_search_index, LOCAL_SHARED_SEARCH_INDEX_NAME};
 use crate::site_model::{build_site_model, SitePageKind};
 use anyhow::{Context, Result};
@@ -31,6 +31,12 @@ pub fn build_bookshelf_site(
     let config_root = catalog.config_dir.clone();
     let book_breadcrumbs = build_book_breadcrumbs(&catalog)
         .context("failed to build exact book/page breadcrumb metadata")?;
+    let root_bookshelf_rel = PathBuf::from(site_root_bookshelf_entry_path(
+        &catalog
+            .root_book()
+            .context("failed to resolve root book for synthetic bookshelf routing")?
+            .output_rel,
+    ));
 
     for book in &catalog.books {
         let breadcrumb_pages: &[BookshelfBreadcrumbPage] = book_breadcrumbs
@@ -43,6 +49,7 @@ pub fn build_bookshelf_site(
             &mdbook_config,
             &config_root,
             &site_dest_dir,
+            &root_bookshelf_rel,
             breadcrumb_pages,
         )?;
     }
@@ -59,6 +66,7 @@ fn build_catalog_book(
     shared_config: &Config,
     config_root: &Path,
     site_dest_dir: &Path,
+    root_bookshelf_rel: &Path,
     breadcrumb_pages: &[BookshelfBreadcrumbPage],
 ) -> Result<()> {
     let summary_text = fs::read_to_string(&book.summary_abs).with_context(|| {
@@ -97,7 +105,6 @@ fn build_catalog_book(
                 book.book_root_abs.display()
             )
         })?;
-    let root_bookshelf_rel = PathBuf::from(site_root_bookshelf_entry_path(&catalog.root_book_id));
     let return_target = path_to_string(&relative_path(&book.output_rel, &root_bookshelf_rel));
     let searchindex_target = LOCAL_SHARED_SEARCH_INDEX_NAME.to_string();
 
@@ -277,7 +284,7 @@ fn write_site_root_index(
     let index_path = site_dest_dir.join("index.html");
     fs::write(
         &index_path,
-        render_site_root_index(catalog, projected_config),
+        render_site_root_index(catalog, projected_config)?,
     )
     .with_context(|| {
         format!(
@@ -290,11 +297,16 @@ fn write_site_root_index(
 fn render_site_root_index(
     catalog: &crate::catalog::InputCatalog,
     projected_config: &Config,
-) -> String {
+) -> Result<String> {
     let lang = projected_config.book.language.as_deref().unwrap_or("en");
-    let target = site_root_bookshelf_entry_path(&catalog.root_book_id);
+    let target = site_root_bookshelf_entry_path(
+        &catalog
+            .root_book()
+            .context("failed to resolve root book for site-root redirect")?
+            .output_rel,
+    );
 
-    format!(
+    Ok(format!(
         "<!DOCTYPE html>\n\
 <html lang=\"{}\">\n\
 <head>\n\
@@ -312,7 +324,7 @@ fn render_site_root_index(
         escape_html_attr(&target),
         escape_html_attr(&target),
         escape_html_attr(&target),
-    )
+    ))
 }
 
 fn escape_html_attr(text: &str) -> String {

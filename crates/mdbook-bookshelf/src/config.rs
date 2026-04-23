@@ -11,21 +11,18 @@ pub struct BookshelfConfig {
     pub config_path: PathBuf,
     pub config_dir: PathBuf,
     pub mdbook_config: Config,
-    pub root_book_id: String,
     pub books: Vec<BookshelfBook>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct BookshelfBook {
     pub source_rel: PathBuf,
-    pub mount_rel: PathBuf,
     pub book: BookConfig,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 struct RawBookshelf {
-    root_id: Option<String>,
     #[serde(default, rename = "book")]
     books: Vec<toml::Table>,
 }
@@ -53,42 +50,23 @@ fn validate_and_build(
     config_path: PathBuf,
     config_dir: PathBuf,
 ) -> Result<BookshelfConfig> {
-    let root_book_id = normalize_book_id(
-        required_non_empty(raw.root_id, "bookshelf.root-id")?,
-        "bookshelf.root-id",
-    )?;
     validate_book_title(&mdbook_config.book, "book.title")?;
-    mdbook_config.book.src = normalize_book_src_rel_path(&root_book_id, &mdbook_config.book.src)?;
+    let root_source_rel = normalize_root_source_rel_path(&mdbook_config.book.src)?;
+    validate_canonical_output_root(&root_source_rel, "book.src")?;
+    mdbook_config.book.src = root_source_rel.clone();
 
-    let mut seen_mounts = HashSet::new();
-    let root_output_rel = PathBuf::from("books").join(&root_book_id);
+    let mut seen_output_roots = HashSet::from([path_to_key(&root_source_rel)]);
     let mut books = Vec::with_capacity(raw.books.len());
     for raw_book in raw.books {
         let mut child_book = parse_child_book(raw_book)?;
         validate_book_title(&child_book, "bookshelf.book.title")?;
         let source_rel = normalize_child_source_rel_path(&child_book.src)?;
-        let mount_rel = derive_child_mount_rel(&source_rel)?;
-        let mount_key = path_to_key(&mount_rel);
-
-        if mount_rel == root_output_rel {
+        validate_canonical_output_root(&source_rel, "bookshelf.book.src")?;
+        if !seen_output_roots.insert(path_to_key(&source_rel)) {
             bail!(
-                "bookshelf.book.src '{}' resolves to reserved mount path '{}'",
+                "bookshelf.book.src '{}' resolves to duplicate canonical output root '{}'",
                 source_rel.display(),
-                mount_rel.display()
-            );
-        }
-        if mount_key == root_book_id {
-            bail!(
-                "bookshelf.book.src '{}' resolves to reserved mount key '{}' owned by bookshelf.root-id",
-                source_rel.display(),
-                mount_key
-            );
-        }
-        if !seen_mounts.insert(mount_rel.clone()) {
-            bail!(
-                "bookshelf.book.src '{}' resolves to duplicate mount path '{}'",
-                source_rel.display(),
-                mount_rel.display()
+                source_rel.display()
             );
         }
 
@@ -96,7 +74,6 @@ fn validate_and_build(
 
         books.push(BookshelfBook {
             source_rel,
-            mount_rel,
             book: child_book,
         });
     }
@@ -105,7 +82,6 @@ fn validate_and_build(
         config_path,
         config_dir,
         mdbook_config,
-        root_book_id,
         books,
     })
 }
@@ -145,14 +121,6 @@ fn parse_child_book(raw: toml::Table) -> Result<BookConfig> {
         .with_context(|| "failed to parse mdBook book config for bookshelf.book")
 }
 
-fn required_non_empty(value: Option<String>, key: &str) -> Result<String> {
-    match value {
-        Some(value) if !value.is_empty() => Ok(value),
-        Some(_) => bail!("{key} must not be empty"),
-        None => bail!("missing required key {key}"),
-    }
-}
-
 fn validate_book_title(book: &BookConfig, key: &str) -> Result<()> {
     match book.title.as_deref() {
         Some(title) if !title.is_empty() => Ok(()),
@@ -161,45 +129,12 @@ fn validate_book_title(book: &BookConfig, key: &str) -> Result<()> {
     }
 }
 
-fn normalize_book_id(raw_id: String, key: &str) -> Result<String> {
-    let path = Path::new(&raw_id);
-    let mut components = path.components();
-    let Some(Component::Normal(part)) = components.next() else {
-        bail!("{key} must be a single safe path segment: '{raw_id}'");
-    };
-
-    if components.next().is_some() || part != raw_id.as_str() {
-        bail!("{key} must be a single safe path segment: '{raw_id}'");
-    }
-
-    Ok(raw_id)
-}
-
-fn normalize_book_src_rel_path(book_id: &str, raw_path: &Path) -> Result<PathBuf> {
-    normalize_rel_dir_path(book_id, raw_path, "src path", true)
+fn normalize_root_source_rel_path(raw_path: &Path) -> Result<PathBuf> {
+    normalize_rel_dir_path("root book", raw_path, "src path", true)
 }
 
 fn normalize_child_source_rel_path(raw_path: &Path) -> Result<PathBuf> {
     normalize_rel_dir_path("bookshelf.book", raw_path, "src path", true)
-}
-
-fn derive_child_mount_rel(source_rel: &Path) -> Result<PathBuf> {
-    let mount_rel = match source_rel.file_name() {
-        Some(name) if name == "docs" => source_rel
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or_else(|| PathBuf::from(".")),
-        _ => source_rel.to_path_buf(),
-    };
-
-    if mount_rel.as_os_str().is_empty() || mount_rel == Path::new(".") {
-        bail!(
-            "bookshelf.book.src must not resolve to the site root mount path: '{}'",
-            source_rel.display()
-        );
-    }
-
-    Ok(mount_rel)
 }
 
 fn derive_local_book_src(source_rel: &Path) -> Result<PathBuf> {
@@ -211,6 +146,17 @@ fn derive_local_book_src(source_rel: &Path) -> Result<PathBuf> {
 
 fn path_to_key(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
+}
+
+fn validate_canonical_output_root(output_rel: &Path, key: &str) -> Result<()> {
+    if output_rel == Path::new(".") {
+        bail!(
+            "{key} must not resolve to the site root canonical output root: '{}'",
+            output_rel.display()
+        );
+    }
+
+    Ok(())
 }
 
 fn normalize_rel_dir_path(

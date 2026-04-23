@@ -10,12 +10,12 @@ pub const ROOT_BOOKSHELF_HTML_PATH: &str = "bookshelf.html";
 
 pub fn inject_root_bookshelf_page(book: &mut Book, catalog: &InputCatalog) -> Result<()> {
     ensure_reserved_bookshelf_path_is_available(book)?;
-    book.push_item(build_root_bookshelf_chapter(catalog));
+    book.push_item(build_root_bookshelf_chapter(catalog)?);
     Ok(())
 }
 
-pub fn site_root_bookshelf_entry_path(root_book_id: &str) -> String {
-    format!("books/{root_book_id}/{ROOT_BOOKSHELF_HTML_PATH}")
+pub fn site_root_bookshelf_entry_path(root_output_rel: impl AsRef<Path>) -> String {
+    path_to_string(&root_output_rel.as_ref().join(ROOT_BOOKSHELF_HTML_PATH))
 }
 
 fn ensure_reserved_bookshelf_path_is_available(book: &Book) -> Result<()> {
@@ -33,21 +33,21 @@ fn ensure_reserved_bookshelf_path_is_available(book: &Book) -> Result<()> {
     Ok(())
 }
 
-fn build_root_bookshelf_chapter(catalog: &InputCatalog) -> Chapter {
-    Chapter {
+fn build_root_bookshelf_chapter(catalog: &InputCatalog) -> Result<Chapter> {
+    Ok(Chapter {
         name: ROOT_BOOKSHELF_CHAPTER_NAME.to_string(),
-        content: render_root_bookshelf_markdown(catalog),
+        content: render_root_bookshelf_markdown(catalog)?,
         number: None,
         sub_items: Vec::new(),
         path: Some(PathBuf::from(ROOT_BOOKSHELF_CHAPTER_PATH)),
         source_path: None,
         parent_names: Vec::new(),
-    }
+    })
 }
 
-fn render_root_bookshelf_markdown(catalog: &InputCatalog) -> String {
+fn render_root_bookshelf_markdown(catalog: &InputCatalog) -> Result<String> {
     let mut markdown = String::from("# Bookshelf\n\nChoose a book to enter its root page.\n");
-    let root_output_rel = PathBuf::from("books").join(&catalog.root_book_id);
+    let root_output_rel = catalog.root_book()?.output_rel.clone();
 
     for book in &catalog.books {
         markdown.push_str("\n- [");
@@ -64,7 +64,7 @@ fn render_root_bookshelf_markdown(catalog: &InputCatalog) -> String {
         markdown.push('\n');
     }
 
-    markdown
+    Ok(markdown)
 }
 
 fn bookshelf_book_href(book: &InputBook, root_output_rel: &Path) -> String {
@@ -124,7 +124,7 @@ mod tests {
         assert!(synthetic.content.contains("Repository-wide onboarding"));
         assert!(synthetic
             .content
-            .contains("[Example Parser](<../../parser/index.html>)"));
+            .contains("[Example Parser](<../modules/parser/docs/index.html>)"));
     }
 
     #[test]
@@ -149,16 +149,15 @@ mod tests {
             config_path: PathBuf::from("bookshelf.toml"),
             config_dir: PathBuf::from("."),
             mdbook_config: mdbook_driver::config::Config::default(),
-            root_book_id: "meta".to_string(),
             books: vec![
                 sample_book(
-                    "meta",
+                    "docs",
                     "Example Core",
                     Some("Repository-wide onboarding and architecture notes."),
                     true,
                 ),
                 sample_book(
-                    "parser",
+                    "modules/parser/docs",
                     "Example Parser",
                     Some("Parser-specific reference pages with their own reading order."),
                     false,
@@ -180,11 +179,7 @@ mod tests {
 
         InputBook {
             id: id.to_string(),
-            output_rel: if is_root_book {
-                PathBuf::from("books").join(id)
-            } else {
-                PathBuf::from(id)
-            },
+            output_rel: PathBuf::from(id),
             book_config,
             title: title.to_string(),
             description: description.map(str::to_string),

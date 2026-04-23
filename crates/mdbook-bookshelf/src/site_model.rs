@@ -37,10 +37,12 @@ pub enum SitePageKind {
 }
 
 pub fn build_site_model(catalog: &InputCatalog, loaded: &LoadedBooks) -> Result<SiteModel> {
-    if catalog.root_book_id != loaded.root_book_id {
+    let root_book_id = catalog.root_book()?.id.clone();
+
+    if root_book_id != loaded.root_book_id {
         bail!(
             "site model root book mismatch: catalog='{}' loaded='{}'",
-            catalog.root_book_id,
+            root_book_id,
             loaded.root_book_id
         );
     }
@@ -59,7 +61,7 @@ pub fn build_site_model(catalog: &InputCatalog, loaded: &LoadedBooks) -> Result<
     pages.push(SitePage {
         page_id: synthetic_bookshelf_page_id.clone(),
         kind: SitePageKind::SyntheticBookshelf,
-        owning_book_id: catalog.root_book_id.clone(),
+        owning_book_id: root_book_id.clone(),
         title: "Bookshelf".to_string(),
         source_path: None,
         order_in_book: None,
@@ -107,7 +109,7 @@ pub fn build_site_model(catalog: &InputCatalog, loaded: &LoadedBooks) -> Result<
     }
 
     Ok(SiteModel {
-        root_book_id: catalog.root_book_id.clone(),
+        root_book_id,
         synthetic_bookshelf_page_id,
         books,
         pages,

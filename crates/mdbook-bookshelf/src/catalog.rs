@@ -8,7 +8,6 @@ pub struct InputCatalog {
     pub config_path: PathBuf,
     pub config_dir: PathBuf,
     pub mdbook_config: Config,
-    pub root_book_id: String,
     pub books: Vec<InputBook>,
 }
 
@@ -32,13 +31,29 @@ pub fn build_input_catalog(config_path: impl AsRef<Path>) -> Result<InputCatalog
     build_input_catalog_from_config(&config)
 }
 
+impl InputCatalog {
+    pub fn root_book(&self) -> Result<&InputBook> {
+        let mut root_books = self.books.iter().filter(|book| book.is_root_book);
+        let Some(root_book) = root_books.next() else {
+            bail!("input catalog must contain exactly one root book, found 0");
+        };
+
+        if root_books.next().is_some() {
+            bail!("input catalog must contain exactly one root book, found multiple");
+        }
+
+        Ok(root_book)
+    }
+}
+
 fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCatalog> {
     let mut books = Vec::with_capacity(config.books.len() + 1);
+    let root_output_rel = config.mdbook_config.book.src.clone();
 
     books.push(build_catalog_book(
         &config.config_dir,
-        &config.root_book_id,
-        PathBuf::from("books").join(&config.root_book_id),
+        &path_to_book_key(&root_output_rel),
+        root_output_rel,
         PathBuf::from("."),
         &config.mdbook_config.book,
         true,
@@ -47,8 +62,8 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
     for book in &config.books {
         books.push(build_catalog_book(
             &config.config_dir,
-            &path_to_book_key(&book.mount_rel),
-            book.mount_rel.clone(),
+            &path_to_book_key(&book.source_rel),
+            book.source_rel.clone(),
             book_root_from_source_rel(&book.source_rel),
             &book.book,
             false,
@@ -57,18 +72,13 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
 
     let root_book_count = books.iter().filter(|book| book.is_root_book).count();
     if root_book_count != 1 {
-        bail!(
-            "input catalog must contain exactly one root book '{}', found {}",
-            config.root_book_id,
-            root_book_count
-        );
+        bail!("input catalog must contain exactly one root book, found {root_book_count}");
     }
 
     Ok(InputCatalog {
         config_path: config.config_path.clone(),
         config_dir: config.config_dir.clone(),
         mdbook_config: config.mdbook_config.clone(),
-        root_book_id: config.root_book_id.clone(),
         books,
     })
 }

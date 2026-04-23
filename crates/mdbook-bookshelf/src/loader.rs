@@ -24,6 +24,7 @@ pub fn load_books_from_config(config_path: impl AsRef<Path>) -> Result<LoadedBoo
 
 pub fn load_books_from_catalog(catalog: &InputCatalog) -> Result<LoadedBooks> {
     let mut books = Vec::with_capacity(catalog.books.len());
+    let root_book_id = catalog.root_book()?.id.clone();
 
     for book in &catalog.books {
         let summary_text = fs::read_to_string(&book.summary_abs).with_context(|| {
@@ -65,7 +66,7 @@ pub fn load_books_from_catalog(catalog: &InputCatalog) -> Result<LoadedBooks> {
     }
 
     Ok(LoadedBooks {
-        root_book_id: catalog.root_book_id.clone(),
+        root_book_id,
         books,
     })
 }
