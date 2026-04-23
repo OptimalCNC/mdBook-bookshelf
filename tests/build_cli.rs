@@ -414,6 +414,7 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     assert_text_contains(&root_index_html, "bookshelf-breadcrumb.js");
     assert_text_contains(&root_index_html, "bookshelf-return.css");
     assert_text_contains(&root_index_html, "bookshelf-return.js");
+    assert_stock_search_contract(&output_dir.join("books/meta"), &root_index_html);
     assert_text_not_contains(&root_index_html, "Choose a book to enter its root page.");
     assert_text_not_contains(
         &root_index_html,
@@ -425,6 +426,7 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     assert_text_contains(&parser_index_html, "bookshelf-breadcrumb.js");
     assert_text_contains(&parser_index_html, "bookshelf-return.css");
     assert_text_contains(&parser_index_html, "bookshelf-return.js");
+    assert_stock_search_contract(&output_dir.join("books/parser"), &parser_index_html);
     let architecture_html = assert_read_to_string(output_dir.join("books/meta/architecture.html"));
     assert_text_contains(&architecture_html, "bookshelf-breadcrumb.css");
     assert_text_contains(&architecture_html, "bookshelf-breadcrumb.js");
@@ -715,6 +717,28 @@ fn assert_root_bookshelf_affix(root_toc_html: &str) {
     assert_eq!(
         last_link, bookshelf,
         "expected Bookshelf affix to be the trailing root-book sidebar entry"
+    );
+}
+
+fn assert_stock_search_contract(book_dir: &Path, page_html: &str) {
+    let searchindex_js = assert_has_file_with_prefix(book_dir, "searchindex-", ".js");
+    let searcher_js = assert_has_file_with_prefix(book_dir, "searcher-", ".js");
+    let elasticlunr_js = assert_has_file_with_prefix(book_dir, "elasticlunr-", ".min.js");
+    let mark_js = assert_has_file_with_prefix(book_dir, "mark-", ".min.js");
+
+    assert_text_contains(page_html, "id=\"mdbook-search-toggle\"");
+    assert_text_contains(page_html, "id=\"mdbook-search-wrapper\"");
+    assert_text_contains(page_html, "window.path_to_searchindex_js");
+    assert_text_contains(
+        page_html,
+        &format!("window.path_to_searchindex_js = \"{searchindex_js}\""),
+    );
+    assert_text_contains(page_html, &searcher_js);
+    assert_text_contains(page_html, &elasticlunr_js);
+    assert_text_contains(page_html, &mark_js);
+    assert_file_contains(
+        book_dir.join(searchindex_js),
+        "window.search = Object.assign(window.search, JSON.parse('",
     );
 }
 

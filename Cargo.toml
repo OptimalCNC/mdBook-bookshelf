@@ -15,7 +15,7 @@ path = "cli/mdbook-bookshelf/src/main.rs"
 anyhow = "1.0"
 axum = "0.8.8"
 clap = { version = "4.5.60", features = ["wrap_help"] }
-mdbook-driver = "0.5.2"
+mdbook-driver = { version = "0.5.2", features = ["search"] }
 mdbook-summary = "0.5.2"
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1.49.0", features = ["net", "rt"] }
