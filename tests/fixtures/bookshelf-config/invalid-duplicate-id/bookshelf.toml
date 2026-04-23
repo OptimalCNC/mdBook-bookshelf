@@ -4,9 +4,9 @@ root_book = "meta"
 [[bookshelf.book]]
 id = "meta"
 title = "Core Docs"
-summary = "docs/SUMMARY.md"
+src = "docs"
 
 [[bookshelf.book]]
 id = "meta"
 title = "Duplicate"
-summary = "modules/parser/docs/SUMMARY.md"
+src = "modules/parser/docs"

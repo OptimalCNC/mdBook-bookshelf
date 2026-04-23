@@ -4,4 +4,4 @@ root_book = "meta"
 [[bookshelf.book]]
 id = "meta"
 title = "Meta Root"
-summary = "docs/SUMMARY.md"
+src = "docs"

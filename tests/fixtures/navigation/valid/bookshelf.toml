@@ -4,9 +4,9 @@ root_book = "root"
 [[bookshelf.book]]
 id = "root"
 title = "Root Book"
-summary = "root-book/docs/SUMMARY.md"
+src = "root-book/docs"
 
 [[bookshelf.book]]
 id = "child"
 title = "Child Book"
-summary = "modules/child/docs/SUMMARY.md"
+src = "modules/child/docs"

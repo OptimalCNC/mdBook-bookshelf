@@ -69,7 +69,7 @@ fn input_catalog_build() {
     let missing_err = build_input_catalog(&missing_config).expect_err("must fail");
     assert_eq!(
         format!(
-            "book 'root' missing configured canonical summary 'docs/SUMMARY.md' at {}",
+            "book 'root' missing canonical summary 'docs/SUMMARY.md' derived from src 'docs' at {}",
             fixtures
                 .join("invalid-missing-summary/docs/SUMMARY.md")
                 .display()
@@ -85,7 +85,7 @@ fn input_catalog_build() {
     let location_err = build_input_catalog(&invalid_location_config).expect_err("must fail");
     assert_eq!(
         format!(
-            "book 'root' missing configured canonical summary 'docs/SUMMARY.md' at {}",
+            "book 'root' missing canonical summary 'docs/SUMMARY.md' derived from src 'docs' at {}",
             fixtures
                 .join("invalid-summary-location/docs/SUMMARY.md")
                 .display()

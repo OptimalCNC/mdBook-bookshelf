@@ -43,7 +43,7 @@ my-repo/
 ```
 
 For a nested workspace layout, every book can live under its own directory as
-long as its canonical summary stays under `docs/SUMMARY.md`:
+long as its mdBook source directory is `docs/`:
 
 ```text
 my-repo/
@@ -59,9 +59,9 @@ my-repo/
         index.md
 ```
 
-Across both layouts, use `summary = ".../docs/SUMMARY.md"` in
-`[[bookshelf.book]]` entries and treat each book's `docs/index.md` as its entry
-page. Concrete examples live in
+Across both layouts, use `src = ".../docs"` in `[[bookshelf.book]]` entries.
+Each book's canonical summary is always read from `<src>/SUMMARY.md`, and
+`<src>/index.md` remains its entry page. Concrete examples live in
 [`bookshelf/handoffs/examples/self-contained/`](./bookshelf/handoffs/examples/self-contained/)
 and [`tests/fixtures/input-catalog/`](./tests/fixtures/input-catalog/).
 
@@ -73,7 +73,6 @@ cargo test
 
 ## TODO
 
-- [ ] Use option "src" in each book instead of specifying "SUMMARY.md"
 - [ ] Cross-book reference
 - [ ] Support `mdBook` plugins `mdbook-mermaid`
 - [ ] Support `mdBook` plugins `mdbook-variables`

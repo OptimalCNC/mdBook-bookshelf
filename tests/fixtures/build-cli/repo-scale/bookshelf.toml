@@ -13,16 +13,16 @@ root_book = "metanc"
 id = "metanc"
 title = "MetaNC"
 description = "Repository-wide architecture, onboarding, and integration notes."
-summary = "docs/SUMMARY.md"
+src = "docs"
 
 [[bookshelf.book]]
 id = "gcode-parser"
 title = "G-code Parser"
 description = "Grammar, modal semantics, and parser diagnostics."
-summary = "modules/gcode-parser/docs/SUMMARY.md"
+src = "modules/gcode-parser/docs"
 
 [[bookshelf.book]]
 id = "hmi"
 title = "HMI"
 description = "Operator workflows and runtime notes for the interface book."
-summary = "modules/hmi/docs/SUMMARY.md"
+src = "modules/hmi/docs"

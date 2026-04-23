@@ -13,16 +13,16 @@ root_book = "meta"
 id = "meta"
 title = "Example Core"
 description = "Repository-wide onboarding and architecture notes."
-summary = "docs/SUMMARY.md"
+src = "docs"
 
 [[bookshelf.book]]
 id = "parser"
 title = "Example Parser"
 description = "Parser-specific reference pages with their own reading order."
-summary = "modules/parser/docs/SUMMARY.md"
+src = "modules/parser/docs"
 
 [[bookshelf.book]]
 id = "ui"
 title = "Example UI"
 description = "Interface and runtime guides for the UI book."
-summary = "modules/ui/docs/SUMMARY.md"
+src = "modules/ui/docs"

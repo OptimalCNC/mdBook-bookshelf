@@ -13,9 +13,9 @@ root_book = "meta" # inline comment should be ignored
 id = "meta"
 title = "Core Docs"
 description = "Root \"book\"." # escaped quote should parse by TOML semantics
-summary = "docs/SUMMARY.md" # inline comment
+src = "docs" # inline comment
 
 [[bookshelf.book]]
 id = "parser"
 title = "Parser Docs"
-summary = "modules/parser/docs/SUMMARY.md"
+src = "modules/parser/docs"

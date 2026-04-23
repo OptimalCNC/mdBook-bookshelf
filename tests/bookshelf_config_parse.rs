@@ -50,7 +50,7 @@ fn bookshelf_config_parse() {
         }
     }
 
-    let empty_catalog_dir = make_temp_dir("chunk-002-empty-catalog", &root);
+    let empty_catalog_dir = make_temp_dir("chunk-003-empty-catalog", &root);
     let empty_catalog_path =
         write_temp_bookshelf_toml(&empty_catalog_dir, "[bookshelf]\nroot_book = \"meta\"\n");
     let empty_catalog_error = load_bookshelf_config(&empty_catalog_path).expect_err("must fail");
@@ -60,7 +60,7 @@ fn bookshelf_config_parse() {
     );
     fs::remove_dir_all(&empty_catalog_dir).expect("temp fixture directory should be removed");
 
-    let quoted_semantics_dir = make_temp_dir("chunk-002-quoted-semantics", &root);
+    let quoted_semantics_dir = make_temp_dir("chunk-003-quoted-semantics", &root);
     let quoted_semantics_path = write_temp_bookshelf_toml(
         &quoted_semantics_dir,
         r#"
@@ -76,12 +76,53 @@ root_book = "meta" # comment
 [[bookshelf.book]]
 id = "meta"
 title = "Core #1 = Intro"
-summary = "docs/SUMMARY.md"
+src = "docs"
 "#,
     );
     let quoted_semantics = load_bookshelf_config(&quoted_semantics_path).expect("must parse");
     assert_eq!("Core #1 = Intro", quoted_semantics.books[0].title);
     fs::remove_dir_all(&quoted_semantics_dir).expect("temp fixture directory should be removed");
+
+    let invalid_parent_src_dir = make_temp_dir("chunk-003-invalid-parent-src", &root);
+    let invalid_parent_src_path = write_temp_bookshelf_toml(
+        &invalid_parent_src_dir,
+        r#"
+[bookshelf]
+root_book = "meta"
+
+[[bookshelf.book]]
+id = "meta"
+title = "Meta"
+src = "../docs"
+"#,
+    );
+    let invalid_parent_src_error =
+        load_bookshelf_config(&invalid_parent_src_path).expect_err("must fail");
+    assert_eq!(
+        "bookshelf.book 'meta' src path must not contain '.' or '..': '../docs'",
+        invalid_parent_src_error.to_string()
+    );
+    fs::remove_dir_all(&invalid_parent_src_dir).expect("temp fixture directory should be removed");
+
+    let empty_src_dir = make_temp_dir("chunk-003-empty-src", &root);
+    let empty_src_path = write_temp_bookshelf_toml(
+        &empty_src_dir,
+        r#"
+[bookshelf]
+root_book = "meta"
+
+[[bookshelf.book]]
+id = "meta"
+title = "Meta"
+src = ""
+"#,
+    );
+    let empty_src_error = load_bookshelf_config(&empty_src_path).expect_err("must fail");
+    assert_eq!(
+        "bookshelf.book 'meta' src path must not be empty",
+        empty_src_error.to_string()
+    );
+    fs::remove_dir_all(&empty_src_dir).expect("temp fixture directory should be removed");
 }
 
 struct Case {

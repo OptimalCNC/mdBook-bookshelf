@@ -32,17 +32,7 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
     let mut books = Vec::with_capacity(config.books.len());
 
     for book in &config.books {
-        let summary_rel = &book.summary_rel;
-        let book_src_rel = summary_rel
-            .parent()
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "book '{}' has invalid configured summary path '{}'",
-                    book.id,
-                    summary_rel.display()
-                )
-            })?
-            .to_path_buf();
+        let book_src_rel = book.book_src.clone();
         let book_root_rel = book_src_rel
             .parent()
             .map(Path::to_path_buf)
@@ -55,21 +45,24 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
 
         let book_root_abs = config.config_dir.join(&book_root_rel);
         let book_src_abs = config.config_dir.join(&book_src_rel);
-        let summary_abs = config.config_dir.join(summary_rel);
+        let summary_abs = book.summary_abs.clone();
+        let summary_rel = book_src_rel.join("SUMMARY.md");
 
         let metadata = std::fs::metadata(&summary_abs).with_context(|| {
             format!(
-                "book '{}' missing configured canonical summary '{}' at {}",
+                "book '{}' missing canonical summary '{}' derived from src '{}' at {}",
                 book.id,
                 summary_rel.display(),
+                book_src_rel.display(),
                 summary_abs.display()
             )
         })?;
         if !metadata.is_file() {
             bail!(
-                "book '{}' missing configured canonical summary '{}' at {}",
+                "book '{}' missing canonical summary '{}' derived from src '{}' at {}",
                 book.id,
                 summary_rel.display(),
+                book_src_rel.display(),
                 summary_abs.display()
             );
         }

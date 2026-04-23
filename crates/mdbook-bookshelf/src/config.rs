@@ -17,9 +17,7 @@ pub struct BookshelfBook {
     pub id: String,
     pub title: String,
     pub description: Option<String>,
-    pub summary_rel: PathBuf,
     pub summary_abs: PathBuf,
-    pub book_root: PathBuf,
     pub book_src: PathBuf,
 }
 
@@ -41,7 +39,7 @@ struct RawBook {
     id: Option<String>,
     title: Option<String>,
     description: Option<String>,
-    summary: Option<String>,
+    src: Option<String>,
 }
 
 pub fn load_bookshelf_config(path: impl AsRef<Path>) -> Result<BookshelfConfig> {
@@ -76,23 +74,20 @@ fn validate_and_build(
     for raw_book in raw.books {
         let id = required(raw_book.id, "bookshelf.book.id")?;
         let title = required(raw_book.title, "bookshelf.book.title")?;
-        let summary = required(raw_book.summary, "bookshelf.book.summary")?;
+        let book_src = required(raw_book.src, "bookshelf.book.src")?;
 
         if !seen_ids.insert(id.clone()) {
             bail!("duplicate bookshelf.book id: '{id}'");
         }
 
-        let summary_rel = normalize_summary_rel_path(&id, &summary)?;
-        let book_src = summary_rel.parent().unwrap_or(Path::new("")).to_path_buf();
-        let summary_abs = config_dir.join(&summary_rel);
+        let book_src = normalize_book_src_rel_path(&id, &book_src)?;
+        let summary_abs = derive_summary_abs(&config_dir, &book_src);
 
         books.push(BookshelfBook {
             id,
             title,
             description: raw_book.description,
-            summary_rel,
             summary_abs,
-            book_root: config_dir.clone(),
             book_src,
         });
     }
@@ -113,15 +108,15 @@ fn required(value: Option<String>, key: &str) -> Result<String> {
     value.ok_or_else(|| anyhow::anyhow!("missing required key {key}"))
 }
 
-fn normalize_summary_rel_path(book_id: &str, raw_path: &str) -> Result<PathBuf> {
+fn normalize_book_src_rel_path(book_id: &str, raw_path: &str) -> Result<PathBuf> {
     let path = Path::new(raw_path);
 
-    if path.is_absolute() {
-        bail!("bookshelf.book '{book_id}' summary path must be relative: '{raw_path}'");
+    if raw_path.is_empty() {
+        bail!("bookshelf.book '{book_id}' src path must not be empty");
     }
 
-    if !raw_path.ends_with("SUMMARY.md") {
-        bail!("bookshelf.book '{book_id}' summary path must end with SUMMARY.md: '{raw_path}'");
+    if path.is_absolute() {
+        bail!("bookshelf.book '{book_id}' src path must be relative: '{raw_path}'");
     }
 
     let mut normalized = PathBuf::new();
@@ -130,20 +125,22 @@ fn normalize_summary_rel_path(book_id: &str, raw_path: &str) -> Result<PathBuf> 
             Component::Normal(part) => normalized.push(part),
             Component::CurDir | Component::ParentDir => {
                 bail!(
-                    "bookshelf.book '{book_id}' summary path must not contain '.' or '..': '{raw_path}'"
+                    "bookshelf.book '{book_id}' src path must not contain '.' or '..': '{raw_path}'"
                 )
             }
             Component::RootDir | Component::Prefix(_) => {
-                bail!("bookshelf.book '{book_id}' summary path must be relative: '{raw_path}'")
+                bail!("bookshelf.book '{book_id}' src path must be relative: '{raw_path}'")
             }
         }
     }
 
-    if normalized.parent().is_none_or(|p| p.as_os_str().is_empty()) {
-        bail!(
-            "bookshelf.book '{book_id}' summary path must include a source directory before SUMMARY.md: '{raw_path}'"
-        );
+    if normalized.as_os_str().is_empty() {
+        bail!("bookshelf.book '{book_id}' src path must not be empty");
     }
 
     Ok(normalized)
+}
+
+fn derive_summary_abs(config_dir: &Path, book_src: &Path) -> PathBuf {
+    config_dir.join(book_src).join("SUMMARY.md")
 }
