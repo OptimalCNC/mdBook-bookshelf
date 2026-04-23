@@ -391,10 +391,13 @@ process.stdout.write(
 
 const SEARCH_COLD_LOAD_AUDIT_HARNESS: &str = r##"
 const fs = require("node:fs");
+const path = require("node:path");
 
-const [searcherPath, pageHref, pathToRoot, initialSearchIndex] = process.argv.slice(1);
+const [pageHtmlPath, pageHref] = process.argv.slice(1);
+const pageHtml = fs.readFileSync(pageHtmlPath, "utf8");
 const pageUrl = new URL(pageHref);
 const appendedScripts = [];
+const relevantScripts = [];
 
 class FakeClassList {
   constructor(initialValue = "") {
@@ -508,7 +511,6 @@ globalThis.window = {
     href: pageHref,
     pathname: pageUrl.pathname,
   },
-  path_to_searchindex_js: initialSearchIndex,
   scrollTo() {},
   setTimeout() {},
   search: {},
@@ -520,6 +522,7 @@ globalThis.document = {
       appendedScripts.push({
         id: node.id || "",
         src: node.src || "",
+        configured: window.path_to_searchindex_js || "",
       });
     },
   },
@@ -538,16 +541,77 @@ globalThis.document = {
     return createElement(normalized);
   },
 };
-globalThis.path_to_root = pathToRoot;
+globalThis.__audit = {
+  configuredAfterConfig: "",
+  configuredAfterSearcher: "",
+  configuredAfterOverride: "",
+  pathToRoot: "",
+  sequence: [],
+};
 
-eval(fs.readFileSync(searcherPath, "utf8"));
+const scriptPattern = /<script(?:\s+src="([^"]+)")?[^>]*>([\s\S]*?)<\/script>/g;
+let match;
+while ((match = scriptPattern.exec(pageHtml)) !== null) {
+  const src = match[1] || "";
+  const content = match[2] || "";
+  if (!src && content.includes("const path_to_root =") && content.includes("window.path_to_searchindex_js")) {
+    relevantScripts.push({
+      label: "config",
+      code: content,
+    });
+    continue;
+  }
+  if (src.includes("searcher-")) {
+    relevantScripts.push({
+      label: src,
+      code: fs.readFileSync(path.resolve(path.dirname(pageHtmlPath), src), "utf8"),
+    });
+    continue;
+  }
+  if (src.endsWith("bookshelf-search.js")) {
+    relevantScripts.push({
+      label: src,
+      code: fs.readFileSync(path.resolve(path.dirname(pageHtmlPath), src), "utf8"),
+    });
+  }
+}
+
+const combinedSource = relevantScripts
+  .map((script) => {
+    const lines = [`globalThis.__audit.sequence.push(${JSON.stringify(script.label)});`, script.code];
+    if (script.label === "config") {
+      lines.push(
+        "globalThis.__audit.pathToRoot = typeof path_to_root === \"string\" ? path_to_root : \"\";",
+      );
+      lines.push(
+        "globalThis.__audit.configuredAfterConfig = window.path_to_searchindex_js || \"\";",
+      );
+    } else if (script.label.includes("searcher-")) {
+      lines.push(
+        "globalThis.__audit.configuredAfterSearcher = window.path_to_searchindex_js || \"\";",
+      );
+    } else if (script.label.endsWith("bookshelf-search.js")) {
+      lines.push(
+        "globalThis.__audit.configuredAfterOverride = window.path_to_searchindex_js || \"\";",
+      );
+    }
+    return lines.join("\n");
+  })
+  .join("\n");
+
+eval(combinedSource);
 
 const first = appendedScripts[0] || null;
 process.stdout.write(
   [
+    `sequence=${globalThis.__audit.sequence.join("|")}`,
+    `pathToRoot=${globalThis.__audit.pathToRoot}`,
+    `configuredAfterConfig=${globalThis.__audit.configuredAfterConfig}`,
+    `configuredAfterSearcher=${globalThis.__audit.configuredAfterSearcher}`,
+    `configuredAfterOverride=${globalThis.__audit.configuredAfterOverride}`,
     `requested=${first ? first.src : ""}`,
     `requestedId=${first ? first.id : ""}`,
-    `configured=${window.path_to_searchindex_js || ""}`,
+    `requestedConfigured=${first ? first.configured : ""}`,
   ].join("\n"),
 );
 "##;
@@ -972,7 +1036,7 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
         assert_read_to_string(output_dir.join("books/metanc/architecture.html"));
     let parser_index_html = assert_read_to_string(output_dir.join("books/gcode-parser/index.html"));
     let modal_groups_html =
-        assert_read_to_string(output_dir.join("books/gcode-parser/modal-groups.html"));
+        assert_read_to_string(output_dir.join("books/gcode-parser/reference/modal-groups.html"));
     let hmi_index_html = assert_read_to_string(output_dir.join("books/hmi/index.html"));
 
     assert_stock_search_contract(&output_dir.join("books/metanc"), &metanc_index_html);
@@ -1039,9 +1103,10 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
         &output_dir.join("books/gcode-parser"),
         "bookshelf-breadcrumb.js",
     );
-    assert_runtime_breadcrumb(
+    assert_runtime_breadcrumb_with_path_to_root(
         &parser_breadcrumb_script,
-        "https://example.test/books/gcode-parser/modal-groups.html",
+        "https://example.test/books/gcode-parser/reference/modal-groups.html",
+        "../",
         "G-code Parser / Modal Groups",
     );
 
@@ -1055,18 +1120,18 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
             ));
     assert_runtime_toc(
         &parser_toc_script,
-        "https://example.test/books/gcode-parser/modal-groups.html#group-one",
-        "",
+        "https://example.test/books/gcode-parser/reference/modal-groups.html#group-one",
+        "../",
         &["G-code Parser", "Grammar", "Modal Groups", "Diagnostics"],
         "Modal Groups",
-        "https://example.test/books/gcode-parser/modal-groups.html",
+        "https://example.test/books/gcode-parser/reference/modal-groups.html",
     );
 
     let shared_search_path = output_dir.join("searchindex.js");
     let shared_search_js = assert_read_to_string(shared_search_path.clone());
     assert_text_contains(
         &shared_search_js,
-        "\"../gcode-parser/modal-groups.html#modal-groups\"",
+        "\"../gcode-parser/reference/modal-groups.html#modal-groups\"",
     );
     assert_text_contains(
         &shared_search_js,
@@ -1091,13 +1156,13 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
         "",
         "modal latch witness token",
         "G-code Parser » Grammar » Modal Groups » Modal Groups",
-        "https://example.test/books/gcode-parser/modal-groups.html?highlight=modal%20latch%20witness%20token#modal-groups",
+        "https://example.test/books/gcode-parser/reference/modal-groups.html?highlight=modal%20latch%20witness%20token#modal-groups",
     );
     assert_runtime_search_result(
         &elasticlunr_js,
         &shared_search_path,
-        "https://example.test/books/gcode-parser/modal-groups.html",
-        "",
+        "https://example.test/books/gcode-parser/reference/modal-groups.html",
+        "../",
         "site-wide breadcrumb label audit witness",
         "MetaNC » Architecture » Architecture",
         "https://example.test/books/metanc/architecture.html?highlight=site-wide%20breadcrumb%20label%20audit%20witness#architecture",
@@ -1126,12 +1191,14 @@ fn build_cli_audits_search_cold_load_residual_on_repo_scale_output() {
     run_build_cli(&bin, &config_path, &output_dir);
 
     let parser_page_html =
-        assert_read_to_string(output_dir.join("books/gcode-parser/modal-groups.html"));
+        assert_read_to_string(output_dir.join("books/gcode-parser/reference/modal-groups.html"));
     let local_search_index = extract_inline_searchindex_path(&parser_page_html);
+    let page_path_to_root = extract_inline_path_to_root(&parser_page_html);
     assert_text_contains(
         &parser_page_html,
         &format!("window.path_to_searchindex_js = \"{local_search_index}\""),
     );
+    assert_eq!(page_path_to_root, "../");
 
     let searcher_name =
         assert_has_file_with_prefix(&output_dir.join("books/gcode-parser"), "searcher-", ".js");
@@ -1147,10 +1214,36 @@ fn build_cli_audits_search_cold_load_residual_on_repo_scale_output() {
     );
 
     let audit = run_search_cold_load_audit(
-        &output_dir.join("books/gcode-parser").join(&searcher_name),
-        "https://example.test/books/gcode-parser/modal-groups.html?search=modal%20latch%20witness%20token",
-        "",
-        &local_search_index,
+        &output_dir.join("books/gcode-parser/reference/modal-groups.html"),
+        "https://example.test/books/gcode-parser/reference/modal-groups.html?search=modal%20latch%20witness%20token",
+    );
+    assert!(
+        audit.script_sequence.iter().any(|entry| entry == "config"),
+        "expected emitted page HTML to include the inline search config script"
+    );
+    assert!(
+        audit
+            .script_sequence
+            .iter()
+            .any(|entry| entry.contains("searcher-")),
+        "expected emitted page HTML to include the stock searcher script"
+    );
+    assert!(
+        audit
+            .script_sequence
+            .iter()
+            .any(|entry| entry.ends_with("bookshelf-search.js")),
+        "expected emitted page HTML to include the bookshelf search override script"
+    );
+    assert_eq!(
+        audit.path_to_root.as_deref(),
+        Some("../"),
+        "expected nested parser page to emit a non-empty path_to_root"
+    );
+    assert_eq!(
+        audit.configured_after_config.as_deref(),
+        Some(local_search_index.as_str()),
+        "expected emitted page config to seed the local per-book search index path"
     );
     assert_eq!(
         audit.requested_src.as_deref(),
@@ -1163,9 +1256,19 @@ fn build_cli_audits_search_cold_load_residual_on_repo_scale_output() {
         "expected searcher.js to request the initial cold-load search index script"
     );
     assert_eq!(
-        audit.configured_path.as_deref(),
+        audit.requested_configured.as_deref(),
         Some(local_search_index.as_str()),
-        "expected the initial configured search index path to remain page-local during searcher.js startup"
+        "expected the emitted page to remain configured for the local per-book index when searcher.js issues the initial cold-load request"
+    );
+    assert_eq!(
+        audit.configured_after_searcher.as_deref(),
+        Some(local_search_index.as_str()),
+        "expected searcher.js startup to preserve the page-local search index path until the later override script runs"
+    );
+    assert_eq!(
+        audit.configured_after_override.as_deref(),
+        Some("../../../searchindex.js"),
+        "expected the later bookshelf override to switch the nested page to the shared site-wide search index path"
     );
 
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
@@ -1313,7 +1416,16 @@ fn assert_stock_search_contract(book_dir: &Path, page_html: &str) {
 }
 
 fn assert_runtime_breadcrumb(script_path: &Path, page_href: &str, expected_text: &str) {
-    let result = run_breadcrumb_runtime(script_path, page_href, "");
+    assert_runtime_breadcrumb_with_path_to_root(script_path, page_href, "", expected_text);
+}
+
+fn assert_runtime_breadcrumb_with_path_to_root(
+    script_path: &Path,
+    page_href: &str,
+    path_to_root: &str,
+    expected_text: &str,
+) {
+    let result = run_breadcrumb_runtime(script_path, page_href, path_to_root);
     assert_eq!(
         result.count, 1,
         "expected exactly one breadcrumb node for {page_href}"
@@ -1534,6 +1646,16 @@ fn extract_inline_searchindex_path(page_html: &str) -> String {
     path.to_string()
 }
 
+fn extract_inline_path_to_root(page_html: &str) -> String {
+    let (_, rest) = page_html
+        .split_once("const path_to_root = \"")
+        .expect("page HTML should configure path_to_root");
+    let (path_to_root, _) = rest
+        .split_once('"')
+        .expect("path_to_root assignment should terminate");
+    path_to_root.to_string()
+}
+
 fn collect_files_named_recursive(dir: &Path, name: &str, matches: &mut Vec<PathBuf>) {
     let mut entries = fs::read_dir(dir)
         .unwrap_or_else(|err| panic!("failed to read {}: {err}", dir.display()))
@@ -1647,9 +1769,14 @@ struct SearchRuntimeResult {
 
 #[derive(Debug, Default, PartialEq, Eq)]
 struct SearchColdLoadAuditResult {
+    script_sequence: Vec<String>,
+    path_to_root: Option<String>,
+    configured_after_config: Option<String>,
+    configured_after_searcher: Option<String>,
+    configured_after_override: Option<String>,
     requested_src: Option<String>,
     requested_id: Option<String>,
-    configured_path: Option<String>,
+    requested_configured: Option<String>,
 }
 
 fn parse_toc_runtime_output(output: &str) -> TocRuntimeResult {
@@ -1702,26 +1829,19 @@ fn parse_search_runtime_output(output: &str) -> SearchRuntimeResult {
     result
 }
 
-fn run_search_cold_load_audit(
-    searcher_path: &Path,
-    page_href: &str,
-    path_to_root: &str,
-    initial_searchindex_path: &str,
-) -> SearchColdLoadAuditResult {
+fn run_search_cold_load_audit(page_html_path: &Path, page_href: &str) -> SearchColdLoadAuditResult {
     let output = Command::new("node")
         .arg("-e")
         .arg(SEARCH_COLD_LOAD_AUDIT_HARNESS)
-        .arg(searcher_path)
+        .arg(page_html_path)
         .arg(page_href)
-        .arg(path_to_root)
-        .arg(initial_searchindex_path)
         .output()
         .expect("node search cold-load harness should run");
 
     if !output.status.success() {
         panic!(
             "node search cold-load harness failed for {}\nstdout:\n{}\nstderr:\n{}",
-            searcher_path.display(),
+            page_html_path.display(),
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
@@ -1734,7 +1854,29 @@ fn parse_search_cold_load_audit_output(output: &str) -> SearchColdLoadAuditResul
     let mut result = SearchColdLoadAuditResult::default();
 
     for line in output.lines() {
-        if let Some(value) = line.strip_prefix("requested=") {
+        if let Some(value) = line.strip_prefix("sequence=") {
+            result.script_sequence = if value.is_empty() {
+                Vec::new()
+            } else {
+                value.split('|').map(|entry| entry.to_string()).collect()
+            };
+        } else if let Some(value) = line.strip_prefix("pathToRoot=") {
+            if !value.is_empty() {
+                result.path_to_root = Some(value.to_string());
+            }
+        } else if let Some(value) = line.strip_prefix("configuredAfterConfig=") {
+            if !value.is_empty() {
+                result.configured_after_config = Some(value.to_string());
+            }
+        } else if let Some(value) = line.strip_prefix("configuredAfterSearcher=") {
+            if !value.is_empty() {
+                result.configured_after_searcher = Some(value.to_string());
+            }
+        } else if let Some(value) = line.strip_prefix("configuredAfterOverride=") {
+            if !value.is_empty() {
+                result.configured_after_override = Some(value.to_string());
+            }
+        } else if let Some(value) = line.strip_prefix("requested=") {
             if !value.is_empty() {
                 result.requested_src = Some(value.to_string());
             }
@@ -1742,9 +1884,9 @@ fn parse_search_cold_load_audit_output(output: &str) -> SearchColdLoadAuditResul
             if !value.is_empty() {
                 result.requested_id = Some(value.to_string());
             }
-        } else if let Some(value) = line.strip_prefix("configured=") {
+        } else if let Some(value) = line.strip_prefix("requestedConfigured=") {
             if !value.is_empty() {
-                result.configured_path = Some(value.to_string());
+                result.requested_configured = Some(value.to_string());
             }
         }
     }
