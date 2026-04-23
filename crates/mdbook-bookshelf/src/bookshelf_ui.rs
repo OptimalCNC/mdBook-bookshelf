@@ -143,14 +143,13 @@ impl TransientBookshelfUiAssets {
             })?;
         }
 
-        prune_empty_dir_tree(&self.config_root.join(BOOKSHELF_UI_ASSET_DIR)).with_context(
-            || {
+        prune_empty_bookshelf_ui_dirs(&self.config_root.join(BOOKSHELF_UI_ASSET_DIR))
+            .with_context(|| {
                 format!(
                     "failed to prune empty bookshelf UI asset directories under {}",
                     self.config_root.display()
                 )
-            },
-        )?;
+            })?;
 
         self.cleaned = true;
         Ok(())
@@ -227,6 +226,35 @@ fn prune_empty_dir_tree(path: &Path) -> std::io::Result<bool> {
         if child.is_dir() {
             let _ = prune_empty_dir_tree(&child)?;
         }
+    }
+
+    if fs::read_dir(path)?.next().is_none() {
+        fs::remove_dir(path)?;
+        return Ok(true);
+    }
+
+    Ok(false)
+}
+
+fn prune_empty_bookshelf_ui_dirs(path: &Path) -> std::io::Result<bool> {
+    if !path.is_dir() {
+        return Ok(false);
+    }
+
+    let entries = fs::read_dir(path)?.collect::<Result<Vec<_>, _>>()?;
+    for entry in entries {
+        let child = entry.path();
+        if !child.is_dir() {
+            continue;
+        }
+
+        let child_name = entry.file_name();
+        if child_name.to_string_lossy().starts_with("build-") {
+            // Sibling build roots may belong to concurrent builds. Leave them untouched.
+            continue;
+        }
+
+        let _ = prune_empty_dir_tree(&child)?;
     }
 
     if fs::read_dir(path)?.next().is_none() {
@@ -560,6 +588,47 @@ mod tests {
         ui_assets.cleanup().expect("cleanup should succeed");
 
         assert!(!temp_root.join(BOOKSHELF_UI_ASSET_DIR).exists());
+        fs::remove_dir_all(temp_root).expect("temporary asset directory should be removed");
+    }
+
+    #[test]
+    fn cleanup_preserves_sibling_build_roots_while_pruning_legacy_empty_dirs() {
+        let temp_root = make_temp_dir("mdbook-bookshelf-bookshelf-ui-sibling");
+        let legacy_shared_dir = temp_root
+            .join(BOOKSHELF_UI_ASSET_DIR)
+            .join(BOOKSHELF_UI_SHARED_DIR);
+        let legacy_book_dir = temp_root
+            .join(BOOKSHELF_UI_ASSET_DIR)
+            .join(BOOKSHELF_UI_BOOKS_DIR)
+            .join("meta");
+        let sibling_build_dir = temp_root
+            .join(BOOKSHELF_UI_ASSET_DIR)
+            .join("build-sibling")
+            .join(BOOKSHELF_UI_SHARED_DIR);
+
+        fs::create_dir_all(&legacy_shared_dir).expect("legacy shared dir should be created");
+        fs::create_dir_all(&legacy_book_dir).expect("legacy book dir should be created");
+        fs::create_dir_all(&sibling_build_dir).expect("sibling build dir should be created");
+        fs::write(sibling_build_dir.join("keep.js"), "console.log('keep');")
+            .expect("sibling build marker should be written");
+
+        let mut ui_assets =
+            TransientBookshelfUiAssets::new(&temp_root).expect("asset root should be created");
+        let mut config = Config::default();
+        ui_assets
+            .inject_bookshelf_ui_assets(&mut config, "meta", "meta", &sample_breadcrumb_pages())
+            .expect("asset injection should succeed");
+
+        ui_assets.cleanup().expect("cleanup should succeed");
+
+        assert!(!legacy_shared_dir.exists());
+        assert!(!temp_root
+            .join(BOOKSHELF_UI_ASSET_DIR)
+            .join(BOOKSHELF_UI_BOOKS_DIR)
+            .exists());
+        assert!(sibling_build_dir.exists());
+        assert!(temp_root.join(BOOKSHELF_UI_ASSET_DIR).exists());
+
         fs::remove_dir_all(temp_root).expect("temporary asset directory should be removed");
     }
 
