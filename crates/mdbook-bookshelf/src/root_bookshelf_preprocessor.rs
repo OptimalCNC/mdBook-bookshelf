@@ -19,10 +19,15 @@ pub fn site_root_bookshelf_entry_path(root_output_rel: impl AsRef<Path>) -> Stri
 }
 
 pub fn ensure_reserved_bookshelf_path_is_available(book: &Book, book_id: &str) -> Result<()> {
-    let reserved_path = Path::new(ROOT_BOOKSHELF_CHAPTER_PATH);
     if book
         .chapters()
-        .any(|chapter| chapter.path.as_deref() == Some(reserved_path))
+        .any(|chapter| {
+            chapter
+                .path
+                .as_deref()
+                .and_then(Path::file_name)
+                .is_some_and(|name| name == ROOT_BOOKSHELF_CHAPTER_PATH)
+        })
     {
         bail!(
             "book '{}' already contains reserved bookshelf path '{}'",

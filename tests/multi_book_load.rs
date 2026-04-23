@@ -77,8 +77,8 @@ fn multi_book_load() {
 }
 
 #[test]
-fn rejects_authored_bookshelf_page_in_child_book() {
-    let temp = TempDir::new("chunk-06d-authored-child-bookshelf");
+fn rejects_nested_authored_bookshelf_page_in_child_book() {
+    let temp = TempDir::new("chunk-06d-authored-nested-child-bookshelf");
     write_file(
         temp.path(),
         "docs/SUMMARY.md",
@@ -88,10 +88,14 @@ fn rejects_authored_bookshelf_page_in_child_book() {
     write_file(
         temp.path(),
         "modules/child/docs/SUMMARY.md",
-        "# Summary\n\n- [Child](index.md)\n- [Bookshelf](bookshelf.md)\n",
+        "# Summary\n\n- [Child](index.md)\n- [Guide](guide/bookshelf.md)\n",
     );
     write_file(temp.path(), "modules/child/docs/index.md", "# Child\n");
-    write_file(temp.path(), "modules/child/docs/bookshelf.md", "# Child Bookshelf\n");
+    write_file(
+        temp.path(),
+        "modules/child/docs/guide/bookshelf.md",
+        "# Nested Child Bookshelf\n",
+    );
     let config_path = write_file(
         temp.path(),
         "bookshelf.toml",
@@ -110,7 +114,7 @@ src = "modules/child/docs"
 
     let catalog = build_input_catalog(&config_path).expect("catalog should build");
     let error = match load_books_from_catalog(&catalog) {
-        Ok(_) => panic!("reserved child bookshelf page must fail"),
+        Ok(_) => panic!("reserved nested child bookshelf page must fail"),
         Err(error) => error,
     };
     let error_text = format!("{error:#}");
