@@ -336,6 +336,59 @@ process.stdout.write(
 );
 "##;
 
+const SEARCH_RUNTIME_HARNESS: &str = r##"
+const fs = require("node:fs");
+
+const [elasticlunrPath, searchIndexPath, pageHref, pathToRoot, query] = process.argv.slice(1);
+const pageUrl = new URL(pageHref);
+
+globalThis.window = {
+  location: {
+    href: pageHref,
+    pathname: pageUrl.pathname,
+  },
+  search: {},
+};
+globalThis.document = {};
+globalThis.path_to_root = pathToRoot;
+
+const elasticlunrApi = require(elasticlunrPath);
+eval(fs.readFileSync(searchIndexPath, "utf8"));
+
+const index = elasticlunrApi.Index.load(window.search.index);
+const results = index.search(query, window.search.search_options);
+const first = results[0] || null;
+let href = "";
+let breadcrumbs = "";
+
+if (first) {
+  const url = String(window.search.doc_urls[first.ref] || "").split("#");
+  if (url.length === 1) {
+    url.push("");
+  }
+  const encodedSearch = encodeURIComponent(
+    query
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .join(" "),
+  ).replace(/'/g, "%27");
+  href = new URL(
+    pathToRoot + url[0] + "?highlight=" + encodedSearch + "#" + url[1],
+    pageHref,
+  ).toString();
+  breadcrumbs = first.doc && first.doc.breadcrumbs ? first.doc.breadcrumbs : "";
+}
+
+process.stdout.write(
+  [
+    `count=${results.length}`,
+    `breadcrumbs=${breadcrumbs}`,
+    `href=${href}`,
+  ].join("\n"),
+);
+"##;
+
 #[test]
 fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -634,6 +687,89 @@ fn build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir() {
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
 
+#[test]
+fn build_cli_uses_shared_site_wide_search_index() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook"));
+    let config_path = repo_root.join("bookshelf/handoffs/examples/self-contained/bookshelf.toml");
+    let output_dir = make_temp_dir("chunk-019-build-cli", &repo_root);
+
+    let output = Command::new(&bin)
+        .arg("build")
+        .arg(&config_path)
+        .arg("--dest-dir")
+        .arg(&output_dir)
+        .output()
+        .expect("build command should run");
+
+    if !output.status.success() {
+        panic!(
+            "build command failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let shared_search_path = output_dir.join("searchindex.js");
+    let shared_search_js = assert_read_to_string(shared_search_path.clone());
+    assert_text_contains(
+        &shared_search_js,
+        "window.search = Object.assign(window.search, {",
+    );
+    assert_text_contains(&shared_search_js, "\"../parser/grammar.html#grammar\"");
+    assert_text_contains(
+        &shared_search_js,
+        "\"../meta/architecture.html#architecture\"",
+    );
+
+    let root_index_html = assert_read_to_string(output_dir.join("books/meta/index.html"));
+    let parser_grammar_html = assert_read_to_string(output_dir.join("books/parser/grammar.html"));
+    assert_text_contains(&root_index_html, "bookshelf-search.js");
+    assert_text_contains(&parser_grammar_html, "bookshelf-search.js");
+
+    let root_search_override =
+        assert_single_file_named_recursive(&output_dir.join("books/meta"), "bookshelf-search.js");
+    let parser_search_override =
+        assert_single_file_named_recursive(&output_dir.join("books/parser"), "bookshelf-search.js");
+    assert_file_contains(
+        root_search_override,
+        "window.path_to_searchindex_js = `${rootPath}../../searchindex.js`;",
+    );
+    assert_file_contains(
+        parser_search_override,
+        "window.path_to_searchindex_js = `${rootPath}../../searchindex.js`;",
+    );
+
+    let elasticlunr_js = output_dir
+        .join("books/meta")
+        .join(assert_has_file_with_prefix(
+            &output_dir.join("books/meta"),
+            "elasticlunr-",
+            ".min.js",
+        ));
+
+    assert_runtime_search_result(
+        &elasticlunr_js,
+        &shared_search_path,
+        "https://example.test/books/meta/index.html",
+        "",
+        "concern sidebar",
+        "Example Parser » Grammar » Grammar",
+        "https://example.test/books/parser/grammar.html?highlight=concern%20sidebar#grammar",
+    );
+    assert_runtime_search_result(
+        &elasticlunr_js,
+        &shared_search_path,
+        "https://example.test/books/parser/grammar.html",
+        "",
+        "scoped label",
+        "Example Core » Architecture » Architecture",
+        "https://example.test/books/meta/architecture.html?highlight=scoped%20label#architecture",
+    );
+
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+}
+
 fn assert_exists(path: PathBuf) {
     assert!(path.exists(), "expected {} to exist", path.display());
 }
@@ -802,6 +938,45 @@ fn assert_runtime_toc(
     );
 }
 
+fn assert_runtime_search_result(
+    elasticlunr_path: &Path,
+    searchindex_path: &Path,
+    page_href: &str,
+    path_to_root: &str,
+    query: &str,
+    expected_breadcrumbs: &str,
+    expected_href: &str,
+) {
+    let result = run_search_runtime(
+        elasticlunr_path,
+        searchindex_path,
+        page_href,
+        path_to_root,
+        query,
+    );
+
+    assert!(
+        result.count > 0,
+        "expected shared search index to return results for query {:?} from {}",
+        query,
+        page_href
+    );
+    assert_eq!(
+        result.first_breadcrumbs.as_deref(),
+        Some(expected_breadcrumbs),
+        "unexpected first search result label for query {:?} from {}",
+        query,
+        page_href
+    );
+    assert_eq!(
+        result.first_href.as_deref(),
+        Some(expected_href),
+        "unexpected first search result href for query {:?} from {}",
+        query,
+        page_href
+    );
+}
+
 fn run_breadcrumb_runtime(
     script_path: &Path,
     page_href: &str,
@@ -848,6 +1023,36 @@ fn run_toc_runtime(script_path: &Path, page_href: &str, path_to_root: &str) -> T
     }
 
     parse_toc_runtime_output(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn run_search_runtime(
+    elasticlunr_path: &Path,
+    searchindex_path: &Path,
+    page_href: &str,
+    path_to_root: &str,
+    query: &str,
+) -> SearchRuntimeResult {
+    let output = Command::new("node")
+        .arg("-e")
+        .arg(SEARCH_RUNTIME_HARNESS)
+        .arg(elasticlunr_path)
+        .arg(searchindex_path)
+        .arg(page_href)
+        .arg(path_to_root)
+        .arg(query)
+        .output()
+        .expect("node search harness should run");
+
+    if !output.status.success() {
+        panic!(
+            "node search harness failed for {}\nstdout:\n{}\nstderr:\n{}",
+            searchindex_path.display(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    parse_search_runtime_output(&String::from_utf8_lossy(&output.stdout))
 }
 
 fn assert_read_to_string(path: PathBuf) -> String {
@@ -975,6 +1180,13 @@ struct TocRuntimeResult {
     labels: Vec<String>,
 }
 
+#[derive(Debug, Default, PartialEq, Eq)]
+struct SearchRuntimeResult {
+    count: usize,
+    first_breadcrumbs: Option<String>,
+    first_href: Option<String>,
+}
+
 fn parse_toc_runtime_output(output: &str) -> TocRuntimeResult {
     let mut result = TocRuntimeResult::default();
 
@@ -1002,6 +1214,29 @@ fn parse_toc_runtime_output(output: &str) -> TocRuntimeResult {
 
     result
 }
+
+fn parse_search_runtime_output(output: &str) -> SearchRuntimeResult {
+    let mut result = SearchRuntimeResult::default();
+
+    for line in output.lines() {
+        if let Some(value) = line.strip_prefix("count=") {
+            result.count = value
+                .parse::<usize>()
+                .unwrap_or_else(|err| panic!("invalid search result count {:?}: {err}", value));
+        } else if let Some(value) = line.strip_prefix("breadcrumbs=") {
+            if !value.is_empty() {
+                result.first_breadcrumbs = Some(value.to_string());
+            }
+        } else if let Some(value) = line.strip_prefix("href=") {
+            if !value.is_empty() {
+                result.first_href = Some(value.to_string());
+            }
+        }
+    }
+
+    result
+}
+
 fn make_temp_dir(tag: &str, root: &Path) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

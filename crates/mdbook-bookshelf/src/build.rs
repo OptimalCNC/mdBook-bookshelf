@@ -5,6 +5,7 @@ use crate::navigation::build_navigation_metadata;
 use crate::root_bookshelf_preprocessor::{
     inject_root_bookshelf_page, site_root_bookshelf_entry_path,
 };
+use crate::search::write_site_wide_search_index;
 use crate::site_model::{build_site_model, SitePageKind};
 use anyhow::{Context, Result};
 use mdbook_driver::{config::Config, MDBook};
@@ -63,6 +64,7 @@ pub fn build_bookshelf_site(
         })?;
     }
 
+    write_site_wide_search_index(&catalog, &site_dest_dir)?;
     write_site_root_index(&catalog, &projected_config, &site_dest_dir)?;
 
     Ok(site_dest_dir)

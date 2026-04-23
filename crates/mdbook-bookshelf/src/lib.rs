@@ -5,6 +5,7 @@ pub mod config;
 pub mod loader;
 pub mod navigation;
 pub mod root_bookshelf_preprocessor;
+pub(crate) mod search;
 pub mod serve;
 pub mod site_model;
 

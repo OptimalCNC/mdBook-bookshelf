@@ -661,6 +661,7 @@ dependencies = [
  "mdbook-driver",
  "mdbook-summary",
  "serde",
+ "serde_json",
  "tokio",
  "toml",
  "tower-http",

@@ -1,4 +1,5 @@
 use crate::root_bookshelf_preprocessor::ROOT_BOOKSHELF_HTML_PATH;
+use crate::search::SHARED_SEARCH_INDEX_NAME;
 use anyhow::{bail, Context, Result};
 use mdbook_driver::config::Config;
 use std::fs;
@@ -18,6 +19,7 @@ const BOOKSHELF_RETURN_CSS_NAME: &str = "bookshelf-return.css";
 const BOOKSHELF_RETURN_JS_NAME: &str = "bookshelf-return.js";
 const BOOKSHELF_RETURN_LINK_CLASS: &str = "bookshelf-return-link";
 const BOOKSHELF_RETURN_LINK_ID: &str = "bookshelf-return-link";
+const BOOKSHELF_SEARCH_JS_NAME: &str = "bookshelf-search.js";
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct BookshelfBreadcrumbPage {
@@ -83,6 +85,7 @@ impl TransientBookshelfUiAssets {
         let return_js_rel_path = self.bookshelf_return_js_path(book_id);
         let breadcrumb_css_rel_path = self.bookshelf_breadcrumb_css_path();
         let breadcrumb_js_rel_path = self.bookshelf_breadcrumb_js_path(book_id);
+        let search_js_rel_path = self.bookshelf_search_js_path();
 
         write_asset_file(
             &self.config_root.join(&return_css_rel_path),
@@ -100,6 +103,10 @@ impl TransientBookshelfUiAssets {
             &self.config_root.join(&breadcrumb_js_rel_path),
             &render_bookshelf_breadcrumb_js(breadcrumb_pages),
         )?;
+        write_asset_file(
+            &self.config_root.join(&search_js_rel_path),
+            &render_bookshelf_search_js(),
+        )?;
 
         append_output_asset(config, "output.html.additional-css", return_css_rel_path).context(
             "failed to append bookshelf return stylesheet to output.html.additional-css",
@@ -116,6 +123,8 @@ impl TransientBookshelfUiAssets {
             .context("failed to append bookshelf return script to output.html.additional-js")?;
         append_output_asset(config, "output.html.additional-js", breadcrumb_js_rel_path)
             .context("failed to append bookshelf breadcrumb script to output.html.additional-js")?;
+        append_output_asset(config, "output.html.additional-js", search_js_rel_path)
+            .context("failed to append bookshelf search override to output.html.additional-js")?;
 
         Ok(())
     }
@@ -171,6 +180,12 @@ impl TransientBookshelfUiAssets {
             .join(BOOKSHELF_UI_BOOKS_DIR)
             .join(book_id)
             .join(BOOKSHELF_BREADCRUMB_JS_NAME)
+    }
+
+    fn bookshelf_search_js_path(&self) -> PathBuf {
+        self.build_rel_root
+            .join(BOOKSHELF_UI_SHARED_DIR)
+            .join(BOOKSHELF_SEARCH_JS_NAME)
     }
 }
 
@@ -356,6 +371,16 @@ main.prepend(breadcrumb);\n\
     )
 }
 
+fn render_bookshelf_search_js() -> String {
+    format!(
+        "(() => {{\n\
+const rootPath = typeof path_to_root === \"string\" ? path_to_root : \"\";\n\
+window.path_to_searchindex_js = `${{rootPath}}../../{shared_search_index_name}`;\n\
+}})();\n",
+        shared_search_index_name = SHARED_SEARCH_INDEX_NAME,
+    )
+}
+
 fn bookshelf_return_target_from_book_root(book_id: &str, root_book_id: &str) -> String {
     if book_id == root_book_id {
         ROOT_BOOKSHELF_HTML_PATH.to_string()
@@ -448,12 +473,19 @@ mod tests {
         assert!(js_assets[1].ends_with(Path::new("parser").join(BOOKSHELF_RETURN_JS_NAME)));
         assert!(js_assets[2].starts_with(Path::new(BOOKSHELF_UI_ASSET_DIR)));
         assert!(js_assets[2].ends_with(Path::new("parser").join(BOOKSHELF_BREADCRUMB_JS_NAME)));
+        assert!(js_assets[3].starts_with(Path::new(BOOKSHELF_UI_ASSET_DIR)));
+        assert!(js_assets[3].ends_with(Path::new(BOOKSHELF_SEARCH_JS_NAME)));
         assert!(temp_root.join(&js_assets[1]).exists());
         assert!(temp_root.join(&js_assets[2]).exists());
+        assert!(temp_root.join(&js_assets[3]).exists());
         let breadcrumb_js = fs::read_to_string(temp_root.join(&js_assets[2]))
             .expect("breadcrumb script should be readable");
         assert!(breadcrumb_js.contains("\"grammar.html\": \"Example Parser / Grammar\""));
         assert!(breadcrumb_js.contains("setAttribute(\"data-bookshelf-breadcrumb\", \"true\")"));
+        let search_js = fs::read_to_string(temp_root.join(&js_assets[3]))
+            .expect("search override should be readable");
+        assert!(search_js.contains("window.path_to_searchindex_js"));
+        assert!(search_js.contains("../../searchindex.js"));
 
         ui_assets.cleanup().expect("asset root should be removed");
         assert!(!temp_root.join(BOOKSHELF_UI_ASSET_DIR).exists());
@@ -469,6 +501,18 @@ mod tests {
         assert!(script.contains("breadcrumbByPage[currentPath]"));
         assert!(script.contains("main.prepend(breadcrumb)"));
         assert!(script.contains("currentPath = \"index.html\""));
+    }
+
+    #[test]
+    fn render_bookshelf_search_js_points_to_site_root_shared_index() {
+        let script = render_bookshelf_search_js();
+
+        assert!(script.contains(
+            "const rootPath = typeof path_to_root === \"string\" ? path_to_root : \"\";"
+        ));
+        assert!(
+            script.contains("window.path_to_searchindex_js = `${rootPath}../../searchindex.js`;")
+        );
     }
 
     #[test]

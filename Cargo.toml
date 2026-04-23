@@ -18,6 +18,7 @@ clap = { version = "4.5.60", features = ["wrap_help"] }
 mdbook-driver = { version = "0.5.2", features = ["search"] }
 mdbook-summary = "0.5.2"
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 tokio = { version = "1.49.0", features = ["net", "rt"] }
 toml = "0.9"
 tower-http = { version = "0.6.8", features = ["fs"] }
