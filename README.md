@@ -41,7 +41,6 @@ title = "MetaNC"
 src = "docs"
 
 [bookshelf]
-root-id = "metanc"
 
 [[bookshelf.book]]
 title = "G-code Parser"
@@ -115,7 +114,6 @@ title = "Root Book"
 src = "root-book/docs"
 
 [bookshelf]
-root-id = "root"
 
 [[bookshelf.book]]
 title = "Parser"
@@ -172,13 +170,16 @@ The detailed routing note is
 
 ## Current State
 
-`root-id` still exists as a temporary implementation seam for the current
-root-book output under `books/<root-id>/...`, mainly because the site root
-`/index.html` is reserved for the synthetic bookshelf landing flow.
+The implemented routing contract is source-derived:
 
-That seam should be treated as implementation detail, not as part of the
-authoring contract. Authors should think in terms of source paths under the
-`bookshelf.toml` root.
+- root-book pages publish under `book.src`, for example `/docs/...`
+- child-book pages publish under full child `src`, for example
+  `/modules/gcode-parser/docs/...`
+- `/` and `/index.html` remain reserved for the synthetic bookshelf landing
+  entry and redirect to `<root-src>/bookshelf.html`
+
+Authors should think in terms of source paths under the `bookshelf.toml` root,
+not hidden output aliases.
 
 ## TODO
 

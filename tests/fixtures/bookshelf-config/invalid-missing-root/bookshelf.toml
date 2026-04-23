@@ -3,8 +3,7 @@ title = "Core Docs"
 src = "docs"
 
 [bookshelf]
-root-id = "meta"
 
 [[bookshelf.book]]
 title = "Parser Docs"
-src = "books/meta/docs"
+src = "docs"

@@ -9,7 +9,6 @@ default-theme = "light"
 no-section-label = true # standard mdBook boolean field
 
 [bookshelf]
-root-id = "meta" # inline comment should be ignored
 
 [[bookshelf.book]]
 title = "Parser Docs"

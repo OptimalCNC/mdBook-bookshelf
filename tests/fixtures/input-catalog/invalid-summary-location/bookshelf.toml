@@ -3,7 +3,6 @@ title = "Root Book"
 src = "docs"
 
 [bookshelf]
-root-id = "root"
 
 [[bookshelf.book]]
 title = "Child Book"
