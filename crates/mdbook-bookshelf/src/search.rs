@@ -537,19 +537,19 @@ mod tests {
     #[test]
     fn translate_doc_url_targets_book_siblings() {
         assert_eq!(
-            translate_doc_url(Path::new("modules/parser"), "grammar.html#grammar"),
-            "modules/parser/grammar.html#grammar"
+            translate_doc_url(Path::new("modules/parser/docs"), "grammar.html#grammar"),
+            "modules/parser/docs/grammar.html#grammar"
         );
         assert_eq!(
-            translate_doc_url(Path::new("books/meta"), "./architecture.html#architecture"),
-            "books/meta/architecture.html#architecture"
+            translate_doc_url(Path::new("docs"), "./architecture.html#architecture"),
+            "docs/architecture.html#architecture"
         );
         assert_eq!(
             localize_doc_url(
-                Path::new("modules/parser"),
-                "books/meta/architecture.html#architecture"
+                Path::new("modules/parser/docs"),
+                "docs/architecture.html#architecture"
             ),
-            "../../books/meta/architecture.html#architecture"
+            "../../../docs/architecture.html#architecture"
         );
     }
 

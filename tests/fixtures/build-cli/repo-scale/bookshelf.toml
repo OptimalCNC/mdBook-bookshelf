@@ -8,9 +8,6 @@ src = "docs"
 default-theme = "light"
 preferred-dark-theme = "ayu"
 
-[bookshelf]
-root-id = "metanc"
-
 [[bookshelf.book]]
 title = "G-code Parser"
 description = "Grammar, modal semantics, and parser diagnostics."

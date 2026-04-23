@@ -46,11 +46,11 @@ fn serve_cli_serves_built_site() {
     assert_status_ok(&root_response);
     assert_text_contains(
         response_body(&root_response),
-        "http-equiv=\"refresh\" content=\"0; url=books/meta/bookshelf.html\"",
+        "http-equiv=\"refresh\" content=\"0; url=docs/bookshelf.html\"",
     );
     assert_text_contains(
         response_body(&root_response),
-        "window.location.replace(\"books/meta/bookshelf.html\")",
+        "window.location.replace(\"docs/bookshelf.html\")",
     );
 
     let shelf_response = wait_for_response(
@@ -58,7 +58,7 @@ fn serve_cli_serves_built_site() {
         &stderr_lines,
         &mut stderr_log,
         &server_address,
-        "/books/meta/bookshelf.html",
+        "/docs/bookshelf.html",
     );
     assert_status_ok(&shelf_response);
     assert_text_contains(response_body(&shelf_response), "<h1 id=\"bookshelf\">");
@@ -72,7 +72,7 @@ fn serve_cli_serves_built_site() {
         &stderr_lines,
         &mut stderr_log,
         &server_address,
-        "/modules/parser/grammar.html",
+        "/modules/parser/docs/grammar.html",
     );
     assert_status_ok(&parser_response);
     assert_text_contains(response_body(&parser_response), "<h1 id=\"grammar\">");

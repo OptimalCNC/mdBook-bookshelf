@@ -6,9 +6,6 @@ src = "docs"
 [output.html]
 additional-css = ["shared/site.css"]
 
-[bookshelf]
-root-id = "root"
-
 [[bookshelf.book]]
 title = "Child Book"
 src = "modules/child/docs"

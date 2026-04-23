@@ -13,11 +13,11 @@ fn site_model_build() {
     let loaded = load_books_from_catalog(&catalog).expect("books should load");
     let model = build_site_model(&catalog, &loaded).expect("site model should build");
 
-    assert_eq!("root", model.root_book_id);
+    assert_eq!("root-book/docs", model.root_book_id);
     assert_eq!("bookshelf:root", model.synthetic_bookshelf_page_id);
     assert_eq!(2, model.books.len());
-    assert_eq!("root", model.books[0].book_id);
-    assert_eq!("modules/child", model.books[1].book_id);
+    assert_eq!("root-book/docs", model.books[0].book_id);
+    assert_eq!("modules/child/docs", model.books[1].book_id);
     assert!(model.books[0].is_root_book);
     assert!(!model.books[1].is_root_book);
 
@@ -33,7 +33,7 @@ fn site_model_build() {
     );
     let synthetic = synthetic_pages[0];
     assert_eq!("bookshelf:root", synthetic.page_id);
-    assert_eq!("root", synthetic.owning_book_id);
+    assert_eq!("root-book/docs", synthetic.owning_book_id);
     assert_eq!(None, synthetic.order_in_book);
     assert!(
         model

@@ -636,8 +636,8 @@ mod tests {
 
     #[test]
     fn non_root_book_return_target_points_back_to_root_bookshelf_page() {
-        let script = render_bookshelf_return_js("../../books/meta/bookshelf.html");
-        assert!(script.contains("const bookshelfTarget = \"../../books/meta/bookshelf.html\";"));
+        let script = render_bookshelf_return_js("../../../docs/bookshelf.html");
+        assert!(script.contains("const bookshelfTarget = \"../../../docs/bookshelf.html\";"));
     }
 
     #[test]
@@ -662,8 +662,8 @@ mod tests {
         ui_assets
             .inject_bookshelf_ui_assets(
                 &mut config,
-                "parser",
-                "../../books/meta/bookshelf.html",
+                "modules/parser/docs",
+                "../../../docs/bookshelf.html",
                 "bookshelf-searchindex.js",
                 &sample_breadcrumb_pages(),
             )
@@ -687,9 +687,15 @@ mod tests {
             .expect("js assets should exist");
         assert_eq!(js_assets[0], PathBuf::from("shared/site.js"));
         assert!(js_assets[1].starts_with(Path::new(BOOKSHELF_UI_ASSET_DIR)));
-        assert!(js_assets[1].ends_with(Path::new("parser").join(BOOKSHELF_RETURN_JS_NAME)));
+        assert!(
+            js_assets[1]
+                .ends_with(Path::new("modules/parser/docs").join(BOOKSHELF_RETURN_JS_NAME))
+        );
         assert!(js_assets[2].starts_with(Path::new(BOOKSHELF_UI_ASSET_DIR)));
-        assert!(js_assets[2].ends_with(Path::new("parser").join(BOOKSHELF_BREADCRUMB_JS_NAME)));
+        assert!(
+            js_assets[2]
+                .ends_with(Path::new("modules/parser/docs").join(BOOKSHELF_BREADCRUMB_JS_NAME))
+        );
         assert!(js_assets[3].starts_with(Path::new(BOOKSHELF_UI_ASSET_DIR)));
         assert!(js_assets[3].ends_with(Path::new(BOOKSHELF_SEARCH_JS_NAME)));
         assert!(temp_root.join(&js_assets[1]).exists());
@@ -745,7 +751,7 @@ mod tests {
             ui_assets
                 .inject_bookshelf_ui_assets(
                     &mut config,
-                    "meta",
+                    "docs",
                     "bookshelf.html",
                     "bookshelf-searchindex.js",
                     &sample_breadcrumb_pages(),
@@ -771,7 +777,7 @@ mod tests {
             temp_root
                 .join(BOOKSHELF_UI_ASSET_DIR)
                 .join(BOOKSHELF_UI_BOOKS_DIR)
-                .join("meta"),
+                .join("docs"),
         )
         .expect("legacy book dir should be created");
 
@@ -781,7 +787,7 @@ mod tests {
         ui_assets
             .inject_bookshelf_ui_assets(
                 &mut config,
-                "meta",
+                "docs",
                 "bookshelf.html",
                 "bookshelf-searchindex.js",
                 &sample_breadcrumb_pages(),
@@ -803,7 +809,7 @@ mod tests {
         let legacy_book_dir = temp_root
             .join(BOOKSHELF_UI_ASSET_DIR)
             .join(BOOKSHELF_UI_BOOKS_DIR)
-            .join("meta");
+            .join("docs");
         let sibling_build_dir = temp_root
             .join(BOOKSHELF_UI_ASSET_DIR)
             .join("build-sibling")
@@ -821,7 +827,7 @@ mod tests {
         ui_assets
             .inject_bookshelf_ui_assets(
                 &mut config,
-                "meta",
+                "docs",
                 "bookshelf.html",
                 "bookshelf-searchindex.js",
                 &sample_breadcrumb_pages(),
@@ -851,7 +857,7 @@ mod tests {
         ui_assets
             .inject_bookshelf_ui_assets(
                 &mut config,
-                "meta",
+                "docs",
                 "bookshelf.html",
                 "bookshelf-searchindex.js",
                 &sample_breadcrumb_pages(),

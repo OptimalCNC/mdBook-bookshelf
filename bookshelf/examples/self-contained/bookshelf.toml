@@ -8,9 +8,6 @@ src = "docs"
 default-theme = "light"
 preferred-dark-theme = "ayu"
 
-[bookshelf]
-root-id = "meta"
-
 [[bookshelf.book]]
 title = "Example Parser"
 description = "Parser-specific reference pages with their own reading order."
