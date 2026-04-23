@@ -68,7 +68,7 @@ process.stdout.write(lines.join("\n"));
 #[test]
 fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook-bookshelf"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook"));
     let fixture_root = repo_root.join("bookshelf/handoffs/examples/self-contained");
     let config_path = repo_root.join("bookshelf/handoffs/examples/self-contained/bookshelf.toml");
     let output_dir = make_temp_dir("chunk-011-build-cli", &repo_root);
@@ -255,7 +255,7 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
 #[test]
 fn build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook-bookshelf"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_mdbook"));
     let fixture_root = repo_root.join("tests/fixtures/build-cli/shared-config-root");
     let config_path = fixture_root.join("bookshelf.toml");
     let output_dir = make_temp_dir("chunk-011-shared-config-root", &repo_root);

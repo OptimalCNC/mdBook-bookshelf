@@ -8,12 +8,13 @@ name = "mdbook_bookshelf"
 path = "crates/mdbook-bookshelf/src/lib.rs"
 
 [[bin]]
-name = "mdbook-bookshelf"
+name = "mdbook"
 path = "cli/mdbook-bookshelf/src/main.rs"
 
 [dependencies]
 anyhow = "1.0"
 axum = "0.8.8"
+clap = { version = "4.5.60", features = ["wrap_help"] }
 mdbook-driver = "0.5.2"
 mdbook-summary = "0.5.2"
 serde = { version = "1.0", features = ["derive"] }
