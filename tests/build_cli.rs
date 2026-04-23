@@ -65,6 +65,277 @@ if (node) {
 process.stdout.write(lines.join("\n"));
 "##;
 
+const TOC_RUNTIME_HARNESS: &str = r##"
+const fs = require("node:fs");
+
+const [scriptPath, pageHref, pathToRoot] = process.argv.slice(1);
+const scriptSource = fs.readFileSync(scriptPath, "utf8");
+const defineMarker =
+  "window.customElements.define('mdbook-sidebar-scrollbox', MDBookSidebarScrollbox);";
+const defineIndex = scriptSource.indexOf(defineMarker);
+if (defineIndex === -1) {
+  throw new Error(`missing sidebar define marker in ${scriptPath}`);
+}
+const sidebarScript = scriptSource.slice(0, defineIndex + defineMarker.length);
+
+let activeScrollbox = null;
+const definedElements = new Map();
+
+class FakeClassList {
+  constructor(initialValue = "") {
+    this.values = new Set(String(initialValue).split(/\s+/).filter(Boolean));
+  }
+
+  add(...names) {
+    for (const name of names) {
+      if (name) {
+        this.values.add(String(name));
+      }
+    }
+  }
+
+  contains(name) {
+    return this.values.has(String(name));
+  }
+
+  toggle(name) {
+    const normalized = String(name);
+    if (this.values.has(normalized)) {
+      this.values.delete(normalized);
+      return false;
+    }
+    this.values.add(normalized);
+    return true;
+  }
+}
+
+class FakeElement {
+  constructor(tagName, attributes = {}) {
+    this.tagName = String(tagName).toUpperCase();
+    this.attributes = { ...attributes };
+    this.children = [];
+    this.content = [];
+    this.parentElement = null;
+    this.classList = new FakeClassList(attributes.class || "");
+    this.scrollTop = 0;
+  }
+
+  appendChild(child) {
+    child.parentElement = this;
+    this.children.push(child);
+    this.content.push(child);
+    return child;
+  }
+
+  appendText(text) {
+    this.content.push(String(text));
+  }
+
+  addEventListener() {}
+
+  getAttribute(name) {
+    return Object.prototype.hasOwnProperty.call(this.attributes, name)
+      ? this.attributes[name]
+      : null;
+  }
+
+  getBoundingClientRect() {
+    return { top: 0 };
+  }
+
+  scrollIntoView() {}
+
+  querySelectorAll(selector) {
+    const results = [];
+    this.walk((node) => {
+      if (matchesSelector(node, selector)) {
+        results.push(node);
+      }
+    });
+    return results;
+  }
+
+  querySelector(selector) {
+    return this.querySelectorAll(selector)[0] || null;
+  }
+
+  walk(visitor) {
+    for (const child of this.children) {
+      visitor(child);
+      child.walk(visitor);
+    }
+  }
+
+  get textContent() {
+    return this.content
+      .map((item) => (typeof item === "string" ? item : item.textContent))
+      .join("");
+  }
+}
+
+class FakeAnchorElement extends FakeElement {
+  constructor(attributes = {}) {
+    super("a", attributes);
+    this._href = new URL(attributes.href || "", pageHref).toString();
+  }
+
+  get href() {
+    return this._href;
+  }
+
+  set href(value) {
+    this._href = new URL(String(value), pageHref).toString();
+  }
+}
+
+class HTMLElement {
+  constructor() {
+    this._parsedRoot = null;
+    this.scrollTop = 0;
+  }
+
+  set innerHTML(value) {
+    this._parsedRoot = parseSidebarHtml(String(value));
+  }
+
+  get innerHTML() {
+    return "";
+  }
+
+  addEventListener() {}
+
+  getBoundingClientRect() {
+    return { top: 0 };
+  }
+
+  querySelectorAll(selector) {
+    return this._parsedRoot ? this._parsedRoot.querySelectorAll(selector) : [];
+  }
+
+  querySelector(selector) {
+    return this._parsedRoot ? this._parsedRoot.querySelector(selector) : null;
+  }
+}
+
+function matchesSelector(node, selector) {
+  if (selector === "a") {
+    return node.tagName === "A";
+  }
+  if (selector === ".active") {
+    return node.classList.contains("active");
+  }
+  return false;
+}
+
+function parseSidebarHtml(html) {
+  const root = new FakeElement("root");
+  const stack = [root];
+  const tokenPattern = /<!--[\s\S]*?-->|<\/?[^>]+>|[^<]+/g;
+  let match;
+  while ((match = tokenPattern.exec(html)) !== null) {
+    const token = match[0];
+    if (!token || token.startsWith("<!--")) {
+      continue;
+    }
+    if (token.startsWith("</")) {
+      stack.pop();
+      continue;
+    }
+    if (token.startsWith("<")) {
+      const isSelfClosing = token.endsWith("/>");
+      const source = token.slice(1, token.length - (isSelfClosing ? 2 : 1)).trim();
+      const whitespaceIndex = source.search(/\s/);
+      const tagName =
+        whitespaceIndex === -1 ? source.toLowerCase() : source.slice(0, whitespaceIndex).toLowerCase();
+      const attributeSource = whitespaceIndex === -1 ? "" : source.slice(whitespaceIndex + 1);
+      const attributes = {};
+      const attributePattern = /([^\s=]+)(?:="([^"]*)")?/g;
+      let attributeMatch;
+      while ((attributeMatch = attributePattern.exec(attributeSource)) !== null) {
+        attributes[attributeMatch[1]] = attributeMatch[2] || "";
+      }
+      const node =
+        tagName === "a" ? new FakeAnchorElement(attributes) : new FakeElement(tagName, attributes);
+      stack[stack.length - 1].appendChild(node);
+      if (!isSelfClosing && !["br", "hr", "img", "input", "meta", "link"].includes(tagName)) {
+        stack.push(node);
+      }
+      continue;
+    }
+
+    if (token.trim()) {
+      stack[stack.length - 1].appendText(token.replace(/\s+/g, " "));
+    }
+  }
+  return root;
+}
+
+function normalizeLabel(value) {
+  return String(value)
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^\d+(?:\.\d+)*\.\s*/, "");
+}
+
+globalThis.HTMLElement = HTMLElement;
+globalThis.document = {
+  location: {
+    href: pageHref,
+  },
+  querySelector(selector) {
+    if (selector === "#mdbook-sidebar .active") {
+      return activeScrollbox ? activeScrollbox.querySelector(".active") : null;
+    }
+    return null;
+  },
+  querySelectorAll(selector) {
+    if (selector === ".chapter-fold-toggle") {
+      return [];
+    }
+    return [];
+  },
+};
+globalThis.window = {
+  customElements: {
+    define(name, ctor) {
+      definedElements.set(String(name), ctor);
+    },
+  },
+};
+globalThis.sessionStorage = {
+  getItem() {
+    return null;
+  },
+  removeItem() {},
+  setItem() {},
+};
+globalThis.path_to_root = pathToRoot;
+
+eval(sidebarScript);
+
+const SidebarScrollbox = definedElements.get("mdbook-sidebar-scrollbox");
+if (!SidebarScrollbox) {
+  throw new Error(`failed to register mdbook-sidebar-scrollbox from ${scriptPath}`);
+}
+
+activeScrollbox = new SidebarScrollbox();
+activeScrollbox.connectedCallback();
+
+const links = activeScrollbox.querySelectorAll("a");
+const labels = links.map((link) => normalizeLabel(link.textContent));
+const activeLinks = links.filter((link) => link.classList.contains("active"));
+const activeLink = activeLinks[0] || null;
+
+process.stdout.write(
+  [
+    `activeCount=${activeLinks.length}`,
+    `active=${activeLink ? normalizeLabel(activeLink.textContent) : ""}`,
+    `activeHref=${activeLink ? activeLink.href : ""}`,
+    `labels=${labels.join("|")}`,
+  ].join("\n"),
+);
+"##;
+
 #[test]
 fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -161,12 +432,21 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     assert_text_contains(&grammar_html, "bookshelf-breadcrumb.css");
     assert_text_contains(&grammar_html, "bookshelf-breadcrumb.js");
 
+    let root_toc_html = assert_read_to_string(output_dir.join("books/meta/toc.html"));
+    assert_sidebar_toc_scope(
+        &root_toc_html,
+        &["Example Core", "Onboarding", "Architecture", "Bookshelf"],
+        &["Example Parser", "Grammar", "Example UI", "Navigation"],
+    );
+    assert_root_bookshelf_affix(&root_toc_html);
+
     assert_exists(output_dir.join("books/meta/index.html"));
     assert_exists(output_dir.join("books/meta/bookshelf.html"));
     assert_exists(output_dir.join("books/meta/architecture.html"));
     assert_exists(output_dir.join("books/meta/onboarding.html"));
     assert_exists(output_dir.join("books/meta/toc.html"));
     assert_has_file_with_prefix(&output_dir.join("books/meta"), "book-", ".js");
+    assert_has_file_with_prefix(&output_dir.join("books/meta"), "toc-", ".js");
     let root_return_script =
         assert_single_file_named_recursive(&output_dir.join("books/meta"), "bookshelf-return.js");
     let root_return_css =
@@ -219,6 +499,25 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     assert_exists(output_dir.join("books/parser/grammar.html"));
     assert_exists(output_dir.join("books/parser/toc.html"));
     assert_has_file_with_prefix(&output_dir.join("books/parser"), "book-", ".js");
+    let parser_toc_html = assert_read_to_string(output_dir.join("books/parser/toc.html"));
+    assert_sidebar_toc_scope(
+        &parser_toc_html,
+        &["Example Parser", "Grammar", "Runtime"],
+        &[
+            "Example Core",
+            "Bookshelf",
+            "Example UI",
+            "Navigation",
+            "Diagnostics",
+        ],
+    );
+    let parser_toc_script = output_dir
+        .join("books/parser")
+        .join(assert_has_file_with_prefix(
+            &output_dir.join("books/parser"),
+            "toc-",
+            ".js",
+        ));
     let parser_return_script =
         assert_single_file_named_recursive(&output_dir.join("books/parser"), "bookshelf-return.js");
     let parser_return_css = assert_single_file_named_recursive(
@@ -245,6 +544,45 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
         "Example Parser / Grammar",
     );
     assert_file_contains(parser_breadcrumb_css, ".bookshelf-breadcrumb");
+    assert_runtime_toc(
+        &parser_toc_script,
+        "https://example.test/books/parser/grammar.html#deep-link",
+        "",
+        &["Example Parser", "Grammar", "Runtime"],
+        "Grammar",
+        "https://example.test/books/parser/grammar.html",
+    );
+
+    assert_exists(output_dir.join("books/ui/index.html"));
+    assert_exists(output_dir.join("books/ui/navigation.html"));
+    assert_exists(output_dir.join("books/ui/toc.html"));
+    let ui_toc_html = assert_read_to_string(output_dir.join("books/ui/toc.html"));
+    assert_sidebar_toc_scope(
+        &ui_toc_html,
+        &["Example UI", "Navigation", "Diagnostics"],
+        &[
+            "Example Core",
+            "Bookshelf",
+            "Example Parser",
+            "Grammar",
+            "Runtime",
+        ],
+    );
+    let ui_toc_script = output_dir
+        .join("books/ui")
+        .join(assert_has_file_with_prefix(
+            &output_dir.join("books/ui"),
+            "toc-",
+            ".js",
+        ));
+    assert_runtime_toc(
+        &ui_toc_script,
+        "https://example.test/books/ui/navigation.html?from=deep#section",
+        "",
+        &["Example UI", "Navigation", "Diagnostics"],
+        "Navigation",
+        "https://example.test/books/ui/navigation.html",
+    );
     assert_text_not_contains(&bookshelf_html, "data-bookshelf-breadcrumb");
     assert!(!fixture_root.join(".mdbook-bookshelf").exists());
     assert_eq!(collect_tree_entries(&fixture_root), fixture_entries_before);
@@ -343,6 +681,43 @@ fn assert_file_contains(path: PathBuf, needle: &str) {
     );
 }
 
+fn assert_sidebar_toc_scope(toc_html: &str, expected_labels: &[&str], unexpected_labels: &[&str]) {
+    for label in expected_labels {
+        assert_text_contains(toc_html, label);
+    }
+    for label in unexpected_labels {
+        assert_text_not_contains(toc_html, label);
+    }
+}
+
+fn assert_root_bookshelf_affix(root_toc_html: &str) {
+    let root_index = root_toc_html
+        .find("1.</strong> Example Core")
+        .expect("root TOC should contain numbered root-book index entry");
+    let onboarding = root_toc_html
+        .find("1.1.</strong> Onboarding")
+        .expect("root TOC should contain numbered onboarding entry");
+    let architecture = root_toc_html
+        .find("1.2.</strong> Architecture")
+        .expect("root TOC should contain numbered architecture entry");
+    let bookshelf_link = "<a href=\"bookshelf.html\" target=\"_parent\">Bookshelf</a>";
+    let bookshelf = root_toc_html
+        .find(bookshelf_link)
+        .expect("root TOC should contain unnumbered Bookshelf affix entry");
+    let last_link = root_toc_html
+        .rfind("<a href=")
+        .expect("root TOC should contain sidebar links");
+
+    assert!(
+        root_index < onboarding && onboarding < architecture && architecture < bookshelf,
+        "expected root-book numbered chapters before trailing Bookshelf affix"
+    );
+    assert_eq!(
+        last_link, bookshelf,
+        "expected Bookshelf affix to be the trailing root-book sidebar entry"
+    );
+}
+
 fn assert_runtime_breadcrumb(script_path: &Path, page_href: &str, expected_text: &str) {
     let result = run_breadcrumb_runtime(script_path, page_href, "");
     assert_eq!(
@@ -369,6 +744,40 @@ fn assert_runtime_breadcrumb_absent(script_path: &Path, page_href: &str) {
     assert_eq!(result.text, None);
 }
 
+fn assert_runtime_toc(
+    script_path: &Path,
+    page_href: &str,
+    path_to_root: &str,
+    expected_labels: &[&str],
+    expected_active_label: &str,
+    expected_active_href: &str,
+) {
+    let result = run_toc_runtime(script_path, page_href, path_to_root);
+    let expected_labels = expected_labels
+        .iter()
+        .map(|label| (*label).to_string())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        result.labels, expected_labels,
+        "unexpected runtime sidebar labels for {page_href}"
+    );
+    assert_eq!(
+        result.active_count, 1,
+        "expected exactly one active TOC entry for {page_href}"
+    );
+    assert_eq!(
+        result.active_label.as_deref(),
+        Some(expected_active_label),
+        "unexpected active TOC label for {page_href}"
+    );
+    assert_eq!(
+        result.active_href.as_deref(),
+        Some(expected_active_href),
+        "unexpected active TOC href for {page_href}"
+    );
+}
+
 fn run_breadcrumb_runtime(
     script_path: &Path,
     page_href: &str,
@@ -393,6 +802,28 @@ fn run_breadcrumb_runtime(
     }
 
     parse_breadcrumb_runtime_output(&String::from_utf8_lossy(&output.stdout))
+}
+
+fn run_toc_runtime(script_path: &Path, page_href: &str, path_to_root: &str) -> TocRuntimeResult {
+    let output = Command::new("node")
+        .arg("-e")
+        .arg(TOC_RUNTIME_HARNESS)
+        .arg(script_path)
+        .arg(page_href)
+        .arg(path_to_root)
+        .output()
+        .expect("node TOC harness should run");
+
+    if !output.status.success() {
+        panic!(
+            "node TOC harness failed for {}\nstdout:\n{}\nstderr:\n{}",
+            script_path.display(),
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    parse_toc_runtime_output(&String::from_utf8_lossy(&output.stdout))
 }
 
 fn assert_read_to_string(path: PathBuf) -> String {
@@ -507,6 +938,42 @@ fn parse_breadcrumb_runtime_output(output: &str) -> BreadcrumbRuntimeResult {
         result.text = None;
         result.data_marker = None;
         result.aria_label = None;
+    }
+
+    result
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct TocRuntimeResult {
+    active_count: usize,
+    active_label: Option<String>,
+    active_href: Option<String>,
+    labels: Vec<String>,
+}
+
+fn parse_toc_runtime_output(output: &str) -> TocRuntimeResult {
+    let mut result = TocRuntimeResult::default();
+
+    for line in output.lines() {
+        if let Some(value) = line.strip_prefix("activeCount=") {
+            result.active_count = value
+                .parse::<usize>()
+                .unwrap_or_else(|err| panic!("invalid TOC active count {:?}: {err}", value));
+        } else if let Some(value) = line.strip_prefix("active=") {
+            if !value.is_empty() {
+                result.active_label = Some(value.to_string());
+            }
+        } else if let Some(value) = line.strip_prefix("activeHref=") {
+            if !value.is_empty() {
+                result.active_href = Some(value.to_string());
+            }
+        } else if let Some(value) = line.strip_prefix("labels=") {
+            result.labels = if value.is_empty() {
+                Vec::new()
+            } else {
+                value.split('|').map(|label| label.to_string()).collect()
+            };
+        }
     }
 
     result

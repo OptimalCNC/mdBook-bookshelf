@@ -44,9 +44,9 @@
 
 ## Current State
 - Status: READY_FOR_IMPLEMENTATION
-- Current iteration: CHUNK-017 planning
+- Current iteration: CHUNK-017 iteration 1
 - Current chunk: CHUNK-017 stock TOC sidebar scope and deep-link activation proof
-- Next action: implement CHUNK-017 to lock the already-present active-book sidebar scope, deep-link activation, and root-book `Bookshelf` affix behavior on the stock per-book TOC seam before taking on site-wide search.
+- Next action: implement CHUNK-017 in `tests/build_cli.rs` by proving stock per-book `toc.html` / `toc-*.js` behavior for book-scoped sidebar trees, deep-link activation, and the root-book `Bookshelf` affix before taking on site-wide search.
 - Blockers: none.
 
 ## Open Risks
@@ -356,3 +356,8 @@ review_focus:
 - 2026-04-23T02:03:10Z [developer] [CLI-ARCH] [DONE] Refactored the binary to a `clap`-based `main.rs` plus `cmd/{build,serve,command_prelude}.rs` layout modeled on `mdBook/src`, keeping `build` and `serve` execution in library code and revalidating with `cargo test --bin mdbook-bookshelf --test cli_help --test build_cli --test serve_cli`.
 - 2026-04-23T02:03:10Z [coordinator] [EXTERNAL-CLI-NAME] [STARTED] User requested that the compiled binary be renamed from `mdbook-bookshelf` to `mdbook`; updating the Cargo bin target, CLI help name, and integration-test binary lookups before revalidation.
 - 2026-04-23T02:03:10Z [coordinator] [EXTERNAL-CLI-NAME] [DONE] Renamed the compiled binary target to `mdbook`, updated CLI help and integration-test binary lookups to match, and revalidated with `cargo test`.
+- 2026-04-23T02:57:02Z [planner] [CHUNK-017] [DONE] Revalidated the smallest next chunk as stock per-book TOC runtime proof for active-book sidebar scope, deep-link activation, and the root-book `Bookshelf` affix before site-wide search.
+- 2026-04-23T02:56:54Z [researcher] [CHUNK-017-SEAM] [DONE] Confirmed the smallest stock proof seam is emitted per-book `toc.html` plus hashed `toc-*.js`: reuse upstream `toc_js_html()`-style extraction for book-scoped tree assertions and a tiny `node` DOM harness in `tests/build_cli.rs` for deep-link `.active` selection, with no custom sidebar code.
+- 2026-04-23T03:01:00Z [coordinator] [CHUNK-017] [STARTED] Synced the accepted CHUNK-017 scope and seam report into the coordinator state; developer implementation is starting against `tests/build_cli.rs` only.
+- 2026-04-23T03:00:56Z [developer] [CHUNK-017] [STARTED] Began `tests/build_cli.rs` coverage for stock TOC book scope, deep-link activation, and the root-book `Bookshelf` affix.
+- 2026-04-23T03:05:35Z [developer] [CHUNK-017] [DONE] Added stock TOC runtime coverage in `tests/build_cli.rs` for parser/UI deep-link activation, book-scoped sidebar trees, and the trailing root-book `Bookshelf` affix; verified with `cargo test` and the self-contained build smoke.
