@@ -42,10 +42,10 @@
 - Coordinator: orchestrates and may commit on behalf of the developer when needed.
 
 ## Current State
-- Status: REVIEWING
-- Current iteration: CHUNK-016 iteration 1
-- Current chunk: CHUNK-016 build-once top-level `serve` workflow via the stock static-file server seam
-- Next action: review commit `acf1832` across direction, implementation, and external Claude gates, then either close CHUNK-016 or turn around review fixes.
+- Status: READY_FOR_IMPLEMENTATION
+- Current iteration: CHUNK-017 planning
+- Current chunk: CHUNK-017 stock TOC sidebar scope and deep-link activation proof
+- Next action: implement CHUNK-017 to lock the already-present active-book sidebar scope, deep-link activation, and root-book `Bookshelf` affix behavior on the stock per-book TOC seam before taking on site-wide search.
 - Blockers: none.
 
 ## Open Risks
@@ -54,62 +54,56 @@
 - CHUNK-014's approved return-control seam depends on the stock `.right-buttons` header container and on build-time generated `additional-js` / `additional-css` inputs being cleaned up reliably so successful builds leave no residue under the caller-owned tree.
 - mdBook mirrors `additional-js` / `additional-css` input paths into the emitted site output, so CHUNK-014 currently leaves build-specific `.mdbook-bookshelf/build-*` asset directories under each built book output tree; this is acceptable for the chunk but worth flattening in a later polish pass if those paths become reader-visible or operationally awkward.
 - Active-book sidebar scope and deep-link activation currently appear to fall out of stock per-book `toc.html` / `toc.js` output, but that acceptance seam is not yet locked by executable bookshelf-specific coverage.
-- The first `serve` chunk will likely need new runtime/server crates such as `tokio`, `axum`, and `tower-http`; if they are not already cached locally, dependency resolution may require network access or version adjustments before verification works.
 - The public mdBook crate APIs may still prove insufficient for the eventual multi-book shell, in which case the gap must be documented explicitly before any replacement behavior is implemented.
 - Pulling in additional published mdBook crates or versions may require network access or version adjustments before local verification works.
 
 ## Active Chunk
 ```yaml
-chunk_id: CHUNK-016
-title: Build-Once Top-Level Serve Workflow
-objective: Implement `mdbook-bookshelf serve` as a build-once static server for the existing multi-book site tree while keeping the current stock per-book `MDBook::build()` pipeline unchanged.
-why_now: `serve` is a primary user-facing target in the handoff and is currently unimplemented, while the mdBook researcher confirmed a narrow stock seam that can deliver a real top-level workflow without taking on watch, live-reload, or search in the same loop.
+chunk_id: CHUNK-017
+title: Stock TOC Sidebar Scope And Deep-Link Activation Proof
+objective: Add executable acceptance coverage proving that stock per-book mdBook sidebar output already provides active-book-scoped navigation, deep-link activation, and the root-book `Bookshelf` affix behavior in the built multi-book site.
+why_now: With CHUNK-016 closing the missing top-level `serve` workflow, the next smallest acceptance gap is to lock the already-present active-book context behavior down with bookshelf-specific runtime coverage before taking on site-wide search.
 depends_on:
+  - CHUNK-006
   - CHUNK-011
   - CHUNK-013
   - CHUNK-014
   - CHUNK-015
+  - CHUNK-016
 mdbook_touchpoints:
-  - reuse: local `build_bookshelf(config_path, dest_dir)` in `src/build.rs` so the serve path still builds the same multi-book output tree through stock per-book `MDBook::build()`
-  - reuse: the static-file server half of stock `mdbook serve` from `mdBook-repo/mdBook/src/cmd/serve.rs`, specifically the `axum::Router` plus `tower_http::services::ServeDir` shape for serving an already-built HTML tree
-  - avoid: stock single-book watch/rebuild paths in `src/cmd/watch.rs`, `src/cmd/watch/native.rs`, and `src/cmd/watch/poller.rs`, plus websocket live-reload config mutation, because they assume one `MDBook` root rather than `bookshelf.toml` plus many books
+  - reuse: stock per-book `MDBook::build()` emission of `toc.html` and hashed `toc-*.js`, relying on mdBook's built-in sidebar tree and active-link selection instead of custom sidebar rendering
+  - reuse: mdBook HTML theme behavior in `crates/mdbook-html/front-end/templates/toc.js.hbs`, where the active entry is derived from `document.location` plus `path_to_root`
+  - avoid: custom sidebar HTML/JS, merged cross-book sidebar generation, or HTML post-processing to fake active-book context
 scope_in:
-  - parse a real `serve <bookshelf.toml>` subcommand with host, port, and optional destination overrides
-  - build the multi-book site once through the existing build pipeline, then serve that resolved site root over HTTP on loopback
-  - expose a deterministic integration test that starts the serve process on an ephemeral port and successfully fetches `/`, `/books/meta/bookshelf.html`, and `/books/parser/grammar.html`
-  - keep the served site shape identical to the `build` command output, including the existing site-root redirect and per-book mdBook-rendered pages
+  - extend the self-contained build smoke test with a small runtime harness for emitted `toc-*.js` so deep links into parser and UI pages must activate the matching sidebar entry
+  - assert that parser and UI sidebar trees remain book-scoped and do not include foreign-book chapters
+  - assert that the root-book `toc.html` contains `Bookshelf` as a trailing unnumbered affix entry after the numbered root-book chapters
 scope_out:
-  - no watch or live-reload support
-  - no site-wide search implementation or search result labeling
-  - no new sidebar rendering or active-book context logic
-  - no browser auto-open integration
+  - no search implementation or search result labeling
+  - no new `serve` behavior
+  - no new sidebar rendering logic or theme overrides
 target_files:
-  - Cargo.toml
-  - src/main.rs
-  - src/build.rs
-  - src/lib.rs
-  - src/serve.rs
-  - tests/serve_cli.rs
+  - tests/build_cli.rs
 implementation_tasks:
-  - factor the current build path so the serve flow can build once and learn the resolved site destination directory without duplicating build logic
-  - replace the `serve` unimplemented branch in `src/main.rs` with real argument parsing and a blocking serve entrypoint
-  - implement a stock-like static server around the built site root, reusing the `ServeDir` shape from upstream mdBook and keeping any 404 fallback conditional on an actual site-root `404.html`
-  - add an integration test that spawns the binary with `serve`, waits for the reported loopback URL, fetches representative pages over HTTP, and shuts the child process down cleanly
+  - add a build-test harness that executes emitted `toc-*.js` against synthetic deep-link URLs and reports the active sidebar entry plus visible chapter labels
+  - assert parser deep links activate `Grammar` within the parser sidebar tree and never expose UI chapters, and assert UI deep links activate `Navigation` within the UI sidebar tree and never expose parser chapters
+  - assert the root-book sidebar HTML includes `Bookshelf` as an unnumbered affix entry after the numbered root-book chapters so the synthetic page remains root-book-owned without affecting numbering
+  - preserve existing CHUNK-013 through CHUNK-016 smoke assertions while tightening coverage around the stock TOC seam instead of adding any new rendering code
 acceptance_criteria:
-  - `cargo test` passes with new serve CLI coverage
-  - `mdbook-bookshelf serve <bookshelf.toml>` no longer errors as unimplemented
-  - a loopback `GET /` from the spawned serve process returns the same site-root redirect page emitted by the build workflow
-  - a loopback `GET /books/meta/bookshelf.html` returns the root-book-owned `Bookshelf` page, and `GET /books/parser/grammar.html` returns the parser content page
-  - the existing `build` workflow and its smoke assertions continue to pass unchanged
+  - `cargo test` passes with updated build CLI coverage
+  - building the self-contained example proves, via the emitted parser `toc-*.js`, that a direct link to `books/parser/grammar.html` activates `Grammar` and exposes only parser-book sidebar entries
+  - building the self-contained example proves, via the emitted UI `toc-*.js`, that a direct link to `books/ui/navigation.html` activates `Navigation` and exposes only UI-book sidebar entries
+  - building the self-contained example proves `books/meta/toc.html` includes a trailing unnumbered `Bookshelf` entry after the numbered `Example Core` chapters
+  - the existing site-root redirect, `Bookshelf` return control, breadcrumb assertions, and top-level `serve` workflow still pass unchanged
 verification:
   - command: cargo test
-    expect: the new serve integration coverage passes alongside the existing build smoke coverage
-  - command: cargo test serve_cli_serves_built_site -- --exact
-    expect: the spawned loopback serve process returns the built site root redirect plus representative root-book and non-root-book content pages
+    expect: build CLI coverage passes, including runtime assertions over emitted `toc-*.js` for parser and UI deep-link activation plus root-book affix-sidebar assertions
+  - command: cargo run -- build bookshelf/handoffs/examples/self-contained/bookshelf.toml --dest-dir .tmp/chunk-017-smoke
+    expect: `.tmp/chunk-017-smoke/books/parser/toc.html`, `.tmp/chunk-017-smoke/books/parser/toc-*.js`, `.tmp/chunk-017-smoke/books/ui/toc-*.js`, and `.tmp/chunk-017-smoke/books/meta/toc.html` prove book-scoped sidebar trees, direct-link active entry selection, and a trailing unnumbered root-book `Bookshelf` affix
 review_focus:
-  - verify the chunk preserves the existing stock per-book `MDBook::build()` pipeline and adds only a stock-like top-level static-file server around the resolved site root
-  - verify the chunk explicitly defers watch and websocket live-reload rather than smuggling in a single-book watcher path that assumes one `MDBook`
-  - verify the new integration test exercises real HTTP responses from the top-level `serve` workflow instead of only calling library helpers
+  - verify the chunk reuses stock mdBook sidebar assets and active-link logic instead of adding bookshelf-owned sidebar rendering or route rewriting
+  - verify the new assertions check runtime deep-link activation, not only static HTML presence
+  - verify the root-book `Bookshelf` page remains a synthetic affix entry owned by the root book and does not alter chapter numbering
 ```
 
 ## Chunk Ledger
@@ -124,10 +118,11 @@ review_focus:
 - CHUNK-013 review-fix iteration approved via corrective revert `ded1421` plus commit `10d70a9`: moved `Bookshelf` into the root book as a trailing synthetic mdBook-rendered affix page at `bookshelf.html`, preserved the authored root-book `index.html`, and replaced the standalone chooser page with a thin site-root redirect. Verified with `cargo test` and `cargo run -- build bookshelf/handoffs/examples/self-contained/bookshelf.toml --dest-dir .tmp/chunk-013-review-fix-smoke`.
 - CHUNK-014 approved via commits `d916bd1` and `4ee6a2a`: added a visible `Bookshelf` return control through stock `output.html.additional-js` / `additional-css` injection while fixing transient asset cleanup so successful builds leave no caller-tree residue. Verified with `cargo test`.
 - CHUNK-015 approved via commits `e89a5bd` and `900e271`: added exact `Book / Page` breadcrumbs on content pages through the approved per-book `additional-js` / `additional-css` seam, with runtime assertions proving exact text on root and non-root pages and no-op behavior on `bookshelf.html`, `print.html`, `toc.html`, and `404.html`. Verified with `cargo test` and `cargo run -- build bookshelf/handoffs/examples/self-contained/bookshelf.toml --dest-dir .tmp/chunk-015-smoke`.
+- CHUNK-016 approved via commits `acf1832` and `7dc8ed2`: implemented the first real top-level `serve` workflow as a build-once wrapper around the existing multi-book `build` path, serving the resolved site root through a stock-like `axum`/`ServeDir` static server and fixing the loopback integration test to use child-selected ephemeral binding with read-back of the bound address. Verified with `cargo test` and `cargo test serve_cli_serves_built_site -- --exact`.
 - CHUNK-007 through CHUNK-010 were removed from the active baseline on 2026-04-21 after direction review concluded the repo had drifted into a custom HTML generator path. The removed work included search placeholders, config projection for the bespoke renderer, custom HTML emission, synthetic public routing, custom build CLI behavior, and all generator-specific tests/fixtures.
 
 ## Final Validation
-- Current HEAD remains on an approved mdBook-first path through CHUNK-015: stock per-book `MDBook::build()` output under `books/<book-id>/`, a thin site-root redirect into the root-book-owned synthetic `Bookshelf` page, a visible `Bookshelf` return control, and exact runtime-verified `Book / Page` breadcrumbs on content pages, all wired only through stock `additional-js` / `additional-css`. Final product acceptance still requires later chunks for active-book sidebar/context proof, direct-link activation proof, site-wide search, and the new top-level `serve` workflow, plus the whole-system review against the acceptance criteria and test plan.
+- Current HEAD remains on an approved mdBook-first path through CHUNK-016: stock per-book `MDBook::build()` output under `books/<book-id>/`, a thin site-root redirect into the root-book-owned synthetic `Bookshelf` page, a visible `Bookshelf` return control, exact runtime-verified `Book / Page` breadcrumbs on content pages, and a build-once top-level `serve` workflow over the same output tree. Final product acceptance still requires executable proof for active-book sidebar/deep-link context plus site-wide search, followed by the whole-system review against the acceptance criteria and test plan.
 
 ## Activity Log
 - 2026-04-20T13:12:26Z [coordinator] [INIT] [STARTED] Created progress.md and recorded startup constraints, tentative integration strategy, and initial risks.
@@ -349,3 +344,9 @@ review_focus:
 - 2026-04-22T16:57:52Z [coordinator] [CHUNK-016] [DONE] Implemented build-once top-level `serve` locally in commit `acf1832`, added loopback HTTP integration coverage, and revalidated with `cargo test` plus `cargo test serve_cli_serves_built_site -- --exact`.
 - 2026-04-23T00:00:00Z [reviewer] [CHUNK-016] APPROVED - Serve stays a build-once wrapper around the existing per-book `MDBook::build()` output plus a stock-like `ServeDir` static server, while the site root still redirects into the root-book-owned `Bookshelf` page.
 - 2026-04-22T17:00:39Z [reviewer-subagent] [CHUNK-016] CHANGES_REQUIRED - The new serve integration test still reserves a port in the parent and reuses it in the child, so the required deterministic ephemeral-port coverage remains flaky.
+- 2026-04-22T17:03:02Z [coordinator] [CHUNK-016] [DONE] Fixed the serve integration test to start the child with `--port 0`, capture the bound loopback address from process output, and revalidated with `cargo test` plus `cargo test serve_cli_serves_built_site -- --exact`; commit `7dc8ed2`.
+- 2026-04-22T17:03:02Z [reviewer-claude] [CHUNK-016] APPROVED - test-only race fix via `--port 0` plus read-back address; production serve path and deferred scope unchanged, tests green.
+- 2026-04-22T17:03:02Z [reviewer] [CHUNK-016] APPROVED - Iteration-2 only makes the serve test deterministic; the chunk remains on the approved build-once `MDBook::build()` plus stock-like `ServeDir` top-level serve seam.
+- 2026-04-22T17:07:05Z [reviewer-subagent] [CHUNK-016] APPROVED - `serve_cli` now uses child-selected ephemeral binding and probes the reported address, closing the parent-reserved-port finding.
+- 2026-04-22T17:07:05Z [coordinator] [CHUNK-016] [DONE] All review gates approved the review-fix commit `7dc8ed2`, so CHUNK-016 is closed and the project is moving to CHUNK-017 planning.
+- 2026-04-22T17:04:51Z [reviewer] [CHUNK-016] APPROVED - The iteration-2 fix only makes the serve test deterministic with child-selected ephemeral binding and reported-address capture; the chunk still stays on the approved build-once `MDBook::build()` plus stock-like `ServeDir` top-level serve seam with watch/live-reload deferred.
