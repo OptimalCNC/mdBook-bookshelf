@@ -40,47 +40,39 @@ codebase.
 
 # Active Chunk
 ```yaml
-chunk_id: docs-config-validation-001
-title: Document enforced bookshelf configuration validation
-objective: Correct docs/configuration.md so it reflects the current parser and catalog validation rules for required bookshelf config, titles, src paths, and output root conflicts.
-why_now: This is a compact, high-value drift fix isolated to one documentation file and backed by focused config parser tests.
+chunk_id: docs-authoring-index-001
+title: Clarify authoring index.md versus SUMMARY.md contract
+objective: Correct docs/authoring.md so it distinguishes runtime navigation assumptions for index.md from catalog build validation of SUMMARY.md.
+why_now: This is a small one-file drift fix that directly improves navigation/readability guidance and prevents authors from assuming catalog build validates index.md.
 depends_on: []
 touchpoints:
-  - docs/configuration.md
-  - crates/mdbook-bookshelf/src/config.rs
-  - tests/bookshelf_config_parse.rs
+  - crates/mdbook-bookshelf/src/catalog.rs
+  - crates/mdbook-bookshelf/src/root_bookshelf_preprocessor.rs
+  - crates/mdbook-bookshelf/src/build.rs
+  - tests/input_catalog_build.rs
 scope_in:
-  - Document that [bookshelf] is required.
-  - Document that root and child book titles are required and must be nonempty.
-  - Document rejected src values: empty, absolute, containing .., resolving to ., or named SUMMARY.md.
-  - Document duplicate and overlapping output root failures.
+  - Explain that index.md is assumed by navigation, redirects, and shelf links.
+  - Explain that catalog build validation currently checks SUMMARY.md, not index.md.
+  - Adjust authoring guidance to make the practical expectation explicit without overstating enforcement.
 scope_out:
-  - Do not document shared output asset staging or input-404 behavior in this chunk.
-  - Do not change authoring guidance about index.md versus SUMMARY.md.
-  - Do not change site-behavior search caveats.
-  - Do not edit source code or tests.
+  - Changing code validation behavior.
+  - Editing docs/configuration.md or docs/site-behavior.md.
+  - Broad authoring guide restructuring.
 target_files:
-  - docs/configuration.md
+  - docs/authoring.md
 implementation_tasks:
-  - Read current validation tests and config parser code to confirm exact user-facing rules and wording.
-  - Update the configuration reference with a concise validation subsection near the [bookshelf] and child book configuration material.
-  - Keep examples aligned with accepted values and avoid implying index.md is validated during catalog build.
-  - Cross-check terminology for output roots against existing docs so duplicate and overlap failures are understandable.
+  - Inspect current authoring sections that mention book roots, SUMMARY.md, index.md, redirects, and shelf links.
+  - Update only the smallest relevant section to clarify the distinction between assumed index.md behavior and validated SUMMARY.md behavior.
+  - Cross-check wording against the listed code and tests so the documentation describes current behavior, not desired behavior.
 acceptance_criteria:
-  - docs/configuration.md explicitly says [bookshelf] is required.
-  - docs/configuration.md explicitly says root and child titles are required and nonempty.
-  - docs/configuration.md lists all currently rejected src forms without adding unsupported behavior.
-  - docs/configuration.md explains that duplicate or overlapping output roots fail validation.
-  - No unrelated docs/source files are modified.
+  - docs/authoring.md no longer implies index.md is validated during catalog build.
+  - docs/authoring.md clearly states that index.md is still expected for working navigation, redirects, and shelf links.
+  - The edit is localized and does not introduce new linking/configuration/search guidance.
 verification:
-  - command: cargo test -p mdbook-bookshelf --test bookshelf_config_parse
-    expect: Passes, confirming the documented validation behavior still matches the focused parser tests.
-  - command: git diff -- docs/configuration.md
-    expect: Diff is limited to configuration validation documentation and contains no shared asset, search, or authoring-index changes.
+  - command: rg -n "index.md|SUMMARY.md|catalog|redirect|shelf" docs/authoring.md crates/mdbook-bookshelf/src/catalog.rs crates/mdbook-bookshelf/src/root_bookshelf_preprocessor.rs crates/mdbook-bookshelf/src/build.rs tests/input_catalog_build.rs
+    expect: Updated wording in docs/authoring.md aligns with code paths and tests showing SUMMARY.md validation plus index.md navigation assumptions.
 review_focus:
-  - Check that the docs describe enforced behavior rather than recommended conventions.
-  - Check that src validation wording matches config.rs and tests/bookshelf_config_parse.rs exactly.
-  - Check that the chunk remains narrow enough for a single review loop.
+  - Ensure the documentation is precise about current enforcement boundaries and does not promise validation that the code does not perform.
 ```
 
 # Chunk Ledger
@@ -92,6 +84,10 @@ review_focus:
   `docs/linking.md` to describe single-slash site-root rewrite behavior,
   preserved destination classes, query/fragment preservation, unresolved
   site-root Markdown page failures, and README/index target compatibility.
+- `docs-config-validation-001`: approved across commits `a44ec66` and
+  `a4e637a`; updated `docs/configuration.md` with enforced `[bookshelf]`,
+  title, `src`, duplicate output root, and overlapping output root validation
+  rules.
 
 # Final Validation
 - `cargo test --test cli_help --test bookshelf_config_parse`: passed for
@@ -105,6 +101,8 @@ review_focus:
 - `cargo test site_root_link_preprocessor`: passed for `docs-linking-001`.
 - `cargo run --bin book -- build bookshelf.toml --dest-dir .tmp/docs-linking-001-site`:
   passed for `docs-linking-001`.
+- `cargo test -p mdbook-bookshelf --test bookshelf_config_parse`: passed for
+  `docs-config-validation-001`.
 
 # Activity Log
 2026-04-24T06:34:26Z [coordinator] [setup] [started] Reset coordination artifact for documentation navigation and drift cleanup.
@@ -131,3 +129,11 @@ review_focus:
 2026-04-24T06:55:07Z [coordinator] [docs-config-validation-001] [checkpoint] Created review checkpoint a44ec66 docs: document config validation rules.
 2026-04-24T06:57:15Z [reviewers] [docs-config-validation-001] [changes-required] Requested enforced SUMMARY.md wording and focused parser test command correction.
 2026-04-24T06:57:36Z [developer-subagent] [docs-config-validation-001] [completed] Reworked SUMMARY.md validation wording and focused verification command; parser test target passed.
+2026-04-24T06:58:09Z [coordinator] [docs-config-validation-001] [checkpoint] Created rework checkpoint a4e637a docs: refine config validation wording.
+2026-04-24T06:58:41Z [reviewer] [docs-config-validation-001] [approved] Rework fixes parser test verification command and config validation docs match current behavior.
+2026-04-24T06:59:05Z [reviewer-subagent] [docs-config-validation-001] [approved] Validation wording now matches enforced config parser behavior.
+2026-04-24T06:59:28Z [coordinator] [docs-config-validation-001] [approved] Moved approved config validation checkpoints a44ec66 and a4e637a to chunk ledger.
+2026-04-24T07:00:13Z [planner] [docs-authoring-index-001] [planned] Proposed focused authoring clarification for index.md assumptions versus SUMMARY.md validation.
+2026-04-24T07:00:35Z [coordinator] [docs-authoring-index-001] [accepted] Accepted one-file authoring index contract clarification chunk.
+2026-04-24T07:01:09Z [developer-subagent] [docs-authoring-index-001] [started] Started authoring index contract clarification against catalog and navigation code.
+2026-04-24T07:01:40Z [developer-subagent] [docs-authoring-index-001] [completed] Clarified SUMMARY.md catalog validation versus index.md runtime navigation assumptions; required verification passed.

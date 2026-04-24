@@ -6,11 +6,15 @@ This document explains how to lay out a bookshelf site in source form.
 
 Each book keeps its own docs tree.
 
-Minimum requirements per book:
+Minimum catalog-build requirements per book:
 
 - a docs directory named by that book's `src`
 - `<src>/SUMMARY.md`
-- `<src>/index.md`
+
+Also author `<src>/index.md` as each book's stable entry page. The catalog
+builder validates the canonical `<src>/SUMMARY.md`; it does not currently
+validate `index.md`. Runtime navigation still assumes `index.html` for
+site-root redirects, synthetic shelf links, and book entry pages.
 
 Example:
 
@@ -115,4 +119,3 @@ Given the layout above:
 - the parser entry page publishes at `/modules/parser/docs/index.html`
 
 The published URL layout stays aligned with the source tree.
-
