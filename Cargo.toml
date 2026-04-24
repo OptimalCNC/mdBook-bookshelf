@@ -3,6 +3,7 @@ name = "mdbook-bookshelf"
 version = "0.1.0"
 edition = "2021"
 description = "Build multi-book documentation sites on top of mdBook."
+license = "MIT"
 repository = "https://github.com/OptimalCNC/mdBook-bookshelf"
 homepage = "https://github.com/OptimalCNC/mdBook-bookshelf"
 readme = "README.md"
@@ -12,6 +13,7 @@ publish = ["crates-io"]
 include = [
     "/Cargo.lock",
     "/Cargo.toml",
+    "/LICENSE",
     "/README.md",
     "/bookshelf.toml",
     "/cli/mdbook-bookshelf/src/**/*.rs",
