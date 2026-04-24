@@ -79,6 +79,17 @@ Current search behavior:
 In other words, the chrome still feels like mdBook, but search scope is the
 entire bookshelf site.
 
+Search caveats:
+
+- each built book must contain exactly one stock mdBook `searchindex-*.js`
+  file, because that emitted payload is the merge input
+- those stock payloads must stay compatible with each other so
+  `mdbook-bookshelf` can merge and localize the shared search data
+- every book receives its own localized `bookshelf-searchindex.js`
+- on a cold load with `?search=`, mdBook may first request the page-local
+  per-book `searchindex-*.js`; the bookshelf runtime then switches future
+  search loading to the localized shared index
+
 ## Constraints Readers Will Notice
 
 - the root entry page is configurable, defaulting to the root book's

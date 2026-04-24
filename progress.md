@@ -40,41 +40,45 @@ codebase.
 
 # Active Chunk
 ```yaml
-chunk_id: docs-config-shared-assets-001
-title: Document shared output assets and per-book HTML config behavior
-objective: Correct docs/configuration.md drift around shared HTML output assets, command preprocessors, additional JS, and input-404 behavior across generated child book roots.
-why_now: The current configuration docs do not explain how relative shared assets are resolved and staged during multi-book builds, which can mislead authors configuring CSS, JS, preprocessors, Mermaid, or custom 404 pages.
+chunk_id: docs-search-caveats-001
+title: Document Bookshelf search index caveats
+objective: Clarify search-index assumptions and cold-load behavior in docs/site-behavior.md so the documented site behavior matches the current search implementation.
+why_now: This is the remaining known documentation drift: search behavior has implementation-specific constraints that are easy for maintainers to miss when changing build output or search integration.
 depends_on: []
 touchpoints:
+  - crates/mdbook-bookshelf/src/search.rs
   - crates/mdbook-bookshelf/src/bookshelf_ui.rs
   - tests/build_cli.rs
 scope_in:
-  - Document that relative output.html.additional-css and output.html.additional-js paths are resolved from the config root.
-  - Document that shared CSS and JS assets are staged under generated child book roots using bookshelf-config-assets.
-  - Document that configured [preprocessor.*] command plugins and additional JS apply to each built book.
-  - Document that relative output.html.input-404 is rejected when it would cross different book roots, and can be disabled with an empty string.
+  - Add a concise search caveats subsection to docs/site-behavior.md.
+  - Document that each book must produce exactly one stock mdBook searchindex-*.js file.
+  - Document that search payloads must remain compatible with the bookshelf localization and shared-search rewrite path.
+  - Document that each book receives a localized bookshelf-searchindex.js.
+  - Document the cold-load ?search= behavior where stock mdBook first requests the local per-book index before the bookshelf override switches to localized shared search.
 scope_out:
-  - Do not edit docs/source.
-  - Do not change implementation or tests.
-  - Do not cover search behavior drift; leave that for a separate docs/site-behavior.md chunk.
+  - No code changes.
+  - No test changes.
+  - No broad rewrite of site-behavior.md.
+  - No edits outside docs/site-behavior.md.
 target_files:
-  - docs/configuration.md
+  - docs/site-behavior.md
 implementation_tasks:
-  - Locate the existing configuration sections for HTML output, preprocessors, shared assets, and 404 handling.
-  - Add concise reader-facing guidance that matches the current code and test behavior.
-  - Prefer examples or notes near the relevant configuration keys instead of creating a broad new section.
-  - Cross-check wording against bookshelf_ui.rs and the shared config root, Mermaid/plugin, and input-404 tests in tests/build_cli.rs.
+  - Read the existing search/navigation wording in docs/site-behavior.md and place the new caveats near the current search behavior discussion.
+  - Add implementation-grounded wording without exposing unnecessary internals or duplicating test details.
+  - Keep the section focused on maintainer-facing constraints and observable browser/build behavior.
 acceptance_criteria:
-  - docs/configuration.md clearly states config-root resolution for relative additional-css and additional-js.
-  - docs/configuration.md explains bookshelf-config-assets staging for child book roots.
-  - docs/configuration.md states that configured command preprocessors and additional JS are applied to every built book.
-  - docs/configuration.md states the current relative input-404 rejection behavior across book roots and the empty-string opt-out.
-  - The change is limited to the configuration documentation and does not introduce source or implementation edits.
+  - docs/site-behavior.md explicitly states the one-stock-searchindex-per-book requirement.
+  - docs/site-behavior.md explains localized bookshelf-searchindex.js generation per book.
+  - docs/site-behavior.md explains compatible search payload expectations.
+  - docs/site-behavior.md describes the ?search= cold-load local-index request before bookshelf shared-search override behavior.
+  - The update is confined to docs/site-behavior.md.
 verification:
-  - command: git diff -- docs/configuration.md
-    expect: The diff only updates configuration documentation and covers all listed shared asset, preprocessor, JS, and input-404 behaviors.
+  - command: git diff -- docs/site-behavior.md
+    expect: Diff contains only the intended search caveat documentation.
+  - command: cargo test -p mdbook-bookshelf --test build_cli search
+    expect: Existing search behavior tests still pass.
 review_focus:
-  - Verify that path-resolution wording distinguishes config root, generated child book roots, and staged bookshelf-config-assets paths without implying unsupported compatibility behavior.
+  - Check that the documentation matches current search.rs and bookshelf_ui.rs behavior without implying a simpler single-step search load than the code actually performs.
 ```
 
 # Chunk Ledger
@@ -94,6 +98,10 @@ review_focus:
   `e789107`; clarified that catalog build validates `SUMMARY.md`, while
   `index.md` remains expected for synthetic shelf links, book entry pages, and
   the default root-book site-root redirect.
+- `docs-config-shared-assets-001`: approved in commit `eb76a17`; documented
+  shared HTML output settings, config-root resolution for additional CSS/JS,
+  child-root `bookshelf-config-assets` staging, per-book command
+  preprocessors/additional JS, and relative `input-404` behavior.
 
 # Final Validation
 - `cargo test --test cli_help --test bookshelf_config_parse`: passed for
@@ -111,6 +119,10 @@ review_focus:
   `docs-config-validation-001`.
 - `rg -n "index.md|SUMMARY.md|catalog|redirect|shelf" docs/authoring.md crates/mdbook-bookshelf/src/catalog.rs crates/mdbook-bookshelf/src/root_bookshelf_preprocessor.rs crates/mdbook-bookshelf/src/build.rs tests/input_catalog_build.rs`:
   passed for `docs-authoring-index-001`.
+- `git diff --check`: passed for `docs-config-shared-assets-001`.
+- `cargo test -p mdbook-bookshelf --test build_cli search`: passed for
+  `docs-search-caveats-001`.
+- `git diff --check`: passed for `docs-search-caveats-001`.
 
 # Activity Log
 2026-04-24T06:34:26Z [coordinator] [setup] [started] Reset coordination artifact for documentation navigation and drift cleanup.
@@ -156,3 +168,10 @@ review_focus:
 2026-04-24T07:07:10Z [coordinator] [docs-config-shared-assets-001] [accepted] Accepted one-file shared output assets configuration drift cleanup chunk.
 2026-04-24T07:07:31Z [developer-subagent] [docs-config-shared-assets-001] [started] Started shared output asset and per-book HTML config documentation correction against bookshelf_ui and build_cli tests.
 2026-04-24T07:08:46Z [developer-subagent] [docs-config-shared-assets-001] [completed] Documented shared CSS/JS config-root resolution, child root staging, per-book preprocessors/JS, and input-404 opt-out; required diff verification passed.
+2026-04-24T07:09:30Z [coordinator] [docs-config-shared-assets-001] [checkpoint] Created review checkpoint eb76a17 docs: document shared output assets.
+2026-04-24T07:10:07Z [reviewer-subagent] [docs-config-shared-assets-001] [approved] Configuration docs match current shared asset staging, per-book JS/preprocessor, and input-404 behavior.
+2026-04-24T07:10:31Z [reviewer] [docs-config-shared-assets-001] [approved] Docs match current shared asset staging, per-book mdBook config, and relative input-404 behavior.
+2026-04-24T07:10:54Z [coordinator] [docs-config-shared-assets-001] [approved] Moved approved shared output asset checkpoint eb76a17 to chunk ledger.
+2026-04-24T07:12:02Z [planner] [docs-search-caveats-001] [planned] Proposed focused search caveat documentation against search.rs, bookshelf_ui.rs, and build_cli search coverage.
+2026-04-24T07:12:31Z [coordinator] [docs-search-caveats-001] [accepted] Accepted one-file site behavior search caveat documentation chunk.
+2026-04-24T07:13:22Z [developer-subagent] [docs-search-caveats-001] [completed] Documented search index merge contract, localized shared indexes, and cold-load query behavior; targeted search tests passed.
