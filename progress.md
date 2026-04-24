@@ -14,74 +14,25 @@ Fix `book serve` so source/config changes are watched, rebuilt, and refreshed wh
 
 # Current State
 - Commit `24a370978f8132fd03229e52e83e85e75f2ac5b9` added the stock-style serve loop: serve-mode live reload config overlay, static server, `/__livereload`, poll rebuilds, and focused source-edit tests.
-- The remaining stock-alignment gap is watch root parity for shared mdBook assets: theme roots, extra watch dirs, and configured HTML CSS/JS assets.
+- Commit `8718e338e1c46429e35b7f923107295ca7a71ed4` added stock poll watch root categories for bookshelf: theme roots, extra watch dirs, configured HTML CSS/JS assets, output exclusion, and transient generated asset exclusion.
 
 # Open Risks
 - Watch root discovery must avoid watching generated output directories in a way that triggers rebuild loops.
 - Live-reload assets/endpoints must match the HTML rendered by the existing build engine.
 
 # Active Chunk
-```yaml
-chunk_id: serve-watch-002
-title: Stock poll root categories for bookshelf serve
-objective: Extend the existing serve poll watcher root discovery to include the stock mdBook watch categories that apply to bookshelf: theme roots, extra watch dirs, and configured HTML CSS/JS assets.
-why_now: The serve loop now rebuilds and reloads on book source changes, but shared mdBook assets from bookshelf.toml can still change without triggering a rebuild.
-depends_on:
-  - serve-watch-001
-touchpoints:
-  - `crates/mdbook-bookshelf/src/serve.rs::PollWatcher::set_roots_from_config`
-  - `mdBook-repo/mdBook/src/cmd/watch/poller.rs::Watcher::set_roots` stock root category list
-  - `mdbook_driver::config::Config::html_config` for output.html.additional-css/additional-js/theme
-  - `crates/mdbook-bookshelf/src/bookshelf_ui.rs::TransientBookshelfUiAssets::stage_config_root_output_assets` shared config-root asset behavior
-scope_in:
-  - Add testable watch-root collection for bookshelf.toml, every catalog book source dir, shared configured theme, default per-book theme dirs, build.extra-watch-dirs, and output.html.additional-css/additional-js.
-  - Resolve shared mdBook config roots relative to catalog.config_dir, preserving absolute paths.
-  - Keep excluding the serve output directory from roots and scans.
-  - Skip generated transient .mdbook-bookshelf asset trees during scans so broad roots such as extra-watch-dirs = ["."] do not self-trigger rebuild loops.
-  - Add focused unit coverage for root discovery categories and generated-root exclusion.
-  - Add focused serve CLI coverage proving an edited configured additional CSS asset is recopied and served without restarting serve.
-scope_out:
-  - Native notify watcher or `--watcher` CLI flag.
-  - `.gitignore` parity.
-  - Per-book build/output config support beyond the current shared bookshelf.toml model.
-  - Incremental rebuilds or any build/render architecture change.
-  - Browser automation or websocket client assertions.
-target_files:
-  - `crates/mdbook-bookshelf/src/serve.rs`
-  - `tests/serve_cli.rs`
-implementation_tasks:
-  - Refactor PollWatcher root setup into a small helper that returns normalized, deduplicated watch roots from the loaded InputCatalog.
-  - Add shared config-root path resolution for build.extra_watch_dirs and output.html additional CSS/JS assets.
-  - Add theme root discovery: use output.html.theme from the shared mdBook config when configured, otherwise include each catalog book root's default theme directory.
-  - Preserve the existing output-dir exclusion and add scan-time exclusion for .mdbook-bookshelf generated asset directories.
-  - Add serve.rs unit tests for discovered roots and exclusion behavior using temporary test fixtures.
-  - Extend serve_cli tests with a copied fixture containing output.html.additional-css, edit the CSS while serve is running, and poll the served CSS URL until the marker appears.
-acceptance_criteria:
-  - Poll watcher roots include bookshelf.toml, every catalog book source dir, applicable theme dirs, build.extra-watch-dirs, and output.html.additional-css/additional-js.
-  - Relative shared mdBook config paths resolve from the bookshelf.toml directory.
-  - The serve output directory is not watched or scanned.
-  - Generated .mdbook-bookshelf transient asset trees do not trigger rebuilds when a broad watched root contains them.
-  - Editing a configured additional CSS asset while `book serve` is running rebuilds and serves the updated asset without restarting.
-  - No native watcher, renderer fork, or build engine change is introduced.
-verification:
-  - command: `cargo test watch_roots`
-    expect: New focused root discovery and exclusion unit tests pass.
-  - command: `cargo test --test serve_cli serve_cli_rebuilds_changed_configured_html_asset`
-    expect: The running serve process notices a shared CSS edit and serves the updated asset.
-  - command: `cargo test --test serve_cli`
-    expect: Existing serve behavior and the new asset-watch proof pass together.
-review_focus:
-  - Confirm the root categories mirror upstream poller categories where bookshelf's shared config model makes them meaningful.
-  - Confirm shared asset paths are resolved against catalog.config_dir, not transient staged child-book locations.
-  - Confirm broad roots cannot watch serve output or .mdbook-bookshelf generated assets.
-  - Confirm the change remains limited to poll watcher root discovery and tests.
-```
+None.
 
 # Chunk Ledger
 - `serve-watch-001`: approved in commit `24a370978f8132fd03229e52e83e85e75f2ac5b9`; added shared-engine serve-mode build overlay, static serving, `/__livereload`, poll rebuilds for config/source changes, and focused source-edit CLI coverage.
+- `serve-watch-002`: approved in commit `8718e338e1c46429e35b7f923107295ca7a71ed4`; added stock poll watch root categories for shared mdBook theme/assets/extra watch dirs, output/generated asset exclusion, unit coverage, and shared CSS serve rebuild coverage.
 
 # Final Validation
-Pending.
+- `cargo test watch_roots`: passed.
+- `cargo test --test serve_cli`: passed.
+- `cargo test`: passed.
+- Final direction review: approved.
+- Final implementation review: approved.
 
 # Activity Log
 2026-04-24T03:55:58Z [coordinator] [setup] [started] Created coordination artifact and captured initial serve/build state.
@@ -98,3 +49,9 @@ Pending.
 2026-04-24T04:11:08Z [coordinator] [serve-watch-002] [accepted] Accepted stock poll root category follow-up after first chunk approval.
 2026-04-24T04:13:58Z [developer] [serve-watch-002] [started] Implementing stock mdBook poll root categories and transient asset exclusions.
 2026-04-24T04:16:11Z [developer] [serve-watch-002] [completed] Added stock poll root categories, generated asset scan exclusion, CSS serve coverage, and passed requested/full tests.
+2026-04-24T04:17:47Z [reviewer] [serve-watch-002] [approved] Direction matches stock poll root categories without build, CLI, watcher, or renderer scope drift.
+2026-04-24T04:18:13Z [reviewer-subagent] [serve-watch-002] [approved] Roots, config-dir resolution, generated exclusions, and CSS serve rebuild coverage pass.
+2026-04-24T04:19:17Z [coordinator] [final-validation] [passed] cargo test watch_roots, cargo test --test serve_cli, and cargo test passed on current workspace.
+2026-04-24T04:21:40Z [reviewer-final-subagent] [serve-watch-final] APPROVED - acceptance complete; focused validation passes and no rebuild/reload/watch exclusion blockers found.
+2026-04-24T04:21:34Z [reviewer-final] [serve-watch-final] [approved] Shared build engine and mdBook-shaped serve/watch architecture are intact; divergence stays in bookshelf watch roots.
+2026-04-24T04:22:11Z [coordinator] [serve-watch-final] [completed] Serve/watch task completed with final validation and review gates approved.
