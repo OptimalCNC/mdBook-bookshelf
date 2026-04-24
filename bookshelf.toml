@@ -1,0 +1,14 @@
+[book]
+title = "mdbook-bookshelf"
+description = "Project documentation for mdbook-bookshelf."
+language = "en"
+src = "docs"
+
+[build]
+build-dir = ".site"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "ayu"
+
+[bookshelf]

@@ -1,7 +1,7 @@
 # mdBook Shelf Example
 
-This small project is a self-contained source fixture for implementing and
-testing the bookshelf feature.
+This small project is a self-contained bookshelf fixture for documenting and
+testing the current behavior of `mdbook-bookshelf`.
 
 Layout:
 
