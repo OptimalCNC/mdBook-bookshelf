@@ -677,7 +677,10 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
         &bookshelf_html,
         "href=\"../modules/parser/docs/index.html\">Example Parser</a>",
     );
-    assert_text_contains(&bookshelf_html, "href=\"../modules/ui/docs/index.html\">Example UI</a>");
+    assert_text_contains(
+        &bookshelf_html,
+        "href=\"../modules/ui/docs/index.html\">Example UI</a>",
+    );
     assert_text_not_contains(&bookshelf_html, "href=\"bookshelf.html\">Example Core</a>");
 
     let root_index_html = assert_read_to_string(output_dir.join("docs/index.html"));
@@ -718,18 +721,30 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     let architecture_html = assert_read_to_string(output_dir.join("docs/architecture.html"));
     assert_text_contains(&architecture_html, "bookshelf-breadcrumb.css");
     assert_text_contains(&architecture_html, "bookshelf-breadcrumb.js");
-    let grammar_html =
-        assert_read_to_string(output_dir.join("modules/parser/docs/grammar.html"));
+    let grammar_html = assert_read_to_string(output_dir.join("modules/parser/docs/grammar.html"));
     assert_text_contains(&grammar_html, "bookshelf-breadcrumb.css");
     assert_text_contains(&grammar_html, "bookshelf-breadcrumb.js");
 
     let root_toc_html = assert_read_to_string(output_dir.join("docs/toc.html"));
+    let root_toc_script = output_dir.join("docs").join(assert_has_file_with_prefix(
+        &output_dir.join("docs"),
+        "toc-",
+        ".js",
+    ));
     assert_sidebar_toc_scope(
         &root_toc_html,
         &["Example Core", "Onboarding", "Architecture", "Bookshelf"],
         &["Example Parser", "Grammar", "Example UI", "Navigation"],
     );
-    assert_root_bookshelf_affix(&root_toc_html);
+    assert_root_bookshelf_link_order(&root_toc_html);
+    assert_runtime_toc(
+        &root_toc_script,
+        "https://example.test/docs/index.html#what-it-does",
+        "",
+        &["Bookshelf", "Example Core", "Onboarding", "Architecture"],
+        "Example Core",
+        "https://example.test/docs/index.html",
+    );
 
     assert_exists(output_dir.join("docs/index.html"));
     assert_exists(output_dir.join("docs/bookshelf.html"));
@@ -737,19 +752,14 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     assert_exists(output_dir.join("docs/onboarding.html"));
     assert_exists(output_dir.join("docs/toc.html"));
     assert_has_file_with_prefix(&output_dir.join("docs"), "book-", ".js");
-    assert_has_file_with_prefix(&output_dir.join("docs"), "toc-", ".js");
     let root_return_script =
         assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.js");
     let root_return_css =
         assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.css");
-    let root_breadcrumb_script = assert_single_file_named_recursive(
-        &output_dir.join("docs"),
-        "bookshelf-breadcrumb.js",
-    );
-    let root_breadcrumb_css = assert_single_file_named_recursive(
-        &output_dir.join("docs"),
-        "bookshelf-breadcrumb.css",
-    );
+    let root_breadcrumb_script =
+        assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.js");
+    let root_breadcrumb_css =
+        assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.css");
     assert_file_contains(
         root_return_script.clone(),
         "const bookshelfTarget = \"bookshelf.html\";",
@@ -790,8 +800,7 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     assert_exists(output_dir.join("modules/parser/docs/grammar.html"));
     assert_exists(output_dir.join("modules/parser/docs/toc.html"));
     assert_has_file_with_prefix(&output_dir.join("modules/parser/docs"), "book-", ".js");
-    let parser_toc_html =
-        assert_read_to_string(output_dir.join("modules/parser/docs/toc.html"));
+    let parser_toc_html = assert_read_to_string(output_dir.join("modules/parser/docs/toc.html"));
     assert_sidebar_toc_scope(
         &parser_toc_html,
         &["Example Parser", "Grammar", "Runtime"],
@@ -803,18 +812,18 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
             "Diagnostics",
         ],
     );
-    let parser_toc_script = output_dir
-        .join("modules/parser/docs")
-        .join(assert_has_file_with_prefix(
-            &output_dir.join("modules/parser/docs"),
-            "toc-",
-            ".js",
-        ));
-    let parser_return_script =
-        assert_single_file_named_recursive(
-            &output_dir.join("modules/parser/docs"),
-            "bookshelf-return.js",
-        );
+    let parser_toc_script =
+        output_dir
+            .join("modules/parser/docs")
+            .join(assert_has_file_with_prefix(
+                &output_dir.join("modules/parser/docs"),
+                "toc-",
+                ".js",
+            ));
+    let parser_return_script = assert_single_file_named_recursive(
+        &output_dir.join("modules/parser/docs"),
+        "bookshelf-return.js",
+    );
     let parser_return_css = assert_single_file_named_recursive(
         &output_dir.join("modules/parser/docs"),
         "bookshelf-return.css",
@@ -1174,10 +1183,7 @@ fn build_cli_uses_shared_site_wide_search_index() {
         &shared_search_js,
         "\"modules/parser/docs/grammar.html#grammar\"",
     );
-    assert_text_contains(
-        &shared_search_js,
-        "\"docs/architecture.html#architecture\"",
-    );
+    assert_text_contains(&shared_search_js, "\"docs/architecture.html#architecture\"");
 
     let root_index_html = assert_read_to_string(output_dir.join("docs/index.html"));
     let parser_grammar_html =
@@ -1187,11 +1193,10 @@ fn build_cli_uses_shared_site_wide_search_index() {
 
     let root_search_override =
         assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-search.js");
-    let parser_search_override =
-        assert_single_file_named_recursive(
-            &output_dir.join("modules/parser/docs"),
-            "bookshelf-search.js",
-        );
+    let parser_search_override = assert_single_file_named_recursive(
+        &output_dir.join("modules/parser/docs"),
+        "bookshelf-search.js",
+    );
     assert_file_contains(
         root_search_override,
         "window.path_to_searchindex_js = `${rootPath}bookshelf-searchindex.js`;",
@@ -1201,13 +1206,11 @@ fn build_cli_uses_shared_site_wide_search_index() {
         "window.path_to_searchindex_js = `${rootPath}bookshelf-searchindex.js`;",
     );
 
-    let elasticlunr_js = output_dir
-        .join("docs")
-        .join(assert_has_file_with_prefix(
-            &output_dir.join("docs"),
-            "elasticlunr-",
-            ".min.js",
-        ));
+    let elasticlunr_js = output_dir.join("docs").join(assert_has_file_with_prefix(
+        &output_dir.join("docs"),
+        "elasticlunr-",
+        ".min.js",
+    ));
 
     assert_runtime_search_result(
         &elasticlunr_js,
@@ -1261,7 +1264,10 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
         &bookshelf_html,
         "href=\"../modules/gcode-parser/docs/index.html\">G-code Parser</a>",
     );
-    assert_text_contains(&bookshelf_html, "href=\"../modules/hmi/docs/index.html\">HMI</a>");
+    assert_text_contains(
+        &bookshelf_html,
+        "href=\"../modules/hmi/docs/index.html\">HMI</a>",
+    );
     assert_text_not_contains(&bookshelf_html, "href=\"bookshelf.html\">MetaNC</a>");
     assert_text_not_contains(&bookshelf_html, "data-bookshelf-breadcrumb");
 
@@ -1269,13 +1275,16 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
     let architecture_html = assert_read_to_string(output_dir.join("docs/architecture.html"));
     let parser_index_html =
         assert_read_to_string(output_dir.join("modules/gcode-parser/docs/index.html"));
-    let modal_groups_html =
-        assert_read_to_string(output_dir.join("modules/gcode-parser/docs/reference/modal-groups.html"));
-    let hmi_index_html =
-        assert_read_to_string(output_dir.join("modules/hmi/docs/index.html"));
+    let modal_groups_html = assert_read_to_string(
+        output_dir.join("modules/gcode-parser/docs/reference/modal-groups.html"),
+    );
+    let hmi_index_html = assert_read_to_string(output_dir.join("modules/hmi/docs/index.html"));
 
     assert_stock_search_contract(&output_dir.join("docs"), &metanc_index_html);
-    assert_stock_search_contract(&output_dir.join("modules/gcode-parser/docs"), &parser_index_html);
+    assert_stock_search_contract(
+        &output_dir.join("modules/gcode-parser/docs"),
+        &parser_index_html,
+    );
     assert_stock_search_contract(&output_dir.join("modules/hmi/docs"), &hmi_index_html);
     assert_text_contains(&architecture_html, "bookshelf-breadcrumb.css");
     assert_text_contains(&architecture_html, "bookshelf-breadcrumb.js");
@@ -1290,7 +1299,7 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
         &["MetaNC", "Getting Started", "Architecture", "Bookshelf"],
         &["G-code Parser", "Modal Groups", "HMI", "Operator Panels"],
     );
-    assert_root_bookshelf_affix_for(
+    assert_root_bookshelf_link_order_for(
         &root_toc_html,
         "MetaNC",
         &["Getting Started", "Architecture"],
@@ -1325,10 +1334,8 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
         ],
     );
 
-    let metanc_breadcrumb_script = assert_single_file_named_recursive(
-        &output_dir.join("docs"),
-        "bookshelf-breadcrumb.js",
-    );
+    let metanc_breadcrumb_script =
+        assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.js");
     assert_runtime_breadcrumb(
         &metanc_breadcrumb_script,
         "https://example.test/docs/architecture.html",
@@ -1347,11 +1354,13 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
     );
 
     let parser_toc_script =
-        output_dir.join("modules/gcode-parser/docs").join(assert_has_file_with_prefix(
-            &output_dir.join("modules/gcode-parser/docs"),
-            "toc-",
-            ".js",
-        ));
+        output_dir
+            .join("modules/gcode-parser/docs")
+            .join(assert_has_file_with_prefix(
+                &output_dir.join("modules/gcode-parser/docs"),
+                "toc-",
+                ".js",
+            ));
     assert_runtime_toc(
         &parser_toc_script,
         "https://example.test/modules/gcode-parser/docs/reference/modal-groups.html#group-one",
@@ -1367,22 +1376,17 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
         &shared_search_js,
         "\"modules/gcode-parser/docs/reference/modal-groups.html#modal-groups\"",
     );
-    assert_text_contains(
-        &shared_search_js,
-        "\"docs/architecture.html#architecture\"",
-    );
+    assert_text_contains(&shared_search_js, "\"docs/architecture.html#architecture\"");
     assert_text_contains(
         &shared_search_js,
         "\"modules/hmi/docs/operator-panels.html#operator-panels\"",
     );
 
-    let elasticlunr_js = output_dir
-        .join("docs")
-        .join(assert_has_file_with_prefix(
-            &output_dir.join("docs"),
-            "elasticlunr-",
-            ".min.js",
-        ));
+    let elasticlunr_js = output_dir.join("docs").join(assert_has_file_with_prefix(
+        &output_dir.join("docs"),
+        "elasticlunr-",
+        ".min.js",
+    ));
     assert_runtime_search_result(
         &elasticlunr_js,
         &output_dir.join("docs/bookshelf-searchindex.js"),
@@ -1424,8 +1428,9 @@ fn build_cli_audits_search_cold_load_residual_on_repo_scale_output() {
 
     run_build_cli(&bin, &config_path, &output_dir);
 
-    let parser_page_html =
-        assert_read_to_string(output_dir.join("modules/gcode-parser/docs/reference/modal-groups.html"));
+    let parser_page_html = assert_read_to_string(
+        output_dir.join("modules/gcode-parser/docs/reference/modal-groups.html"),
+    );
     let local_search_index = extract_inline_searchindex_path(&parser_page_html);
     let page_path_to_root = extract_inline_path_to_root(&parser_page_html);
     assert_text_contains(
@@ -1434,8 +1439,11 @@ fn build_cli_audits_search_cold_load_residual_on_repo_scale_output() {
     );
     assert_eq!(page_path_to_root, "../");
 
-    let searcher_name =
-        assert_has_file_with_prefix(&output_dir.join("modules/gcode-parser/docs"), "searcher-", ".js");
+    let searcher_name = assert_has_file_with_prefix(
+        &output_dir.join("modules/gcode-parser/docs"),
+        "searcher-",
+        ".js",
+    );
     assert_script_order(&parser_page_html, &searcher_name, "bookshelf-search.js");
 
     let search_override = assert_single_file_named_recursive(
@@ -1610,15 +1618,19 @@ fn assert_sidebar_toc_scope(toc_html: &str, expected_labels: &[&str], unexpected
     }
 }
 
-fn assert_root_bookshelf_affix(root_toc_html: &str) {
-    assert_root_bookshelf_affix_for(
+fn assert_root_bookshelf_link_order(root_toc_html: &str) {
+    assert_root_bookshelf_link_order_for(
         root_toc_html,
         "Example Core",
         &["Onboarding", "Architecture"],
     );
 }
 
-fn assert_root_bookshelf_affix_for(root_toc_html: &str, root_title: &str, chapter_labels: &[&str]) {
+fn assert_root_bookshelf_link_order_for(
+    root_toc_html: &str,
+    root_title: &str,
+    chapter_labels: &[&str],
+) {
     let root_index = root_toc_html
         .find(&format!("1.</strong> {root_title}"))
         .unwrap_or_else(|| panic!("root TOC should contain numbered root-book index entry"));
@@ -1634,23 +1646,27 @@ fn assert_root_bookshelf_affix_for(root_toc_html: &str, root_title: &str, chapte
     let bookshelf_link = "<a href=\"bookshelf.html\" target=\"_parent\">Bookshelf</a>";
     let bookshelf = root_toc_html
         .find(bookshelf_link)
-        .expect("root TOC should contain unnumbered Bookshelf affix entry");
-    let last_link = root_toc_html
-        .rfind("<a href=")
+        .expect("root TOC should contain unnumbered Bookshelf entry");
+    let first_link = root_toc_html
+        .find("<a href=")
         .expect("root TOC should contain sidebar links");
 
+    assert_eq!(
+        first_link, bookshelf,
+        "expected Bookshelf to be the first root-book sidebar entry"
+    );
+    assert!(
+        bookshelf < root_index,
+        "expected Bookshelf to be the first root-book sidebar entry"
+    );
     let mut previous = root_index;
     for position in chapter_positions {
         assert!(
-            previous < position && position < bookshelf,
-            "expected root-book numbered chapters before trailing Bookshelf affix"
+            previous < position,
+            "expected root-book numbered chapters to keep their authored order after Bookshelf"
         );
         previous = position;
     }
-    assert_eq!(
-        last_link, bookshelf,
-        "expected Bookshelf affix to be the trailing root-book sidebar entry"
-    );
 }
 
 fn assert_stock_search_contract(book_dir: &Path, page_html: &str) {
@@ -1885,7 +1901,10 @@ fn assert_text_not_contains(haystack: &str, needle: &str) {
 fn assert_no_authored_root_relative_markdown_links(output_dir: &Path) {
     let html_files = collect_tree_entries(output_dir)
         .into_iter()
-        .filter(|path| path.extension().is_some_and(|extension| extension == "html"))
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "html")
+        })
         .collect::<Vec<_>>();
 
     for relative_path in html_files {

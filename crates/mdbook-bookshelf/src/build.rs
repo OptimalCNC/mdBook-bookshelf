@@ -208,6 +208,15 @@ fn build_catalog_book(
             html_build_dir.display()
         )
     })?;
+    if book.is_root_book {
+        patch_root_bookshelf_toc_index_alias(&html_build_dir).with_context(|| {
+            format!(
+                "book '{}' failed to patch root bookshelf sidebar script under {}",
+                book.id,
+                html_build_dir.display()
+            )
+        })?;
+    }
 
     ui_assets.cleanup().with_context(|| {
         format!(
@@ -216,6 +225,70 @@ fn build_catalog_book(
             book.book_root_abs.display()
         )
     })
+}
+
+fn patch_root_bookshelf_toc_index_alias(book_output_dir: &Path) -> Result<()> {
+    let mut patched = 0usize;
+
+    for entry in fs::read_dir(book_output_dir).with_context(|| {
+        format!(
+            "failed to read root book output directory {}",
+            book_output_dir.display()
+        )
+    })? {
+        let entry = entry.with_context(|| {
+            format!(
+                "failed to read an entry in root book output directory {}",
+                book_output_dir.display()
+            )
+        })?;
+        let path = entry.path();
+        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
+            continue;
+        };
+        if !(file_name.starts_with("toc-") && file_name.ends_with(".js")) {
+            continue;
+        }
+
+        let source = fs::read_to_string(&path).with_context(|| {
+            format!("failed to read root book sidebar script {}", path.display())
+        })?;
+        let patched_source = patch_root_bookshelf_toc_index_alias_source(&source)?;
+        fs::write(&path, patched_source).with_context(|| {
+            format!(
+                "failed to write root book sidebar script {}",
+                path.display()
+            )
+        })?;
+        patched += 1;
+    }
+
+    if patched == 0 {
+        anyhow::bail!(
+            "failed to find generated toc-*.js in root book output directory {}",
+            book_output_dir.display()
+        );
+    }
+
+    Ok(())
+}
+
+fn patch_root_bookshelf_toc_index_alias_source(source: &str) -> Result<String> {
+    // mdBook treats the first sidebar link as an index.html alias. Once the
+    // synthetic Bookshelf link is first, that alias must stay with the real
+    // root index page so page headings attach to the authored chapter.
+    let mdbook_index_alias = "|| i === 0\n                && path_to_root === ''\n                && current_page.endsWith('/index.html')";
+    let bookshelf_aware_index_alias = "|| i === 0\n                && href !== \"bookshelf.html\"\n                && path_to_root === ''\n                && current_page.endsWith('/index.html')";
+
+    if source.contains(bookshelf_aware_index_alias) {
+        return Ok(source.to_string());
+    }
+
+    if !source.contains(mdbook_index_alias) {
+        anyhow::bail!("generated toc script is missing mdBook's first-chapter index alias");
+    }
+
+    Ok(source.replacen(mdbook_index_alias, bookshelf_aware_index_alias, 1))
 }
 
 fn resolve_site_dest_dir(

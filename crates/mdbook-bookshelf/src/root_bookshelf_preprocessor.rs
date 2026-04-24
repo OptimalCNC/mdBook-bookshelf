@@ -1,7 +1,7 @@
 use crate::catalog::{InputBook, InputCatalog};
 use crate::route_paths::{path_to_string, relative_path};
 use anyhow::{bail, Result};
-use mdbook_driver::book::{Book, Chapter};
+use mdbook_driver::book::{Book, BookItem, Chapter};
 use std::path::{Path, PathBuf};
 
 pub const ROOT_BOOKSHELF_CHAPTER_NAME: &str = "Bookshelf";
@@ -10,7 +10,8 @@ pub const ROOT_BOOKSHELF_HTML_PATH: &str = "bookshelf.html";
 
 pub fn inject_root_bookshelf_page(book: &mut Book, catalog: &InputCatalog) -> Result<()> {
     ensure_reserved_bookshelf_path_is_available(book, "root book")?;
-    book.push_item(build_root_bookshelf_chapter(catalog)?);
+    book.items
+        .insert(0, BookItem::Chapter(build_root_bookshelf_chapter(catalog)?));
     Ok(())
 }
 
@@ -19,16 +20,13 @@ pub fn site_root_bookshelf_entry_path(root_output_rel: impl AsRef<Path>) -> Stri
 }
 
 pub fn ensure_reserved_bookshelf_path_is_available(book: &Book, book_id: &str) -> Result<()> {
-    if book
-        .chapters()
-        .any(|chapter| {
-            chapter
-                .path
-                .as_deref()
-                .and_then(Path::file_name)
-                .is_some_and(|name| name == ROOT_BOOKSHELF_CHAPTER_PATH)
-        })
-    {
+    if book.chapters().any(|chapter| {
+        chapter
+            .path
+            .as_deref()
+            .and_then(Path::file_name)
+            .is_some_and(|name| name == ROOT_BOOKSHELF_CHAPTER_PATH)
+    }) {
         bail!(
             "book '{}' already contains reserved bookshelf path '{}'",
             book_id,
@@ -90,7 +88,7 @@ mod tests {
     use mdbook_driver::book::BookItem;
 
     #[test]
-    fn inject_root_bookshelf_page_appends_a_synthetic_trailing_chapter() {
+    fn inject_root_bookshelf_page_prepends_a_synthetic_chapter() {
         let mut book = Book::new();
         book.push_item(Chapter::new(
             "Example Core",
@@ -109,13 +107,7 @@ mod tests {
 
         inject_root_bookshelf_page(&mut book, &catalog).expect("injection should succeed");
 
-        let first = match &book.items[0] {
-            BookItem::Chapter(chapter) => chapter,
-            other => panic!("expected chapter, got {other:?}"),
-        };
-        assert_eq!(first.name, "Example Core");
-
-        let synthetic = match book.items.last().expect("synthetic chapter should exist") {
+        let synthetic = match &book.items[0] {
             BookItem::Chapter(chapter) => chapter,
             other => panic!("expected chapter, got {other:?}"),
         };
@@ -131,6 +123,12 @@ mod tests {
         assert!(synthetic
             .content
             .contains("[Example Parser](<../modules/parser/docs/index.html>)"));
+
+        let first_authored = match &book.items[1] {
+            BookItem::Chapter(chapter) => chapter,
+            other => panic!("expected chapter, got {other:?}"),
+        };
+        assert_eq!(first_authored.name, "Example Core");
     }
 
     #[test]
@@ -145,9 +143,7 @@ mod tests {
 
         let error =
             inject_root_bookshelf_page(&mut book, &sample_catalog()).expect_err("must fail");
-        assert!(error
-            .to_string()
-            .contains("reserved bookshelf path"));
+        assert!(error.to_string().contains("reserved bookshelf path"));
     }
 
     fn sample_catalog() -> InputCatalog {
