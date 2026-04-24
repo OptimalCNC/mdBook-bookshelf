@@ -99,7 +99,8 @@ Current path contract:
 - every `src` is relative to that directory
 - every authored markdown page publishes at the same path with `.md` changed to
   `.html`
-- `/...` redirects to `<site-root>/...`
+- `/...` authored links resolve from the site root and are rewritten during
+  build
 - cross-book links can be authored against site root such as
   `/modules/gcode-parser/docs/index.md`
 

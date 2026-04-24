@@ -65,6 +65,9 @@ None.
 - `docs-search-caveats-001`: approved in commit `6ffd779`; documented the
   stock per-book search index contract, shared payload compatibility,
   localized `bookshelf-searchindex.js` files, and `?search=` cold-load behavior.
+- `docs-final-review-rework-001`: completed pending checkpoint; corrected final
+  review wording drift for repo-scale `Bookshelf` sidebar placement and
+  `/...` authored-link rewrite behavior.
 
 # Final Validation
 - `cargo test --test cli_help --test bookshelf_config_parse`: passed for
@@ -90,6 +93,13 @@ None.
   passed final documentation build validation.
 - `cargo test -p mdbook-bookshelf`: passed final package validation.
 - `git diff --check`: passed final whitespace validation.
+- `rg -n "trailing unnumbered|redirects to <site-root>" README.md docs examples`:
+  found no stale final-review phrases after rework.
+- `cargo run --bin book -- build bookshelf.toml --dest-dir .tmp/project-docs-site`:
+  passed final-review rework documentation build validation.
+- `cargo test -p mdbook-bookshelf`: passed final-review rework package
+  validation.
+- `git diff --check`: passed final-review rework whitespace validation.
 
 # Activity Log
 2026-04-24T06:34:26Z [coordinator] [setup] [started] Reset coordination artifact for documentation navigation and drift cleanup.
@@ -147,3 +157,7 @@ None.
 2026-04-24T07:15:44Z [reviewer-subagent] [docs-search-caveats-001] [approved] Search caveat acceptance criteria are met and the edit is confined to site behavior documentation plus coordination progress.
 2026-04-24T07:16:08Z [coordinator] [docs-search-caveats-001] [approved] Moved approved search caveat checkpoint 6ffd779 to chunk ledger.
 2026-04-24T07:17:36Z [coordinator] [final-validation] [passed] Project docs build, full package test suite, and whitespace validation passed.
+2026-04-24T07:18:21Z [reviewer-subagent] [final-review] [changes-required] Found stale trailing Bookshelf wording in examples/repo-scale.md and misleading redirect wording in docs/index.md.
+2026-04-24T07:18:44Z [coordinator] [docs-final-review-rework-001] [accepted] Accepted narrow final-review wording correction chunk.
+2026-04-24T07:19:33Z [coordinator] [docs-final-review-rework-001] [completed] Corrected final-review wording drifts in examples/repo-scale.md and docs/index.md.
+2026-04-24T07:20:41Z [coordinator] [final-validation] [passed] Final-review rework stale-phrase scan, docs build, package test suite, and whitespace validation passed.
