@@ -88,6 +88,7 @@ That includes settings such as:
 - `output.html.preferred-dark-theme`
 - `output.html.additional-css`
 - `output.html.additional-js`
+- configured `[preprocessor.*]` command plugins
 
 Relative shared asset paths are interpreted from the config root.
 

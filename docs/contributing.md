@@ -30,6 +30,23 @@ At a high level the build works like this:
 
 The serve path builds first, then serves the output directory as static files.
 
+```mermaid
+flowchart TD
+    Config["bookshelf.toml"] --> Catalog["input catalog"]
+    Config --> SharedConfig["shared mdBook config"]
+    SharedConfig --> Plugins["configured preprocessors"]
+    SharedConfig --> Assets["configured HTML assets"]
+    Catalog --> RootBook["root book"]
+    Catalog --> ChildBooks["child books"]
+    RootBook --> MdBook["mdBook load and build"]
+    ChildBooks --> MdBook
+    Plugins --> MdBook
+    Assets --> MdBook
+    MdBook --> BookOutputs["per-book HTML outputs"]
+    BookOutputs --> Search["site-wide search index"]
+    BookOutputs --> Redirect["site-root redirect"]
+```
+
 ## Code Map
 
 - `cli/mdbook-bookshelf/src/` contains the `book build` and `book serve` CLI
@@ -86,6 +103,7 @@ cargo test
 Useful spot checks:
 
 ```bash
+cargo install mdbook-mermaid
 cargo run --bin book -- build bookshelf.toml --dest-dir .tmp/project-docs-site
 cargo run --bin book -- build examples/self-contained/bookshelf.toml --dest-dir .tmp/bookshelf-site
 cargo run --bin book -- build tests/fixtures/build-cli/repo-scale/bookshelf.toml --dest-dir .tmp/repo-scale-site

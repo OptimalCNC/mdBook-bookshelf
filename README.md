@@ -16,6 +16,7 @@ cargo install --locked --git https://github.com/OptimalCNC/mdBook-bookshelf mdbo
 Run it against the repo's own docs:
 
 ```bash
+cargo install mdbook-mermaid
 book build bookshelf.toml
 book serve bookshelf.toml --port 3000
 ```

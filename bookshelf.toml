@@ -7,8 +7,12 @@ src = "docs"
 [build]
 build-dir = ".site"
 
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "ayu"
+additional-js = [".mdbook/mermaid.min.js", ".mdbook/mermaid-init.js"]
 
 [bookshelf]

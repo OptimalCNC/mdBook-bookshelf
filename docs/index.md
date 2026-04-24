@@ -31,6 +31,7 @@ cargo install --locked --git https://github.com/OptimalCNC/mdBook-bookshelf mdbo
 Then build this documentation set:
 
 ```bash
+cargo install mdbook-mermaid
 book build bookshelf.toml
 ```
 
