@@ -701,6 +701,13 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
         "Parser-specific reference pages with their own reading order.",
     );
 
+    let onboarding_html = assert_read_to_string(output_dir.join("docs/onboarding.html"));
+    assert_text_contains(
+        &onboarding_html,
+        "href=\"../modules/parser/docs/index.html\">Example Parser</a>",
+    );
+    assert_text_not_contains(&onboarding_html, "href=\"/modules/parser/docs/index.md\"");
+
     let parser_index_html =
         assert_read_to_string(output_dir.join("modules/parser/docs/index.html"));
     assert_text_contains(&parser_index_html, "bookshelf-breadcrumb.css");
@@ -832,6 +839,13 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
         "Example Parser / Grammar",
     );
     assert_file_contains(parser_breadcrumb_css, ".bookshelf-breadcrumb");
+    let parser_runtime_html =
+        assert_read_to_string(output_dir.join("modules/parser/docs/runtime.html"));
+    assert_text_contains(
+        &parser_runtime_html,
+        "href=\"../../ui/docs/index.html\">Example UI</a>",
+    );
+    assert_text_not_contains(&parser_runtime_html, "href=\"/modules/ui/docs/index.md\"");
     assert_runtime_toc(
         &parser_toc_script,
         "https://example.test/modules/parser/docs/grammar.html#deep-link",
@@ -844,6 +858,12 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     assert_exists(output_dir.join("modules/ui/docs/index.html"));
     assert_exists(output_dir.join("modules/ui/docs/navigation.html"));
     assert_exists(output_dir.join("modules/ui/docs/toc.html"));
+    let ui_navigation_html =
+        assert_read_to_string(output_dir.join("modules/ui/docs/navigation.html"));
+    assert_text_contains(
+        &ui_navigation_html,
+        "href=\"../../../index.html\">site root</a>",
+    );
     let ui_toc_html = assert_read_to_string(output_dir.join("modules/ui/docs/toc.html"));
     assert_sidebar_toc_scope(
         &ui_toc_html,
@@ -872,6 +892,7 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
         "https://example.test/modules/ui/docs/navigation.html",
     );
     assert_text_not_contains(&bookshelf_html, "data-bookshelf-breadcrumb");
+    assert_no_authored_root_relative_markdown_links(&output_dir);
     assert!(!fixture_root.join(".mdbook-bookshelf").exists());
     assert_eq!(collect_tree_entries(&fixture_root), fixture_entries_before);
 
@@ -1859,6 +1880,24 @@ fn assert_text_not_contains(haystack: &str, needle: &str) {
         "expected text not to contain {:?}",
         needle
     );
+}
+
+fn assert_no_authored_root_relative_markdown_links(output_dir: &Path) {
+    let html_files = collect_tree_entries(output_dir)
+        .into_iter()
+        .filter(|path| path.extension().is_some_and(|extension| extension == "html"))
+        .collect::<Vec<_>>();
+
+    for relative_path in html_files {
+        let path = output_dir.join(&relative_path);
+        let html = assert_read_to_string(path.clone());
+        let html = html.replace("<base href=\"/\">", "");
+        assert!(
+            !html.contains("href=\"/") && !html.contains("src=\"/"),
+            "expected {} not to contain authored root-relative href/src attributes",
+            path.display()
+        );
+    }
 }
 
 fn assert_script_order(page_html: &str, earlier: &str, later: &str) {

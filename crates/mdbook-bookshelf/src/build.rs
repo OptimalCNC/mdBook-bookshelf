@@ -9,6 +9,7 @@ use crate::root_bookshelf_preprocessor::{
 use crate::route_paths::{path_to_string, relative_path};
 use crate::search::{write_site_wide_search_index, LOCAL_SHARED_SEARCH_INDEX_NAME};
 use crate::site_model::{build_site_model, SitePageKind};
+use crate::site_root_link_preprocessor::{SiteRootLinkMap, SiteRootLinkPreprocessor};
 use crate::load_single_book_with_config_and_parsed_summary;
 use anyhow::{Context, Result};
 use mdbook_driver::config::Config;
@@ -31,6 +32,8 @@ pub fn build_bookshelf_site(
     let mdbook_config = catalog.mdbook_config.clone();
     let site_dest_dir = resolve_site_dest_dir(&catalog.config_dir, &mdbook_config, dest_dir)?;
     let config_root = catalog.config_dir.clone();
+    let site_root_link_map = SiteRootLinkMap::from_catalog(&catalog)
+        .context("failed to build site-root Markdown link map")?;
     let book_breadcrumbs = build_book_breadcrumbs(&catalog)
         .context("failed to build exact book/page breadcrumb metadata")?;
     let root_bookshelf_rel = PathBuf::from(site_root_bookshelf_entry_path(
@@ -53,6 +56,7 @@ pub fn build_bookshelf_site(
             &site_dest_dir,
             &root_bookshelf_rel,
             breadcrumb_pages,
+            &site_root_link_map,
         )?;
     }
 
@@ -70,6 +74,7 @@ fn build_catalog_book(
     site_dest_dir: &Path,
     root_bookshelf_rel: &Path,
     breadcrumb_pages: &[BookshelfBreadcrumbPage],
+    site_root_link_map: &SiteRootLinkMap,
 ) -> Result<()> {
     let summary_text = fs::read_to_string(&book.summary_abs).with_context(|| {
         format!(
@@ -156,6 +161,11 @@ fn build_catalog_book(
             )
         })?;
     }
+
+    mdbook.with_preprocessor(SiteRootLinkPreprocessor::new(
+        book.output_rel.clone(),
+        site_root_link_map.clone(),
+    ));
 
     let html_build_dir = mdbook.build_dir_for("html");
     mdbook.build().with_context(|| {
