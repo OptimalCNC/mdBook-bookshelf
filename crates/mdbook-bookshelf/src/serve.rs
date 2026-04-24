@@ -1,5 +1,5 @@
 use crate::build::{build_bookshelf_site_with_options, BuildOptions};
-use crate::catalog::build_input_catalog;
+use crate::catalog::{build_input_catalog, InputCatalog};
 use anyhow::{Context, Result};
 use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
@@ -16,6 +16,7 @@ use tower_http::services::{ServeDir, ServeFile};
 
 const LIVE_RELOAD_ENDPOINT: &str = "__livereload";
 const WATCH_POLL_INTERVAL: Duration = Duration::from_secs(1);
+const GENERATED_BOOKSHELF_ASSET_DIR: &str = ".mdbook-bookshelf";
 
 #[derive(Debug, Clone)]
 pub struct ServeOptions {
@@ -213,22 +214,7 @@ impl PollWatcher {
             format!("failed to load watch roots from {}", config_path.display())
         })?;
 
-        let mut roots = Vec::with_capacity(catalog.books.len() + 1);
-        push_watch_root(
-            &mut roots,
-            normalize_path(&catalog.config_path),
-            &self.output_dir,
-        );
-
-        for book in catalog.books {
-            push_watch_root(
-                &mut roots,
-                normalize_path(&book.book_src_abs),
-                &self.output_dir,
-            );
-        }
-
-        self.root_paths = roots;
+        self.root_paths = collect_watch_roots(&catalog, &self.output_dir);
         Ok(())
     }
 
@@ -258,7 +244,7 @@ impl PollWatcher {
     }
 
     fn scan_path(&self, path: &Path, path_data: &mut HashMap<PathBuf, PathData>) {
-        if self.is_output_path(path) {
+        if self.is_output_path(path) || is_generated_bookshelf_asset_path(path) {
             return;
         }
 
@@ -274,13 +260,17 @@ impl PollWatcher {
             };
 
             for entry in entries.flatten() {
-                self.scan_path(&entry.path(), path_data);
+                let entry_path = entry.path();
+                if is_generated_bookshelf_asset_path(&entry_path) {
+                    continue;
+                }
+                self.scan_path(&entry_path, path_data);
             }
             return;
         }
 
         let normalized = normalize_path(path);
-        if self.is_output_path(&normalized) {
+        if self.is_output_path(&normalized) || is_generated_bookshelf_asset_path(&normalized) {
             return;
         }
 
@@ -300,12 +290,78 @@ impl PollWatcher {
     }
 }
 
+fn collect_watch_roots(catalog: &InputCatalog, output_dir: &Path) -> Vec<PathBuf> {
+    let html_config = catalog.mdbook_config.html_config();
+    let mut roots = Vec::new();
+
+    push_watch_root(&mut roots, catalog.config_path.clone(), output_dir);
+
+    for book in &catalog.books {
+        push_watch_root(&mut roots, book.book_src_abs.clone(), output_dir);
+    }
+
+    if let Some(theme) = html_config
+        .as_ref()
+        .and_then(|config| config.theme.as_ref())
+    {
+        push_watch_root(
+            &mut roots,
+            resolve_config_dir_path(&catalog.config_dir, theme),
+            output_dir,
+        );
+    } else {
+        for book in &catalog.books {
+            push_watch_root(&mut roots, book.book_root_abs.join("theme"), output_dir);
+        }
+    }
+
+    for extra_dir in &catalog.mdbook_config.build.extra_watch_dirs {
+        push_watch_root(
+            &mut roots,
+            resolve_config_dir_path(&catalog.config_dir, extra_dir),
+            output_dir,
+        );
+    }
+
+    if let Some(html_config) = html_config {
+        for asset in html_config
+            .additional_css
+            .iter()
+            .chain(html_config.additional_js.iter())
+        {
+            push_watch_root(
+                &mut roots,
+                resolve_config_dir_path(&catalog.config_dir, asset),
+                output_dir,
+            );
+        }
+    }
+
+    roots
+}
+
+fn resolve_config_dir_path(config_dir: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        config_dir.join(path)
+    }
+}
+
 fn push_watch_root(roots: &mut Vec<PathBuf>, path: PathBuf, output_dir: &Path) {
+    let path = normalize_path(&path);
+
     if path == output_dir || path.starts_with(output_dir) || roots.contains(&path) {
         return;
     }
 
     roots.push(path);
+}
+
+fn is_generated_bookshelf_asset_path(path: &Path) -> bool {
+    path.components().any(|component| {
+        component.as_os_str() == std::ffi::OsStr::new(GENERATED_BOOKSHELF_ASSET_DIR)
+    })
 }
 
 fn normalize_path(path: &Path) -> PathBuf {
@@ -318,4 +374,218 @@ fn normalize_path(path: &Path) -> PathBuf {
     };
 
     absolute.canonicalize().unwrap_or(absolute)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    #[test]
+    fn watch_roots_include_shared_config_stock_categories() {
+        let fixture_root = make_temp_dir("watch-roots-shared-categories");
+        let absolute_script = fixture_root.join("absolute-script.js");
+        write_minimal_bookshelf_fixture(
+            &fixture_root,
+            &format!(
+                r#"
+[build]
+extra-watch-dirs = ["shared/watch"]
+
+[output.html]
+theme = "shared/theme"
+additional-css = ["assets/site.css"]
+additional-js = ["scripts/site.js", "{}"]
+"#,
+                toml_path(&absolute_script)
+            ),
+        );
+        fs::create_dir_all(fixture_root.join("shared/watch"))
+            .expect("extra watch dir should be created");
+        fs::create_dir_all(fixture_root.join("shared/theme")).expect("theme dir should be created");
+        fs::create_dir_all(fixture_root.join("assets")).expect("asset dir should be created");
+        fs::create_dir_all(fixture_root.join("scripts")).expect("script dir should be created");
+        fs::write(fixture_root.join("assets/site.css"), "body {}\n")
+            .expect("css asset should be written");
+        fs::write(
+            fixture_root.join("scripts/site.js"),
+            "console.log('shared');\n",
+        )
+        .expect("js asset should be written");
+        fs::write(&absolute_script, "console.log('absolute');\n")
+            .expect("absolute js asset should be written");
+
+        let output_dir = normalize_path(&fixture_root.join("book"));
+        let mut watcher = PollWatcher::new(output_dir);
+        watcher
+            .set_roots_from_config(&fixture_root.join("bookshelf.toml"))
+            .expect("watch roots should be discovered");
+
+        assert_eq!(
+            normalized_paths(&[
+                fixture_root.join("bookshelf.toml"),
+                fixture_root.join("docs"),
+                fixture_root.join("modules/child/docs"),
+                fixture_root.join("shared/theme"),
+                fixture_root.join("shared/watch"),
+                fixture_root.join("assets/site.css"),
+                fixture_root.join("scripts/site.js"),
+                absolute_script,
+            ]),
+            watcher.root_paths
+        );
+
+        fs::remove_dir_all(fixture_root).expect("fixture root should be removed");
+    }
+
+    #[test]
+    fn watch_roots_include_default_book_theme_dirs_without_shared_theme() {
+        let fixture_root = make_temp_dir("watch-roots-default-themes");
+        write_minimal_bookshelf_fixture(&fixture_root, "");
+        fs::create_dir_all(fixture_root.join("theme")).expect("root theme should be created");
+        fs::create_dir_all(fixture_root.join("modules/child/theme"))
+            .expect("child theme should be created");
+
+        let output_dir = normalize_path(&fixture_root.join("book"));
+        let mut watcher = PollWatcher::new(output_dir);
+        watcher
+            .set_roots_from_config(&fixture_root.join("bookshelf.toml"))
+            .expect("watch roots should be discovered");
+
+        assert_eq!(
+            normalized_paths(&[
+                fixture_root.join("bookshelf.toml"),
+                fixture_root.join("docs"),
+                fixture_root.join("modules/child/docs"),
+                fixture_root.join("theme"),
+                fixture_root.join("modules/child/theme"),
+            ]),
+            watcher.root_paths
+        );
+
+        fs::remove_dir_all(fixture_root).expect("fixture root should be removed");
+    }
+
+    #[test]
+    fn watch_roots_exclude_output_and_generated_bookshelf_asset_trees() {
+        let fixture_root = make_temp_dir("watch-roots-generated-exclusion");
+        write_minimal_bookshelf_fixture(
+            &fixture_root,
+            r#"
+[build]
+extra-watch-dirs = ["."]
+"#,
+        );
+        let output_dir = fixture_root.join("book");
+        fs::create_dir_all(&output_dir).expect("output dir should be created");
+
+        let mut watcher = PollWatcher::new(output_dir.clone());
+        watcher
+            .set_roots_from_config(&fixture_root.join("bookshelf.toml"))
+            .expect("watch roots should be discovered");
+        watcher.scan();
+
+        let normal_changed = fixture_root.join("shared/changed.txt");
+        fs::create_dir_all(
+            normal_changed
+                .parent()
+                .expect("normal path should have parent"),
+        )
+        .expect("normal change parent should be created");
+        fs::write(&normal_changed, "changed\n").expect("normal change should be written");
+
+        let generated_changed = fixture_root
+            .join(GENERATED_BOOKSHELF_ASSET_DIR)
+            .join("build-test/shared/generated.css");
+        fs::create_dir_all(
+            generated_changed
+                .parent()
+                .expect("generated path should have parent"),
+        )
+        .expect("generated change parent should be created");
+        fs::write(&generated_changed, "generated\n").expect("generated change should be written");
+
+        let output_changed = output_dir.join("generated.html");
+        fs::write(&output_changed, "<p>generated</p>\n").expect("output change should be written");
+
+        let changed_paths = watcher.scan();
+
+        assert!(
+            changed_paths.contains(&normalize_path(&normal_changed)),
+            "ordinary changes under broad roots should be detected: {changed_paths:?}"
+        );
+        assert!(
+            !changed_paths
+                .iter()
+                .any(|path| path.starts_with(normalize_path(&generated_changed))),
+            "generated bookshelf asset changes should be excluded: {changed_paths:?}"
+        );
+        assert!(
+            !changed_paths
+                .iter()
+                .any(|path| path.starts_with(normalize_path(&output_changed))),
+            "serve output changes should be excluded: {changed_paths:?}"
+        );
+
+        fs::remove_dir_all(fixture_root).expect("fixture root should be removed");
+    }
+
+    fn write_minimal_bookshelf_fixture(fixture_root: &Path, extra_config: &str) {
+        fs::create_dir_all(fixture_root.join("docs")).expect("root docs should be created");
+        fs::create_dir_all(fixture_root.join("modules/child/docs"))
+            .expect("child docs should be created");
+        fs::write(
+            fixture_root.join("docs/SUMMARY.md"),
+            "# Summary\n\n- [Root](index.md)\n",
+        )
+        .expect("root summary should be written");
+        fs::write(fixture_root.join("docs/index.md"), "# Root\n")
+            .expect("root index should be written");
+        fs::write(
+            fixture_root.join("modules/child/docs/SUMMARY.md"),
+            "# Summary\n\n- [Child](index.md)\n",
+        )
+        .expect("child summary should be written");
+        fs::write(
+            fixture_root.join("modules/child/docs/index.md"),
+            "# Child\n",
+        )
+        .expect("child index should be written");
+        fs::write(
+            fixture_root.join("bookshelf.toml"),
+            format!(
+                r#"[book]
+title = "Root"
+src = "docs"
+language = "en"
+
+{extra_config}
+[[bookshelf.book]]
+title = "Child"
+src = "modules/child/docs"
+"#
+            ),
+        )
+        .expect("bookshelf config should be written");
+    }
+
+    fn normalized_paths(paths: &[PathBuf]) -> Vec<PathBuf> {
+        paths.iter().map(|path| normalize_path(path)).collect()
+    }
+
+    fn make_temp_dir(tag: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after unix epoch")
+            .as_nanos();
+        let dir = std::env::temp_dir()
+            .join("mdbook-bookshelf")
+            .join(format!("{tag}-{nanos}"));
+        fs::create_dir_all(&dir).expect("temp directory should be created");
+        dir
+    }
+
+    fn toml_path(path: &Path) -> String {
+        path.to_string_lossy().replace('\\', "\\\\")
+    }
 }

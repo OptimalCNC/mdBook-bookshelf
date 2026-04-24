@@ -219,6 +219,80 @@ fn serve_cli_rebuilds_changed_source_and_serves_live_reload_output() {
     fs::remove_dir_all(&build_output_dir).expect("temp build output directory should be removed");
 }
 
+#[test]
+fn serve_cli_rebuilds_changed_configured_html_asset() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let fixture_root = make_temp_dir("serve-watch-html-asset-fixture", &repo_root);
+    let serve_output_dir = make_temp_dir("serve-watch-html-asset-output", &repo_root);
+    copy_dir_all(
+        &repo_root.join("tests/fixtures/build-cli/shared-config-root"),
+        &fixture_root,
+    )
+    .expect("fixture should be copied to temp directory");
+    let config_path = fixture_root.join("bookshelf.toml");
+
+    let mut child = Command::new(&bin)
+        .arg("serve")
+        .arg(&config_path)
+        .arg("--dest-dir")
+        .arg(&serve_output_dir)
+        .arg("--hostname")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg("0")
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("serve command should spawn");
+
+    let stderr = child
+        .stderr
+        .take()
+        .expect("serve child stderr should be piped");
+    let stderr_lines = spawn_stderr_reader(stderr);
+    let mut stderr_log = String::new();
+    let server_address = wait_for_serving_address(&mut child, &stderr_lines, &mut stderr_log);
+    wait_for_stderr_contains(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        "Watching for changes...",
+    );
+
+    let initial_css = wait_for_served_site_css_body_contains(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        "/docs/index.html",
+        "border-top: 4px solid #0b7285",
+    );
+    assert_status_ok(&initial_css);
+
+    let marker = format!("Serve watch CSS marker {}", unique_nanos());
+    let css_path = fixture_root.join("shared/site.css");
+    let mut css = fs::read_to_string(&css_path).expect("shared CSS fixture should be readable");
+    css.push_str("\n/* ");
+    css.push_str(&marker);
+    css.push_str(" */\n");
+    fs::write(&css_path, css).expect("shared CSS fixture should be editable");
+
+    let updated_css = wait_for_served_site_css_body_contains(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        "/docs/index.html",
+        &marker,
+    );
+    assert_status_ok(&updated_css);
+
+    shutdown_child(&mut child);
+    fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
+    fs::remove_dir_all(&serve_output_dir).expect("temp serve output directory should be removed");
+}
+
 fn wait_for_serving_address(
     child: &mut Child,
     stderr_lines: &Receiver<String>,
@@ -242,6 +316,33 @@ fn wait_for_serving_address(
 
     shutdown_child(child);
     panic!("timed out waiting for serve process to report a bound address\nstderr:\n{stderr_log}");
+}
+
+fn wait_for_stderr_contains(
+    child: &mut Child,
+    stderr_lines: &Receiver<String>,
+    stderr_log: &mut String,
+    expected: &str,
+) {
+    for _ in 0..100 {
+        if stderr_log.contains(expected) {
+            return;
+        }
+
+        if let Some(status) = child
+            .try_wait()
+            .expect("serve child status should be readable")
+        {
+            drain_stderr(stderr_lines, stderr_log);
+            panic!("serve exited early with {status}\nstderr:\n{stderr_log}");
+        }
+
+        drain_stderr(stderr_lines, stderr_log);
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    shutdown_child(child);
+    panic!("timed out waiting for stderr to contain {expected:?}\nstderr:\n{stderr_log}");
 }
 
 fn wait_for_response(
@@ -315,6 +416,60 @@ fn wait_for_response_body_contains(
     );
 }
 
+fn wait_for_served_site_css_body_contains(
+    child: &mut Child,
+    stderr_lines: &Receiver<String>,
+    stderr_log: &mut String,
+    server_address: &str,
+    page_path: &str,
+    expected: &str,
+) -> String {
+    let mut last_page_response = String::new();
+    let mut last_css_path = String::new();
+    let mut last_css_response = String::new();
+
+    for _ in 0..250 {
+        if let Some(status) = child
+            .try_wait()
+            .expect("serve child status should be readable")
+        {
+            drain_stderr(stderr_lines, stderr_log);
+            panic!("serve exited early with {status}\nstderr:\n{stderr_log}");
+        }
+
+        match http_get(server_address, page_path) {
+            Ok(page_response) => {
+                if let Some(href) = extract_site_css_href(response_body(&page_response)) {
+                    let css_path = resolve_page_relative_path(page_path, &href);
+                    last_css_path = css_path.clone();
+
+                    match http_get(server_address, &css_path) {
+                        Ok(css_response) => {
+                            if response_body(&css_response).contains(expected) {
+                                return css_response;
+                            }
+                            last_css_response = css_response;
+                        }
+                        Err(_) => drain_stderr(stderr_lines, stderr_log),
+                    }
+                }
+                last_page_response = page_response;
+            }
+            Err(_) => drain_stderr(stderr_lines, stderr_log),
+        }
+
+        drain_stderr(stderr_lines, stderr_log);
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    shutdown_child(child);
+    panic!(
+        "timed out waiting for served site CSS referenced from {page_path} to contain {expected:?}\nstderr:\n{stderr_log}\nlast css path: {last_css_path}\nlast css body:\n{}\nlast page body:\n{}",
+        response_body(&last_css_response),
+        response_body(&last_page_response)
+    );
+}
+
 fn http_get(server_address: &str, path: &str) -> std::io::Result<String> {
     let mut stream = TcpStream::connect(server_address)?;
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -330,6 +485,34 @@ fn http_get(server_address: &str, path: &str) -> std::io::Result<String> {
 
 fn response_body(response: &str) -> &str {
     response.split("\r\n\r\n").nth(1).unwrap_or("")
+}
+
+fn extract_site_css_href(page_html: &str) -> Option<String> {
+    page_html
+        .split("href=\"")
+        .skip(1)
+        .filter_map(|part| part.split('"').next())
+        .find(|href| href.contains("shared/site") && href.ends_with(".css"))
+        .map(str::to_string)
+}
+
+fn resolve_page_relative_path(page_path: &str, href: &str) -> String {
+    if href.starts_with('/') {
+        return href.to_string();
+    }
+
+    let parent = page_path
+        .rsplit_once('/')
+        .map(|(parent, _)| {
+            if parent.is_empty() {
+                "/".to_string()
+            } else {
+                format!("{parent}/")
+            }
+        })
+        .unwrap_or_else(|| "/".to_string());
+
+    format!("{parent}{href}")
 }
 
 fn assert_status_ok(response: &str) {

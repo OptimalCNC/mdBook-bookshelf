@@ -13,8 +13,8 @@ Fix `book serve` so source/config changes are watched, rebuilt, and refreshed wh
 - Replace only stock single-book watch root discovery with bookshelf-aware roots derived from `bookshelf.toml`, catalog books, mdBook config, source roots, theme dirs, extra watch dirs, and configured HTML assets.
 
 # Current State
-- `crates/mdbook-bookshelf/src/serve.rs` builds once and serves a static directory with no watcher or live reload.
-- `crates/mdbook-bookshelf/src/build.rs` is the current shared build engine and must remain the only rendering/build path.
+- Commit `24a370978f8132fd03229e52e83e85e75f2ac5b9` added the stock-style serve loop: serve-mode live reload config overlay, static server, `/__livereload`, poll rebuilds, and focused source-edit tests.
+- The remaining stock-alignment gap is watch root parity for shared mdBook assets: theme roots, extra watch dirs, and configured HTML CSS/JS assets.
 
 # Open Risks
 - Watch root discovery must avoid watching generated output directories in a way that triggers rebuild loops.
@@ -22,65 +22,63 @@ Fix `book serve` so source/config changes are watched, rebuilt, and refreshed wh
 
 # Active Chunk
 ```yaml
-chunk_id: serve-watch-001
-title: Stock-style serve watch/rebuild/reload loop
-objective: Make `book serve` build once, serve one output tree, watch bookshelf inputs, rerun the shared bookshelf build engine on changes, and broadcast reload after successful rebuild.
-why_now: Current serve already uses the shared build engine but only serves static output; this is the smallest chunk that proves an authored change becomes visible through the running server.
-depends_on: []
+chunk_id: serve-watch-002
+title: Stock poll root categories for bookshelf serve
+objective: Extend the existing serve poll watcher root discovery to include the stock mdBook watch categories that apply to bookshelf: theme roots, extra watch dirs, and configured HTML CSS/JS assets.
+why_now: The serve loop now rebuilds and reloads on book source changes, but shared mdBook assets from bookshelf.toml can still change without triggering a rebuild.
+depends_on:
+  - serve-watch-001
 touchpoints:
-  - `mdBook-repo/mdBook/src/cmd/serve.rs` stock initial build, serve-mode config overlay, static fallback, `__livereload` websocket, and post-build reload broadcast shape.
-  - `mdBook-repo/mdBook/src/cmd/watch/poller.rs` stock whole-tree reload/rebuild polling pattern, with bookshelf-owned root discovery.
-  - `crates/mdbook-bookshelf/src/build.rs::build_bookshelf_site` as the only initial and watched rebuild callback.
-  - `crates/mdbook-bookshelf/src/catalog.rs::build_input_catalog` for bookshelf-aware watch roots.
+  - `crates/mdbook-bookshelf/src/serve.rs::PollWatcher::set_roots_from_config`
+  - `mdBook-repo/mdBook/src/cmd/watch/poller.rs::Watcher::set_roots` stock root category list
+  - `mdbook_driver::config::Config::html_config` for output.html.additional-css/additional-js/theme
+  - `crates/mdbook-bookshelf/src/bookshelf_ui.rs::TransientBookshelfUiAssets::stage_config_root_output_assets` shared config-root asset behavior
 scope_in:
-  - Add a serve-mode build option that sets `output.html.live-reload-endpoint = "__livereload"` through mdBook config before rendering.
-  - Add a serve-owned poll watcher thread that scans `bookshelf.toml` and each catalog book source directory.
-  - On watched changes, reload catalog/config from disk and call the same bookshelf build engine with serve-mode options.
-  - Add stock-style `/__livereload` websocket route and broadcast `reload` only after successful rebuild.
-  - Keep HTTP static serving rooted at the site root returned by the initial build.
-  - Add focused CLI integration coverage using a copied fixture to prove served HTML changes without restarting serve.
+  - Add testable watch-root collection for bookshelf.toml, every catalog book source dir, shared configured theme, default per-book theme dirs, build.extra-watch-dirs, and output.html.additional-css/additional-js.
+  - Resolve shared mdBook config roots relative to catalog.config_dir, preserving absolute paths.
+  - Keep excluding the serve output directory from roots and scans.
+  - Skip generated transient .mdbook-bookshelf asset trees during scans so broad roots such as extra-watch-dirs = ["."] do not self-trigger rebuild loops.
+  - Add focused unit coverage for root discovery categories and generated-root exclusion.
+  - Add focused serve CLI coverage proving an edited configured additional CSS asset is recopied and served without restarting serve.
 scope_out:
-  - Native notify watcher and `--watcher` CLI flag.
-  - Full `.gitignore`, theme dir, `extra_watch_dirs`, `additional_css`, and `additional_js` parity.
-  - Incremental rebuilds, a separate renderer, or generated HTML patching.
-  - Browser automation.
+  - Native notify watcher or `--watcher` CLI flag.
+  - `.gitignore` parity.
+  - Per-book build/output config support beyond the current shared bookshelf.toml model.
+  - Incremental rebuilds or any build/render architecture change.
+  - Browser automation or websocket client assertions.
 target_files:
-  - `crates/mdbook-bookshelf/src/build.rs`
-  - `crates/mdbook-bookshelf/src/lib.rs`
   - `crates/mdbook-bookshelf/src/serve.rs`
   - `tests/serve_cli.rs`
-  - `Cargo.toml`
-  - `Cargo.lock`
 implementation_tasks:
-  - Add build options or an equivalent internal wrapper so normal `book build` does not emit live-reload assets and `book serve` does.
-  - Add minimal watcher helpers in `serve.rs` to derive watch roots from `build_input_catalog`, recursively snapshot file metadata, poll, and report changed paths while excluding the output directory.
-  - Start the watcher concurrently after initial build, passing cloned config path, dest dir, and reload sender.
-  - Add a `/__livereload` websocket route to the existing router and send text `reload` after successful watched rebuilds.
-  - Ensure both initial serve and watched rebuilds call the shared build engine.
-  - Add only necessary dependency/feature changes.
-  - Extend `tests/serve_cli.rs` with a temp copied fixture, source edit, live-reload script assertion, and polling HTTP assertion for new content.
+  - Refactor PollWatcher root setup into a small helper that returns normalized, deduplicated watch roots from the loaded InputCatalog.
+  - Add shared config-root path resolution for build.extra_watch_dirs and output.html additional CSS/JS assets.
+  - Add theme root discovery: use output.html.theme from the shared mdBook config when configured, otherwise include each catalog book root's default theme directory.
+  - Preserve the existing output-dir exclusion and add scan-time exclusion for .mdbook-bookshelf generated asset directories.
+  - Add serve.rs unit tests for discovered roots and exclusion behavior using temporary test fixtures.
+  - Extend serve_cli tests with a copied fixture containing output.html.additional-css, edit the CSS while serve is running, and poll the served CSS URL until the marker appears.
 acceptance_criteria:
-  - Existing serve CLI tests still pass.
-  - Editing a Markdown file under a catalog book source while `book serve` is running rebuilds successfully.
-  - The updated content is returned over HTTP by the same running serve process.
-  - Serve output includes the stock mdBook live-reload client script; build output does not.
-  - Serve uses the shared bookshelf build engine for initial and watched builds; no duplicate rendering path is introduced.
-  - The generated output directory is not a watched root.
-  - Reload is broadcast only after successful rebuild.
+  - Poll watcher roots include bookshelf.toml, every catalog book source dir, applicable theme dirs, build.extra-watch-dirs, and output.html.additional-css/additional-js.
+  - Relative shared mdBook config paths resolve from the bookshelf.toml directory.
+  - The serve output directory is not watched or scanned.
+  - Generated .mdbook-bookshelf transient asset trees do not trigger rebuilds when a broad watched root contains them.
+  - Editing a configured additional CSS asset while `book serve` is running rebuilds and serves the updated asset without restarting.
+  - No native watcher, renderer fork, or build engine change is introduced.
 verification:
+  - command: `cargo test watch_roots`
+    expect: New focused root discovery and exclusion unit tests pass.
+  - command: `cargo test --test serve_cli serve_cli_rebuilds_changed_configured_html_asset`
+    expect: The running serve process notices a shared CSS edit and serves the updated asset.
   - command: `cargo test --test serve_cli`
-    expect: Existing serve tests and the new watch/rebuild proof pass without early serve process exit.
-  - command: `cargo test`
-    expect: Full suite passes after dependency and feature changes.
+    expect: Existing serve behavior and the new asset-watch proof pass together.
 review_focus:
-  - Confirm serve and build share the same build engine with only a serve config overlay.
-  - Confirm watcher roots include config and book source trees while excluding output.
-  - Confirm failed rebuilds keep the server alive and do not broadcast reload.
-  - Confirm the chunk stays limited to minimal poll-based proof, not native watcher or full watch-root parity.
+  - Confirm the root categories mirror upstream poller categories where bookshelf's shared config model makes them meaningful.
+  - Confirm shared asset paths are resolved against catalog.config_dir, not transient staged child-book locations.
+  - Confirm broad roots cannot watch serve output or .mdbook-bookshelf generated assets.
+  - Confirm the change remains limited to poll watcher root discovery and tests.
 ```
 
 # Chunk Ledger
-None yet.
+- `serve-watch-001`: approved in commit `24a370978f8132fd03229e52e83e85e75f2ac5b9`; added shared-engine serve-mode build overlay, static serving, `/__livereload`, poll rebuilds for config/source changes, and focused source-edit CLI coverage.
 
 # Final Validation
 Pending.
@@ -93,3 +91,10 @@ Pending.
 2026-04-24T03:59:49Z [coordinator] [serve-watch-001] [accepted] Accepted first chunk with serve-mode live-reload config overlay added to scope.
 2026-04-24T04:02:39Z [developer] [serve-watch-001] [started] Implementing serve-mode live reload, poll rebuilds, and CLI coverage.
 2026-04-24T04:05:50Z [developer] [serve-watch-001] [completed] Added serve rebuild watcher, live-reload route, focused CLI coverage, and passed requested tests.
+2026-04-24T04:07:52Z [reviewer-subagent] [serve-watch-001] [approved] Serve watch/rebuild/reload meets active chunk criteria; focused and full tests pass.
+2026-04-24T04:07:40Z [reviewer] [serve-watch-001] [approved] Direction matches stock-style shared-engine serve watch/rebuild/reload scope.
+2026-04-24T04:09:19Z [researcher-subagent] [watch-root-seam] [done] Derive shared mdBook asset watch roots against config_dir, then exclude site output and transient staged UI asset trees.
+2026-04-24T04:09:21Z [planner] [serve-watch-002] [planned] Planned stock-category poll roots for shared theme, extra watch dirs, and configured HTML assets.
+2026-04-24T04:11:08Z [coordinator] [serve-watch-002] [accepted] Accepted stock poll root category follow-up after first chunk approval.
+2026-04-24T04:13:58Z [developer] [serve-watch-002] [started] Implementing stock mdBook poll root categories and transient asset exclusions.
+2026-04-24T04:16:11Z [developer] [serve-watch-002] [completed] Added stock poll root categories, generated asset scan exclusion, CSS serve coverage, and passed requested/full tests.
