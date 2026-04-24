@@ -21,7 +21,7 @@ The current test fixture verifies implemented behavior.
 
 It checks:
 
-- root `/` redirect to the synthetic `Bookshelf` page
+- configured root `/` redirect to the synthetic `Bookshelf` page
 - root-book `Bookshelf` page ownership and links
 - root-book sidebar with a trailing unnumbered `Bookshelf` affix entry
 - child-book sidebars that stay scoped to the active book

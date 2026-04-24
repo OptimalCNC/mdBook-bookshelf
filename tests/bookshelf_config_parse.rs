@@ -1,4 +1,4 @@
-use mdbook_bookshelf::load_bookshelf_config;
+use mdbook_bookshelf::{load_bookshelf_config, BookshelfEntryPage};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -23,6 +23,7 @@ src = "modules/parser/docs"
     );
 
     let config = load_bookshelf_config(&config_path).expect("fixture should parse");
+    assert_eq!(BookshelfEntryPage::RootBook, config.entry_page);
     assert_eq!(
         "Core Docs",
         config.mdbook_config.book.title.as_deref().unwrap()
@@ -38,6 +39,25 @@ src = "modules/parser/docs"
         config.books[0].source_rel.as_path()
     );
     assert_eq!(Path::new("docs"), config.books[0].book.src.as_path());
+}
+
+#[test]
+fn parses_configured_bookshelf_entry_page() {
+    let temp = TempDir::new("chunk-06a-config-parse-entry-page");
+    let config_path = write_temp_bookshelf_toml(
+        temp.path(),
+        r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+entry-page = "bookshelf"
+"#,
+    );
+
+    let config = load_bookshelf_config(&config_path).expect("fixture should parse");
+    assert_eq!(BookshelfEntryPage::Bookshelf, config.entry_page);
 }
 
 #[test]

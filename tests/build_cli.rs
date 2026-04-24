@@ -644,13 +644,13 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     let root_entry_html = assert_read_to_string(output_dir.join("index.html"));
     assert_text_contains(
         &root_entry_html,
-        "http-equiv=\"refresh\" content=\"0; url=docs/bookshelf.html\"",
+        "http-equiv=\"refresh\" content=\"0; url=docs/index.html\"",
     );
     assert_text_contains(
         &root_entry_html,
-        "window.location.replace(\"docs/bookshelf.html\")",
+        "window.location.replace(\"docs/index.html\")",
     );
-    assert_text_contains(&root_entry_html, "href=\"docs/bookshelf.html\"");
+    assert_text_contains(&root_entry_html, "href=\"docs/index.html\"");
     assert_text_not_contains(&root_entry_html, "bookshelf-card__link");
     assert_text_not_contains(&root_entry_html, "Example Core");
 

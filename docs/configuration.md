@@ -9,6 +9,7 @@ This document explains how to write `bookshelf.toml`.
 - top-level mdBook config stays stock
 - `[book]` is the root book
 - `[bookshelf]` enables bookshelf behavior
+- `[bookshelf].entry-page` selects where `/` redirects
 - `[[bookshelf.book]]` adds child books
 
 The root `[book]` and each `[[bookshelf.book]]` entry use mdBook's own
@@ -47,6 +48,19 @@ src = "modules/ui/docs"
 - every `src` must point to a docs directory
 - the canonical summary for a book is `<src>/SUMMARY.md`
 - the stable entry page for a book is `<src>/index.md`
+
+## Entry Page
+
+The site-root entry page is configurable with `[bookshelf].entry-page`.
+
+Valid values:
+
+- `root-book` redirects `/` and `/index.html` to the root book's
+  `<src>/index.html`
+- `bookshelf` redirects `/` and `/index.html` to the generated
+  `<src>/bookshelf.html`
+
+When omitted, `entry-page` defaults to `root-book`.
 
 Current validation rules:
 
@@ -92,4 +106,3 @@ Descriptions are optional, but they are the text shown on the generated
 - duplicated child-book summaries inside the root book
 
 Keep the config human-owned and close to stock mdBook.
-

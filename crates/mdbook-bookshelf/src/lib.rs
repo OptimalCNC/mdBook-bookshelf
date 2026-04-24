@@ -13,7 +13,7 @@ pub(crate) mod site_root_link_preprocessor;
 
 pub use build::{build_bookshelf, build_bookshelf_site};
 pub use catalog::{build_input_catalog, InputBook, InputCatalog};
-pub use config::{load_bookshelf_config, BookshelfBook, BookshelfConfig};
+pub use config::{load_bookshelf_config, BookshelfBook, BookshelfConfig, BookshelfEntryPage};
 pub use loader::{load_books_from_catalog, load_books_from_config, LoadedBook, LoadedBooks};
 pub use navigation::{build_navigation_metadata, NavigationMetadata, PageNavigation};
 pub use root_bookshelf_preprocessor::{

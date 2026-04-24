@@ -26,7 +26,7 @@ At a high level the build works like this:
    search override
 6. build each book with mdBook's HTML renderer into its canonical output root
 7. merge per-book search indexes into one shared site-wide search index
-8. write the site-root redirect to the synthetic shelf page
+8. write the site-root redirect to the configured entry page
 
 The serve path builds first, then serves the output directory as static files.
 

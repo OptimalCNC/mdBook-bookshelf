@@ -1,5 +1,6 @@
 use crate::bookshelf_ui::{BookshelfBreadcrumbPage, TransientBookshelfUiAssets};
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
+use crate::config::BookshelfEntryPage;
 use crate::loader::load_books_from_catalog;
 use crate::navigation::build_navigation_metadata;
 use crate::root_bookshelf_preprocessor::{
@@ -311,7 +312,7 @@ fn write_site_root_index(
     )
     .with_context(|| {
         format!(
-            "failed to write site-root bookshelf entry file at {}",
+            "failed to write site-root entry file at {}",
             index_path.display()
         )
     })
@@ -322,12 +323,7 @@ fn render_site_root_index(
     projected_config: &Config,
 ) -> Result<String> {
     let lang = projected_config.book.language.as_deref().unwrap_or("en");
-    let target = site_root_bookshelf_entry_path(
-        &catalog
-            .root_book()
-            .context("failed to resolve root book for site-root redirect")?
-            .output_rel,
-    );
+    let target = site_root_entry_path(catalog)?;
 
     Ok(format!(
         "<!DOCTYPE html>\n\
@@ -348,6 +344,18 @@ fn render_site_root_index(
         escape_html_attr(&target),
         escape_html_attr(&target),
     ))
+}
+
+fn site_root_entry_path(catalog: &InputCatalog) -> Result<String> {
+    let root_output_rel = &catalog
+        .root_book()
+        .context("failed to resolve root book for site-root redirect")?
+        .output_rel;
+
+    match catalog.entry_page {
+        BookshelfEntryPage::RootBook => Ok(path_to_string(&root_output_rel.join("index.html"))),
+        BookshelfEntryPage::Bookshelf => Ok(site_root_bookshelf_entry_path(root_output_rel)),
+    }
 }
 
 fn escape_html_attr(text: &str) -> String {

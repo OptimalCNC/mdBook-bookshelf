@@ -46,11 +46,11 @@ fn serve_cli_serves_built_site() {
     assert_status_ok(&root_response);
     assert_text_contains(
         response_body(&root_response),
-        "http-equiv=\"refresh\" content=\"0; url=docs/bookshelf.html\"",
+        "http-equiv=\"refresh\" content=\"0; url=docs/index.html\"",
     );
     assert_text_contains(
         response_body(&root_response),
-        "window.location.replace(\"docs/bookshelf.html\")",
+        "window.location.replace(\"docs/index.html\")",
     );
 
     let shelf_response = wait_for_response(

@@ -8,6 +8,9 @@ src = "docs"
 default-theme = "light"
 preferred-dark-theme = "ayu"
 
+[bookshelf]
+entry-page = "bookshelf"
+
 [[bookshelf.book]]
 title = "G-code Parser"
 description = "Grammar, modal semantics, and parser diagnostics."

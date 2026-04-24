@@ -10,6 +10,7 @@ pub struct BookshelfConfig {
     pub config_path: PathBuf,
     pub config_dir: PathBuf,
     pub mdbook_config: Config,
+    pub entry_page: BookshelfEntryPage,
     pub books: Vec<BookshelfBook>,
 }
 
@@ -19,9 +20,24 @@ pub struct BookshelfBook {
     pub book: BookConfig,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BookshelfEntryPage {
+    RootBook,
+    Bookshelf,
+}
+
+impl Default for BookshelfEntryPage {
+    fn default() -> Self {
+        Self::RootBook
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 struct RawBookshelf {
+    #[serde(default)]
+    entry_page: BookshelfEntryPage,
     #[serde(default, rename = "book")]
     books: Vec<toml::Table>,
 }
@@ -76,6 +92,7 @@ fn validate_and_build(
         config_path,
         config_dir,
         mdbook_config,
+        entry_page: raw.entry_page,
         books,
     })
 }

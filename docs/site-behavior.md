@@ -6,9 +6,11 @@ This document describes the current reader-facing behavior of a built
 ## Landing And Routes
 
 - the directory containing `bookshelf.toml` is the site root
-- `/` and `/index.html` redirect to `<root book src>/bookshelf.html`
+- `/` and `/index.html` redirect to `<root book src>/index.html` by default
 - every authored markdown page publishes at the same site-root-relative path
   with `.md` changed to `.html`
+- setting `[bookshelf].entry-page = "bookshelf"` redirects `/` and
+  `/index.html` to `<root book src>/bookshelf.html` instead
 
 Examples:
 
@@ -77,10 +79,9 @@ entire bookshelf site.
 
 ## Constraints Readers Will Notice
 
-- the root entry page is the synthetic `Bookshelf` page, not the root book's
+- the root entry page is configurable, defaulting to the root book's
   `index.html`
 - book switching happens through the shelf or through direct page links, not
   through one merged global sidebar
 - the built site keeps source-derived URLs, so `docs/` and other authored path
   segments stay visible in the published routes
-
