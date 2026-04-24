@@ -2,8 +2,8 @@ name: Publish to crates.io
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - "v*"
 
 permissions:
   contents: read
@@ -26,6 +26,16 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify tag matches Cargo.toml version
+        run: |
+          cargo_version="$(cargo pkgid | sed 's/.*#//')"
+          tag_version="${GITHUB_REF_NAME#v}"
+
+          if [ "$cargo_version" != "$tag_version" ]; then
+            echo "Tag version v$tag_version does not match Cargo.toml version $cargo_version"
+            exit 1
+          fi
 
       - name: Run tests
         run: cargo test --locked
