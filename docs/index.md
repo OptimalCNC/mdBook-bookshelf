@@ -33,7 +33,7 @@ adds a bookshelf layer for multi-book routing, navigation, and search.
 Install the `book` binary from a local checkout:
 
 ```bash
-cargo install --locked --path .
+cargo install --path .
 ```
 
 This repository's own docs configure `mdbook-mermaid`, so install that
