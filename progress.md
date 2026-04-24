@@ -73,7 +73,7 @@ acceptance_criteria:
   - docs/configuration.md explains that duplicate or overlapping output roots fail validation.
   - No unrelated docs/source files are modified.
 verification:
-  - command: cargo test -p mdbook-bookshelf bookshelf_config_parse
+  - command: cargo test -p mdbook-bookshelf --test bookshelf_config_parse
     expect: Passes, confirming the documented validation behavior still matches the focused parser tests.
   - command: git diff -- docs/configuration.md
     expect: Diff is limited to configuration validation documentation and contains no shared asset, search, or authoring-index changes.
@@ -128,3 +128,6 @@ review_focus:
 2026-04-24T06:52:38Z [coordinator] [docs-config-validation-001] [accepted] Accepted one-file configuration validation drift cleanup chunk.
 2026-04-24T06:53:11Z [developer-subagent] [docs-config-validation-001] [started] Started configuration validation documentation correction against config parser tests.
 2026-04-24T06:53:58Z [developer-subagent] [docs-config-validation-001] [completed] Documented required bookshelf config, title, src, and output-root validation rules; required validation passed.
+2026-04-24T06:55:07Z [coordinator] [docs-config-validation-001] [checkpoint] Created review checkpoint a44ec66 docs: document config validation rules.
+2026-04-24T06:57:15Z [reviewers] [docs-config-validation-001] [changes-required] Requested enforced SUMMARY.md wording and focused parser test command correction.
+2026-04-24T06:57:36Z [developer-subagent] [docs-config-validation-001] [completed] Reworked SUMMARY.md validation wording and focused verification command; parser test target passed.

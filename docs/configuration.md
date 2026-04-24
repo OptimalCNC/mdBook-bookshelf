@@ -52,8 +52,7 @@ These rules are enforced when `mdbook-bookshelf` parses `bookshelf.toml`:
 - `book.src` and `bookshelf.book.src` must be relative paths
 - `book.src` and `bookshelf.book.src` must not contain `..`
 - `book.src` and `bookshelf.book.src` must not resolve to `.`
-- `book.src` and `bookshelf.book.src` must name source directories, not
-  `SUMMARY.md`
+- `book.src` and `bookshelf.book.src` must not name `SUMMARY.md`
 - child book output roots must not duplicate the root book or another child
   book output root
 - child book output roots must not overlap the root book or another child book
