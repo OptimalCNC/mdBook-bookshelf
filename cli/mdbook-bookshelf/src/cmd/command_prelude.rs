@@ -1,6 +1,8 @@
 pub use clap::{Arg, ArgMatches, Command};
 use std::path::PathBuf;
 
+const DEFAULT_BOOKSHELF_CONFIG: &str = "bookshelf.toml";
+
 pub trait CommandExt: Sized {
     fn with_arg(self, arg: Arg) -> Self;
 
@@ -9,7 +11,7 @@ pub trait CommandExt: Sized {
             Arg::new("config")
                 .value_name("BOOKSHELF_TOML")
                 .help("Path to the bookshelf.toml file")
-                .required(true)
+                .default_value(DEFAULT_BOOKSHELF_CONFIG)
                 .value_parser(clap::value_parser!(PathBuf)),
         )
     }
@@ -34,7 +36,7 @@ impl CommandExt for Command {
 
 pub fn get_config_path(args: &ArgMatches) -> PathBuf {
     args.get_one::<PathBuf>("config")
-        .expect("required config path should be present")
+        .expect("config path default should be present")
         .clone()
 }
 

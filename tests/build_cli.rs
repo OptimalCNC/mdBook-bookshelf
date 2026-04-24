@@ -879,6 +879,37 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
 }
 
 #[test]
+fn build_cli_defaults_config_path_to_invoking_directory_bookshelf_toml() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let fixture_root = repo_root.join("examples/self-contained");
+    let output_dir = make_temp_dir("chunk-011-build-cli-default-config", &repo_root);
+
+    let output = Command::new(&bin)
+        .current_dir(&fixture_root)
+        .arg("build")
+        .arg("--dest-dir")
+        .arg(&output_dir)
+        .output()
+        .expect("build command should run");
+
+    if !output.status.success() {
+        panic!(
+            "build command failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    assert_exists(output_dir.join("index.html"));
+    let bookshelf_html = assert_read_to_string(output_dir.join("docs/bookshelf.html"));
+    assert_text_contains(&bookshelf_html, "Example Core");
+    assert_text_contains(&bookshelf_html, "Example Parser");
+
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+}
+
+#[test]
 fn build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));

@@ -85,6 +85,50 @@ fn serve_cli_serves_built_site() {
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
 
+#[test]
+fn serve_cli_defaults_config_path_to_invoking_directory_bookshelf_toml() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let fixture_root = repo_root.join("examples/self-contained");
+    let output_dir = make_temp_dir("chunk-016-serve-default-config", &repo_root);
+
+    let mut child = Command::new(&bin)
+        .current_dir(&fixture_root)
+        .arg("serve")
+        .arg("--dest-dir")
+        .arg(&output_dir)
+        .arg("--hostname")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg("0")
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("serve command should spawn");
+
+    let stderr = child
+        .stderr
+        .take()
+        .expect("serve child stderr should be piped");
+    let stderr_lines = spawn_stderr_reader(stderr);
+    let mut stderr_log = String::new();
+    let server_address = wait_for_serving_address(&mut child, &stderr_lines, &mut stderr_log);
+
+    let shelf_response = wait_for_response(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        "/docs/bookshelf.html",
+    );
+    assert_status_ok(&shelf_response);
+    assert_text_contains(response_body(&shelf_response), "<h1 id=\"bookshelf\">");
+    assert_text_contains(response_body(&shelf_response), "Example Core");
+
+    shutdown_child(&mut child);
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+}
+
 fn wait_for_serving_address(
     child: &mut Child,
     stderr_lines: &Receiver<String>,
