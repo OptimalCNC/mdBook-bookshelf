@@ -8,7 +8,7 @@ This document explains how to write `bookshelf.toml`.
 
 - top-level mdBook config stays stock
 - `[book]` is the root book
-- `[bookshelf]` enables bookshelf behavior
+- `[bookshelf]` is required and enables bookshelf behavior
 - `[bookshelf].entry-page` selects where `/` redirects
 - `[[bookshelf.book]]` adds child books
 
@@ -41,6 +41,28 @@ description = "Interface and runtime guides for the UI book."
 src = "modules/ui/docs"
 ```
 
+## Validation Rules
+
+These rules are enforced when `mdbook-bookshelf` parses `bookshelf.toml`:
+
+- `[bookshelf]` is required, even when there are no child books
+- `book.title` is required and must not be empty
+- each `bookshelf.book.title` is required and must not be empty
+- `book.src` and `bookshelf.book.src` must not be empty
+- `book.src` and `bookshelf.book.src` must be relative paths
+- `book.src` and `bookshelf.book.src` must not contain `..`
+- `book.src` and `bookshelf.book.src` must not resolve to `.`
+- `book.src` and `bookshelf.book.src` must name source directories, not
+  `SUMMARY.md`
+- child book output roots must not duplicate the root book or another child
+  book output root
+- child book output roots must not overlap the root book or another child book
+  output root by nesting one output root inside another
+- legacy `bookshelf.root-id` is rejected
+
+`./` prefixes are allowed and normalized away, so `./modules/parser/docs` is
+stored as `modules/parser/docs`.
+
 ## Path Rules
 
 - the parent directory of `bookshelf.toml` is the config root and site root
@@ -62,13 +84,10 @@ Valid values:
 
 When omitted, `entry-page` defaults to `root-book`.
 
-Current validation rules:
+Output root conflict terms:
 
-- `book.src` and `bookshelf.book.src` must not be absolute
-- they must not contain `..`
-- they must not resolve to `.`
-- child output roots must not duplicate or overlap the root book or each other
-- legacy `bookshelf.root-id` is rejected
+- duplicate output root: two books resolve to the same output directory
+- overlapping output root: one book's output directory is nested inside another
 
 Examples of invalid layouts:
 

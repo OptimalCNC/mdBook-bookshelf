@@ -40,44 +40,47 @@ codebase.
 
 # Active Chunk
 ```yaml
-chunk_id: docs-linking-001
-title: Document bookshelf site-root link rewrite rules
-objective: Correct docs/linking.md so authors can predict exactly which links mdbook-bookshelf rewrites, preserves, or rejects.
-why_now: This is a narrow, high-signal drift fix with direct unit-test evidence and only one reference page to review.
+chunk_id: docs-config-validation-001
+title: Document enforced bookshelf configuration validation
+objective: Correct docs/configuration.md so it reflects the current parser and catalog validation rules for required bookshelf config, titles, src paths, and output root conflicts.
+why_now: This is a compact, high-value drift fix isolated to one documentation file and backed by focused config parser tests.
 depends_on: []
 touchpoints:
-  - crates/mdbook-bookshelf/src/site_root_link_preprocessor.rs
-  - docs/linking.md
+  - docs/configuration.md
+  - crates/mdbook-bookshelf/src/config.rs
+  - tests/bookshelf_config_parse.rs
 scope_in:
-  - Clarify that only single-slash /... link and image destinations are bookshelf site-root-relative.
-  - Document that local, parent, fragment-only, external, mailto, and protocol-relative destinations are left unchanged.
-  - Document that query and fragment suffixes are preserved when site-root links are rewritten.
-  - Document that unresolved site-root .md page links fail the build.
-  - Document that README.md is accepted as an index.md target for site-root page links.
+  - Document that [bookshelf] is required.
+  - Document that root and child book titles are required and must be nonempty.
+  - Document rejected src values: empty, absolute, containing .., resolving to ., or named SUMMARY.md.
+  - Document duplicate and overlapping output root failures.
 scope_out:
-  - Do not change link rewriting behavior.
-  - Do not edit configuration, authoring, search, or operations docs.
-  - Do not add broad navigation restructuring beyond this page.
+  - Do not document shared output asset staging or input-404 behavior in this chunk.
+  - Do not change authoring guidance about index.md versus SUMMARY.md.
+  - Do not change site-behavior search caveats.
+  - Do not edit source code or tests.
 target_files:
-  - docs/linking.md
+  - docs/configuration.md
 implementation_tasks:
-  - Replace the current broad links that start with / wording with precise single-slash site-root behavior.
-  - Add compact examples for rewritten cross-book page links, images, query/fragment preservation, and unchanged non-site-root destinations.
-  - Add a short failure note for unresolved /... .md links.
-  - Add a README.md/index.md alias note without implying index.md is globally required.
+  - Read current validation tests and config parser code to confirm exact user-facing rules and wording.
+  - Update the configuration reference with a concise validation subsection near the [bookshelf] and child book configuration material.
+  - Keep examples aligned with accepted values and avoid implying index.md is validated during catalog build.
+  - Cross-check terminology for output roots against existing docs so duplicate and overlap failures are understandable.
 acceptance_criteria:
-  - docs/linking.md matches the tested behavior in site_root_link_preprocessor.rs.
-  - The page distinguishes rewritten destinations from preserved destinations.
-  - The page avoids suggesting /... .html authoring for internal book pages.
-  - The change is reviewable as a single-page documentation correction.
+  - docs/configuration.md explicitly says [bookshelf] is required.
+  - docs/configuration.md explicitly says root and child titles are required and nonempty.
+  - docs/configuration.md lists all currently rejected src forms without adding unsupported behavior.
+  - docs/configuration.md explains that duplicate or overlapping output roots fail validation.
+  - No unrelated docs/source files are modified.
 verification:
-  - command: cargo test site_root_link_preprocessor
-    expect: Link rewrite unit tests pass.
-  - command: cargo run --bin book -- build bookshelf.toml --dest-dir .tmp/docs-linking-001-site
-    expect: Project documentation builds successfully with the updated linking page.
+  - command: cargo test -p mdbook-bookshelf bookshelf_config_parse
+    expect: Passes, confirming the documented validation behavior still matches the focused parser tests.
+  - command: git diff -- docs/configuration.md
+    expect: Diff is limited to configuration validation documentation and contains no shared asset, search, or authoring-index changes.
 review_focus:
-  - Check for any wording that implies all slash-prefixed URLs are rewritten, including // protocol-relative URLs.
-  - Check that README.md-as-index.md is described as link-target compatibility, not as an authoring requirement.
+  - Check that the docs describe enforced behavior rather than recommended conventions.
+  - Check that src validation wording matches config.rs and tests/bookshelf_config_parse.rs exactly.
+  - Check that the chunk remains narrow enough for a single review loop.
 ```
 
 # Chunk Ledger
@@ -85,6 +88,10 @@ review_focus:
   `README.md` and `docs/index.md`, added `docs/operations.md`, linked it from
   `docs/SUMMARY.md`, and corrected the root `Bookshelf` sidebar wording to the
   implemented first unnumbered entry behavior.
+- `docs-linking-001`: approved in commit `36097be`; corrected
+  `docs/linking.md` to describe single-slash site-root rewrite behavior,
+  preserved destination classes, query/fragment preservation, unresolved
+  site-root Markdown page failures, and README/index target compatibility.
 
 # Final Validation
 - `cargo test --test cli_help --test bookshelf_config_parse`: passed for
@@ -95,6 +102,9 @@ review_focus:
   `docs-nav-001`.
 - `cargo run --bin book -- build bookshelf.toml --dest-dir .tmp/project-docs-site`:
   passed for `docs-nav-001`.
+- `cargo test site_root_link_preprocessor`: passed for `docs-linking-001`.
+- `cargo run --bin book -- build bookshelf.toml --dest-dir .tmp/docs-linking-001-site`:
+  passed for `docs-linking-001`.
 
 # Activity Log
 2026-04-24T06:34:26Z [coordinator] [setup] [started] Reset coordination artifact for documentation navigation and drift cleanup.
@@ -110,3 +120,11 @@ review_focus:
 2026-04-24T06:47:05Z [coordinator] [docs-linking-001] [accepted] Accepted one-page linking rewrite rules documentation chunk.
 2026-04-24T06:48:26Z [developer-subagent] [docs-linking-001] [started] Started linking rewrite rules documentation correction against site_root_link_preprocessor tests.
 2026-04-24T06:49:14Z [developer-subagent] [docs-linking-001] [completed] Documented site-root link rewrite, preservation, failure, and README/index target rules; required validation passed.
+2026-04-24T06:50:11Z [coordinator] [docs-linking-001] [checkpoint] Created review checkpoint 36097be docs: clarify link rewrite rules.
+2026-04-24T06:50:39Z [reviewer-subagent] [docs-linking-001] [approved] docs/linking.md matches tested site-root rewrite behavior and includes required caveats.
+2026-04-24T06:51:02Z [reviewer] [docs-linking-001] [approved] Linking page stays narrow and matches current site-root rewrite behavior.
+2026-04-24T06:51:25Z [coordinator] [docs-linking-001] [approved] Moved approved checkpoint 36097be to chunk ledger after validation and review.
+2026-04-24T06:52:14Z [planner] [docs-config-validation-001] [planned] Proposed focused configuration validation documentation against parser tests.
+2026-04-24T06:52:38Z [coordinator] [docs-config-validation-001] [accepted] Accepted one-file configuration validation drift cleanup chunk.
+2026-04-24T06:53:11Z [developer-subagent] [docs-config-validation-001] [started] Started configuration validation documentation correction against config parser tests.
+2026-04-24T06:53:58Z [developer-subagent] [docs-config-validation-001] [completed] Documented required bookshelf config, title, src, and output-root validation rules; required validation passed.
