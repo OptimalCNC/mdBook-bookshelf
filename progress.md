@@ -40,68 +40,61 @@ codebase.
 
 # Active Chunk
 ```yaml
-chunk_id: docs-nav-001
-title: Role-based entry navigation and Bookshelf sidebar drift cleanup
-objective: Make README.md, docs/index.md, and docs/SUMMARY.md route evaluators, site authors, CLI operators, and contributors to the right docs quickly, while correcting the current Bookshelf sidebar placement drift.
-why_now: The first-entry docs are present but generic, and docs/site-behavior.md currently says the Bookshelf sidebar entry is trailing even though the implementation prepends it and tests assert it is first.
+chunk_id: docs-linking-001
+title: Document bookshelf site-root link rewrite rules
+objective: Correct docs/linking.md so authors can predict exactly which links mdbook-bookshelf rewrites, preserves, or rejects.
+why_now: This is a narrow, high-signal drift fix with direct unit-test evidence and only one reference page to review.
 depends_on: []
 touchpoints:
-  - README.md
-  - docs/index.md
-  - docs/SUMMARY.md
-  - docs/site-behavior.md
-  - docs/operations.md
-  - cli/mdbook-bookshelf/src/cmd/command_prelude.rs
-  - cli/mdbook-bookshelf/src/cmd/serve.rs
-  - crates/mdbook-bookshelf/src/root_bookshelf_preprocessor.rs
-  - tests/build_cli.rs
+  - crates/mdbook-bookshelf/src/site_root_link_preprocessor.rs
+  - docs/linking.md
 scope_in:
-  - Add a compact audience router to README.md and docs/index.md.
-  - Add a focused CLI operators page under docs/ that documents only current build/serve behavior and flags.
-  - Add the operators page to docs/SUMMARY.md.
-  - Correct docs/site-behavior.md to say the synthetic Bookshelf sidebar entry is first/prepended and unnumbered.
+  - Clarify that only single-slash /... link and image destinations are bookshelf site-root-relative.
+  - Document that local, parent, fragment-only, external, mailto, and protocol-relative destinations are left unchanged.
+  - Document that query and fragment suffixes are preserved when site-root links are rewritten.
+  - Document that unresolved site-root .md page links fail the build.
+  - Document that README.md is accepted as an index.md target for site-root page links.
 scope_out:
-  - No Rust behavior changes.
-  - No broad rewrite of reference docs.
-  - No planned features, compatibility notes, release packaging, or publishing instructions beyond current CLI behavior.
+  - Do not change link rewriting behavior.
+  - Do not edit configuration, authoring, search, or operations docs.
+  - Do not add broad navigation restructuring beyond this page.
 target_files:
-  - README.md
-  - docs/index.md
-  - docs/SUMMARY.md
-  - docs/site-behavior.md
-  - docs/operations.md
+  - docs/linking.md
 implementation_tasks:
-  - Rewrite the top README doc pointer into a short audience map for evaluators, authors, operators, and contributors.
-  - Reshape docs/index.md so the audience map appears before detailed reference links and keeps the mdBook-first positioning.
-  - Create docs/operations.md with current book build and book serve usage, default bookshelf.toml, --dest-dir, --hostname, --port, docs-build mdbook-mermaid requirement, and serve rebuild/live-reload behavior.
-  - Insert the new operators page into docs/SUMMARY.md near the existing configuration/authoring material.
-  - Replace the incorrect trailing sidebar entry wording in docs/site-behavior.md with the implemented first-entry behavior.
+  - Replace the current broad links that start with / wording with precise single-slash site-root behavior.
+  - Add compact examples for rewritten cross-book page links, images, query/fragment preservation, and unchanged non-site-root destinations.
+  - Add a short failure note for unresolved /... .md links.
+  - Add a README.md/index.md alias note without implying index.md is globally required.
 acceptance_criteria:
-  - A new reader can choose an evaluator, site author, CLI operator, or contributor path from README.md and docs/index.md without reading the whole doc set.
-  - CLI operator claims match the current clap definitions and serve tests.
-  - Bookshelf sidebar wording matches insert(0, ...) and the build CLI assertion that Bookshelf is the first root-book sidebar link.
-  - The docs remain mdBook-first and do not describe planned behavior.
+  - docs/linking.md matches the tested behavior in site_root_link_preprocessor.rs.
+  - The page distinguishes rewritten destinations from preserved destinations.
+  - The page avoids suggesting /... .html authoring for internal book pages.
+  - The change is reviewable as a single-page documentation correction.
 verification:
-  - command: cargo test --test cli_help --test bookshelf_config_parse
-    expect: Passes; confirms documented CLI/config basics still match code.
-  - command: cargo test --test build_cli build_cli_emits_bookshelf_ui_assets_without_fixture_residue
-    expect: Passes; covers generated Bookshelf UI, sidebar order, scoped navigation, and search assets.
-  - command: cargo test --test serve_cli serve_cli_serves_built_site
-    expect: Passes; confirms serve builds and serves the current site behavior.
-  - command: cargo run --bin book -- build bookshelf.toml --dest-dir .tmp/project-docs-site
-    expect: Succeeds when mdbook-mermaid is installed; generated docs include the updated navigation pages.
+  - command: cargo test site_root_link_preprocessor
+    expect: Link rewrite unit tests pass.
+  - command: cargo run --bin book -- build bookshelf.toml --dest-dir .tmp/docs-linking-001-site
+    expect: Project documentation builds successfully with the updated linking page.
 review_focus:
-  - Check that README.md and docs/index.md route audiences without duplicating full reference content.
-  - Check docs/operations.md against cli/mdbook-bookshelf/src/cmd/command_prelude.rs and cli/mdbook-bookshelf/src/cmd/serve.rs.
-  - Check docs/site-behavior.md against crates/mdbook-bookshelf/src/root_bookshelf_preprocessor.rs and tests/build_cli.rs.
-  - Check that docs/SUMMARY.md stays easy to scan and does not over-nest the documentation set.
+  - Check for any wording that implies all slash-prefixed URLs are rewritten, including // protocol-relative URLs.
+  - Check that README.md-as-index.md is described as link-target compatibility, not as an authoring requirement.
 ```
 
 # Chunk Ledger
-None yet.
+- `docs-nav-001`: approved in commit `768be49`; added audience routing in
+  `README.md` and `docs/index.md`, added `docs/operations.md`, linked it from
+  `docs/SUMMARY.md`, and corrected the root `Bookshelf` sidebar wording to the
+  implemented first unnumbered entry behavior.
 
 # Final Validation
-Pending.
+- `cargo test --test cli_help --test bookshelf_config_parse`: passed for
+  `docs-nav-001`.
+- `cargo test --test build_cli build_cli_emits_bookshelf_ui_assets_without_fixture_residue`:
+  passed for `docs-nav-001`.
+- `cargo test --test serve_cli serve_cli_serves_built_site`: passed for
+  `docs-nav-001`.
+- `cargo run --bin book -- build bookshelf.toml --dest-dir .tmp/project-docs-site`:
+  passed for `docs-nav-001`.
 
 # Activity Log
 2026-04-24T06:34:26Z [coordinator] [setup] [started] Reset coordination artifact for documentation navigation and drift cleanup.
@@ -109,3 +102,11 @@ Pending.
 2026-04-24T06:38:14Z [researcher-subagent] [docs-drift-audit] [done] Found sidebar drift plus missing CLI, serve, config, linking, authoring, and search caveats.
 2026-04-24T06:39:02Z [coordinator] [docs-nav-001] [accepted] Accepted first docs navigation chunk and recorded concrete scope.
 2026-04-24T06:42:42Z [developer-subagent] [docs-nav-001] [completed] Added role routing, operations docs, SUMMARY entry, and first-sidebar Bookshelf wording; targeted validation passed.
+2026-04-24T06:43:18Z [coordinator] [docs-nav-001] [checkpoint] Created review checkpoint 768be49 docs: improve navigation entry points.
+2026-04-24T06:44:11Z [reviewer] [docs-nav-001] [approved] Role routing, operations docs, SUMMARY placement, and Bookshelf sidebar wording match current mdBook-first behavior.
+2026-04-24T06:44:34Z [reviewer-subagent] [docs-nav-001] [approved] Role routing, operations claims, and Bookshelf sidebar wording match current implementation.
+2026-04-24T06:44:57Z [coordinator] [docs-nav-001] [approved] Moved approved checkpoint 768be49 to chunk ledger after targeted validation.
+2026-04-24T06:46:31Z [planner] [docs-linking-001] [planned] Proposed a focused linking reference drift cleanup backed by site-root link preprocessor tests.
+2026-04-24T06:47:05Z [coordinator] [docs-linking-001] [accepted] Accepted one-page linking rewrite rules documentation chunk.
+2026-04-24T06:48:26Z [developer-subagent] [docs-linking-001] [started] Started linking rewrite rules documentation correction against site_root_link_preprocessor tests.
+2026-04-24T06:49:14Z [developer-subagent] [docs-linking-001] [completed] Documented site-root link rewrite, preservation, failure, and README/index target rules; required validation passed.
