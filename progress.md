@@ -39,47 +39,7 @@ codebase.
   `mdbook-mermaid` depending on the current config.
 
 # Active Chunk
-```yaml
-chunk_id: docs-search-caveats-001
-title: Document Bookshelf search index caveats
-objective: Clarify search-index assumptions and cold-load behavior in docs/site-behavior.md so the documented site behavior matches the current search implementation.
-why_now: This is the remaining known documentation drift: search behavior has implementation-specific constraints that are easy for maintainers to miss when changing build output or search integration.
-depends_on: []
-touchpoints:
-  - crates/mdbook-bookshelf/src/search.rs
-  - crates/mdbook-bookshelf/src/bookshelf_ui.rs
-  - tests/build_cli.rs
-scope_in:
-  - Add a concise search caveats subsection to docs/site-behavior.md.
-  - Document that each book must produce exactly one stock mdBook searchindex-*.js file.
-  - Document that search payloads must remain compatible with the bookshelf localization and shared-search rewrite path.
-  - Document that each book receives a localized bookshelf-searchindex.js.
-  - Document the cold-load ?search= behavior where stock mdBook first requests the local per-book index before the bookshelf override switches to localized shared search.
-scope_out:
-  - No code changes.
-  - No test changes.
-  - No broad rewrite of site-behavior.md.
-  - No edits outside docs/site-behavior.md.
-target_files:
-  - docs/site-behavior.md
-implementation_tasks:
-  - Read the existing search/navigation wording in docs/site-behavior.md and place the new caveats near the current search behavior discussion.
-  - Add implementation-grounded wording without exposing unnecessary internals or duplicating test details.
-  - Keep the section focused on maintainer-facing constraints and observable browser/build behavior.
-acceptance_criteria:
-  - docs/site-behavior.md explicitly states the one-stock-searchindex-per-book requirement.
-  - docs/site-behavior.md explains localized bookshelf-searchindex.js generation per book.
-  - docs/site-behavior.md explains compatible search payload expectations.
-  - docs/site-behavior.md describes the ?search= cold-load local-index request before bookshelf shared-search override behavior.
-  - The update is confined to docs/site-behavior.md.
-verification:
-  - command: git diff -- docs/site-behavior.md
-    expect: Diff contains only the intended search caveat documentation.
-  - command: cargo test -p mdbook-bookshelf --test build_cli search
-    expect: Existing search behavior tests still pass.
-review_focus:
-  - Check that the documentation matches current search.rs and bookshelf_ui.rs behavior without implying a simpler single-step search load than the code actually performs.
-```
+None.
 
 # Chunk Ledger
 - `docs-nav-001`: approved in commit `768be49`; added audience routing in
@@ -102,6 +62,9 @@ review_focus:
   shared HTML output settings, config-root resolution for additional CSS/JS,
   child-root `bookshelf-config-assets` staging, per-book command
   preprocessors/additional JS, and relative `input-404` behavior.
+- `docs-search-caveats-001`: approved in commit `6ffd779`; documented the
+  stock per-book search index contract, shared payload compatibility,
+  localized `bookshelf-searchindex.js` files, and `?search=` cold-load behavior.
 
 # Final Validation
 - `cargo test --test cli_help --test bookshelf_config_parse`: passed for
@@ -123,6 +86,10 @@ review_focus:
 - `cargo test -p mdbook-bookshelf --test build_cli search`: passed for
   `docs-search-caveats-001`.
 - `git diff --check`: passed for `docs-search-caveats-001`.
+- `cargo run --bin book -- build bookshelf.toml --dest-dir .tmp/project-docs-site`:
+  passed final documentation build validation.
+- `cargo test -p mdbook-bookshelf`: passed final package validation.
+- `git diff --check`: passed final whitespace validation.
 
 # Activity Log
 2026-04-24T06:34:26Z [coordinator] [setup] [started] Reset coordination artifact for documentation navigation and drift cleanup.
@@ -175,3 +142,8 @@ review_focus:
 2026-04-24T07:12:02Z [planner] [docs-search-caveats-001] [planned] Proposed focused search caveat documentation against search.rs, bookshelf_ui.rs, and build_cli search coverage.
 2026-04-24T07:12:31Z [coordinator] [docs-search-caveats-001] [accepted] Accepted one-file site behavior search caveat documentation chunk.
 2026-04-24T07:13:22Z [developer-subagent] [docs-search-caveats-001] [completed] Documented search index merge contract, localized shared indexes, and cold-load query behavior; targeted search tests passed.
+2026-04-24T07:14:09Z [coordinator] [docs-search-caveats-001] [checkpoint] Created review checkpoint 6ffd779 docs: document search caveats.
+2026-04-24T07:15:18Z [reviewer] [docs-search-caveats-001] [approved] Search caveats match current search.rs, bookshelf_ui.rs, and cold-load test behavior.
+2026-04-24T07:15:44Z [reviewer-subagent] [docs-search-caveats-001] [approved] Search caveat acceptance criteria are met and the edit is confined to site behavior documentation plus coordination progress.
+2026-04-24T07:16:08Z [coordinator] [docs-search-caveats-001] [approved] Moved approved search caveat checkpoint 6ffd779 to chunk ledger.
+2026-04-24T07:17:36Z [coordinator] [final-validation] [passed] Project docs build, full package test suite, and whitespace validation passed.
