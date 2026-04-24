@@ -4,7 +4,7 @@ use mdbook_driver::book::BookItem;
 #[test]
 fn seam_single_book_load() {
     let repo_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let book_root = repo_root.join("bookshelf/examples/self-contained");
+    let book_root = repo_root.join("examples/self-contained");
 
     let loaded_book =
         load_single_book_with_summary(&book_root, "docs").expect("single-book seam should load");

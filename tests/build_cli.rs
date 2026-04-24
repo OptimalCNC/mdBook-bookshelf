@@ -620,8 +620,8 @@ process.stdout.write(
 fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let fixture_root = repo_root.join("bookshelf/examples/self-contained");
-    let config_path = repo_root.join("bookshelf/examples/self-contained/bookshelf.toml");
+    let fixture_root = repo_root.join("examples/self-contained");
+    let config_path = repo_root.join("examples/self-contained/bookshelf.toml");
     let output_dir = make_temp_dir("chunk-011-build-cli", &repo_root);
     let fixture_entries_before = without_bookshelf_ui_entries(collect_tree_entries(&fixture_root));
 
@@ -1124,7 +1124,7 @@ src = "modules/child/docs"
 fn build_cli_uses_shared_site_wide_search_index() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let config_path = repo_root.join("bookshelf/examples/self-contained/bookshelf.toml");
+    let config_path = repo_root.join("examples/self-contained/bookshelf.toml");
     let output_dir = make_temp_dir("chunk-019-build-cli", &repo_root);
 
     let output = Command::new(&bin)

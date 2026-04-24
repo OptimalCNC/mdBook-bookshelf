@@ -11,7 +11,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 fn serve_cli_serves_built_site() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let config_path = repo_root.join("bookshelf/examples/self-contained/bookshelf.toml");
+    let config_path = repo_root.join("examples/self-contained/bookshelf.toml");
     let output_dir = make_temp_dir("chunk-016-serve", &repo_root);
 
     let mut child = Command::new(&bin)
