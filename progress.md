@@ -14,27 +14,27 @@ Deliver stock-mdBook-style support for configured mdBook preprocessors and HTML 
 
 # Current State
 - `mdbook-mermaid` is installed at `/home/huwei/.cargo/bin/mdbook-mermaid` in the local environment.
-- The existing build path clones shared mdBook config per book, stages config-root HTML assets for child book roots, injects bookshelf UI assets, loads each book through `MDBook::load_with_config_and_summary()`, registers the bookshelf link preprocessor, and calls `mdbook.build()`.
-- No explicit regression coverage currently proves an external configured preprocessor runs in the bookshelf build.
+- Commit `f2559ab` adds a focused build CLI regression that configures stock `[preprocessor.mermaid]` plus `[output.html].additional-js`, builds root and child books, and asserts both mdBook command preprocessor output and staged child JS assets.
+- No production code changed; support remains on the existing generic mdBook `Config` -> `MDBook::load_with_config_and_summary()` -> `mdbook.build()` seam.
 
 # Open Risks
-- Additional JS/CSS asset staging must remain generic and should not assume Mermaid asset names.
-- Bookshelf-owned preprocessors must not suppress or reorder configured stock mdBook preprocessors in a way that breaks plugin output.
-- The test should skip or report clearly if the external binary is unavailable on another machine, unless the project decides to vendor a test preprocessor fixture.
+- The regression depends on `mdbook-mermaid` being installed to exercise the external plugin path; when unavailable it reports a clear skip.
 
 # Active Chunk
-`plugin-regression`: Add one focused `tests/build_cli.rs` regression that builds a temp bookshelf fixture using stock mdBook config:
-- `[preprocessor.mermaid] command = "mdbook-mermaid"`
-- `[output.html] additional-js = ["mermaid.min.js", "mermaid-init.js"]`
-- root and child Mermaid fences
-
-Acceptance: generated root and child HTML contain Mermaid-preprocessed markup, configured JS assets are copied/referenced for root and staged child output, bookshelf UI assets still appear, and no production code hardcodes Mermaid.
+None.
 
 # Chunk Ledger
-None yet.
+- `plugin-regression`: approved in commit `f2559ab`; added a temp-fixture build CLI regression for stock configured mdBook command preprocessors and generic `output.html.additional-js` staging across root and child book outputs. No production Mermaid-specific code was added.
 
 # Final Validation
-Pending.
+- `PATH="$HOME/.cargo/bin:$PATH" mdbook-mermaid --version`: passed (`mdbook-mermaid 0.17.0`).
+- `PATH="$HOME/.cargo/bin:$PATH" cargo test --test build_cli build_cli_supports_configured_mdbook_mermaid_preprocessor_and_additional_js -- --nocapture`: passed.
+- `cargo test --test build_cli build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir`: passed.
+- `cargo test`: passed when run without concurrent fixture-mutating commands.
+- Chunk direction review: approved.
+- Chunk implementation review: approved.
+- Final direction review: approved.
+- Final implementation review: approved.
 
 # Activity Log
 2026-04-24T06:03:49Z [coordinator] [setup] [started] Reset coordination artifact for generic mdBook plugin support and captured current build seam.
@@ -43,3 +43,9 @@ Pending.
 2026-04-24T06:07:08Z [coordinator] [plugin-regression] [accepted] Accepted focused regression chunk; production changes only if a generic stock seam defect appears.
 2026-04-24T06:09:25Z [developer-subagent] [plugin-regression] [started] Adding focused build CLI regression for stock mdBook Mermaid preprocessor and additional JS asset flow.
 2026-04-24T06:10:30Z [developer-subagent] [plugin-regression] [completed] Added temp-fixture build CLI regression; targeted Mermaid and shared-asset tests pass without production changes.
+2026-04-24T06:12:41Z [reviewer-subagent] [plugin-regression] [approved] Regression exercises configured preprocessor output and child staged JS assets; focused validation passes.
+2026-04-24T06:12:23Z [reviewer] [plugin-regression] APPROVED - regression stays on stock mdBook plugin and generic asset seams with no production Mermaid special-casing.
+2026-04-24T06:13:27Z [coordinator] [plugin-regression] [approved] Recorded approved commit f2559ab and final validation results.
+2026-04-24T06:15:01Z [reviewer-final-subagent] [plugin-support-final] APPROVED - final regression covers configured command preprocessor output and child additional-js staging when mdbook-mermaid is available.
+2026-04-24T06:14:48Z [reviewer-final] [plugin-support-final] [approved] Generic mdBook command preprocessor and additional-js seams satisfy final direction with no production Mermaid special-casing.
+2026-04-24T06:15:37Z [coordinator] [plugin-support-final] [completed] Final validation and final review gates approved.
