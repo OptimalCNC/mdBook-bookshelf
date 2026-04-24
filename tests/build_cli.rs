@@ -1013,6 +1013,150 @@ fn build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir() {
 }
 
 #[test]
+fn build_cli_supports_configured_mdbook_mermaid_preprocessor_and_additional_js() {
+    if !mdbook_mermaid_available() {
+        return;
+    }
+
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let fixture_root = make_temp_dir("plugin-regression-mermaid", &repo_root);
+    let config_path = fixture_root.join("bookshelf.toml");
+    let output_dir = make_temp_dir("plugin-regression-mermaid-out", &repo_root);
+
+    fs::create_dir_all(fixture_root.join("docs")).expect("root docs directory should be created");
+    fs::create_dir_all(fixture_root.join("modules/child/docs"))
+        .expect("child docs directory should be created");
+    fs::write(
+        &config_path,
+        r#"
+[book]
+title = "Mermaid Root"
+language = "en"
+src = "docs"
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[output.html]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
+
+[[bookshelf.book]]
+title = "Mermaid Child"
+src = "modules/child/docs"
+"#,
+    )
+    .expect("bookshelf config should be written");
+    fs::write(
+        fixture_root.join("mermaid.min.js"),
+        "window.__bookshelfMermaidRuntime = true;\n",
+    )
+    .expect("mermaid runtime fixture should be written");
+    fs::write(
+        fixture_root.join("mermaid-init.js"),
+        "window.__bookshelfMermaidInit = true;\n",
+    )
+    .expect("mermaid init fixture should be written");
+    fs::write(
+        fixture_root.join("docs/SUMMARY.md"),
+        "# Summary\n\n- [Root Diagram](index.md)\n",
+    )
+    .expect("root summary should be written");
+    fs::write(
+        fixture_root.join("docs/index.md"),
+        r#"# Root Diagram
+
+```mermaid
+flowchart TD
+  Root[Root catalog book] --> Shared[Shared configured preprocessor]
+```
+"#,
+    )
+    .expect("root index should be written");
+    fs::write(
+        fixture_root.join("modules/child/docs/SUMMARY.md"),
+        "# Summary\n\n- [Child Diagram](index.md)\n",
+    )
+    .expect("child summary should be written");
+    fs::write(
+        fixture_root.join("modules/child/docs/index.md"),
+        r#"# Child Diagram
+
+```mermaid
+sequenceDiagram
+  participant Child
+  participant Shared
+  Child->>Shared: configured preprocessor
+```
+"#,
+    )
+    .expect("child index should be written");
+
+    run_build_cli(&bin, &config_path, &output_dir);
+
+    let root_output = output_dir.join("docs");
+    let child_output = output_dir.join("modules/child/docs");
+    let root_index_html = assert_read_to_string(root_output.join("index.html"));
+    let child_index_html = assert_read_to_string(child_output.join("index.html"));
+
+    assert_text_contains(&root_index_html, "<pre class=\"mermaid\">");
+    assert_text_contains(&child_index_html, "<pre class=\"mermaid\">");
+    assert_text_not_contains(&root_index_html, "language-mermaid");
+    assert_text_not_contains(&child_index_html, "language-mermaid");
+
+    let root_mermaid_js = assert_has_file_with_prefix(&root_output, "mermaid-", ".min.js");
+    let root_mermaid_init_js = assert_has_file_with_prefix(&root_output, "mermaid-init-", ".js");
+    assert_text_contains(&root_index_html, &root_mermaid_js);
+    assert_text_contains(&root_index_html, &root_mermaid_init_js);
+    assert_file_contains(
+        root_output.join(&root_mermaid_js),
+        "__bookshelfMermaidRuntime",
+    );
+    assert_file_contains(
+        root_output.join(&root_mermaid_init_js),
+        "__bookshelfMermaidInit",
+    );
+
+    let child_staged_assets = child_output.join("bookshelf-config-assets");
+    let child_mermaid_js =
+        assert_single_file_with_prefix_recursive(&child_staged_assets, "mermaid-", ".min.js");
+    let child_mermaid_init_js =
+        assert_single_file_with_prefix_recursive(&child_staged_assets, "mermaid-init-", ".js");
+    let child_mermaid_ref = child_mermaid_js
+        .strip_prefix(&child_output)
+        .expect("child mermaid script should be staged under child output")
+        .to_string_lossy()
+        .replace('\\', "/");
+    let child_mermaid_init_ref = child_mermaid_init_js
+        .strip_prefix(&child_output)
+        .expect("child mermaid init script should be staged under child output")
+        .to_string_lossy()
+        .replace('\\', "/");
+    assert_text_contains(&child_mermaid_ref, "bookshelf-config-assets/");
+    assert_text_contains(&child_mermaid_init_ref, "bookshelf-config-assets/");
+    assert_text_contains(&child_index_html, &child_mermaid_ref);
+    assert_text_contains(&child_index_html, &child_mermaid_init_ref);
+    assert_file_contains(child_mermaid_js, "__bookshelfMermaidRuntime");
+    assert_file_contains(child_mermaid_init_js, "__bookshelfMermaidInit");
+
+    assert_text_contains(&root_index_html, "bookshelf-return.js");
+    assert_text_contains(&root_index_html, "bookshelf-breadcrumb.js");
+    assert_text_contains(&root_index_html, "bookshelf-search.js");
+    assert_text_contains(&child_index_html, "bookshelf-return.js");
+    assert_text_contains(&child_index_html, "bookshelf-breadcrumb.js");
+    assert_text_contains(&child_index_html, "bookshelf-search.js");
+    assert_single_file_named_recursive(&root_output, "bookshelf-return.js");
+    assert_single_file_named_recursive(&root_output, "bookshelf-breadcrumb.js");
+    assert_single_file_named_recursive(&root_output, "bookshelf-search.js");
+    assert_single_file_named_recursive(&child_output, "bookshelf-return.js");
+    assert_single_file_named_recursive(&child_output, "bookshelf-breadcrumb.js");
+    assert_single_file_named_recursive(&child_output, "bookshelf-search.js");
+
+    fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+}
+
+#[test]
 fn build_cli_rejects_shared_relative_input_404_for_child_roots() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
@@ -1531,6 +1675,24 @@ fn run_build_cli(bin: &Path, config_path: &Path, output_dir: &Path) {
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         );
+    }
+}
+
+fn mdbook_mermaid_available() -> bool {
+    match Command::new("mdbook-mermaid").arg("--version").output() {
+        Ok(output) if output.status.success() => true,
+        Ok(output) => {
+            eprintln!(
+                "skipping Mermaid plugin regression: mdbook-mermaid --version failed\nstdout:\n{}\nstderr:\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            false
+        }
+        Err(err) => {
+            eprintln!("skipping Mermaid plugin regression: mdbook-mermaid is unavailable: {err}");
+            false
+        }
     }
 }
 
