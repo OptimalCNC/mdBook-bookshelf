@@ -1,6 +1,7 @@
 use crate::bookshelf_ui::{BookshelfBreadcrumbPage, TransientBookshelfUiAssets};
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
 use crate::config::BookshelfEntryPage;
+use crate::load_single_book_with_config_and_parsed_summary;
 use crate::loader::load_books_from_catalog;
 use crate::navigation::build_navigation_metadata;
 use crate::root_bookshelf_preprocessor::{
@@ -11,7 +12,6 @@ use crate::route_paths::{path_to_string, relative_path};
 use crate::search::{write_site_wide_search_index, LOCAL_SHARED_SEARCH_INDEX_NAME};
 use crate::site_model::{build_site_model, SitePageKind};
 use crate::site_root_link_preprocessor::{SiteRootLinkMap, SiteRootLinkPreprocessor};
-use crate::load_single_book_with_config_and_parsed_summary;
 use anyhow::{Context, Result};
 use mdbook_driver::config::Config;
 use mdbook_summary::parse_summary;
@@ -27,10 +27,42 @@ pub fn build_bookshelf_site(
     config_path: impl AsRef<Path>,
     dest_dir: Option<PathBuf>,
 ) -> Result<PathBuf> {
+    build_bookshelf_site_with_options(config_path, dest_dir, BuildOptions::default())
+}
+
+#[derive(Debug, Clone, Default)]
+pub(crate) struct BuildOptions {
+    live_reload_endpoint: Option<String>,
+}
+
+impl BuildOptions {
+    pub(crate) fn with_live_reload_endpoint(endpoint: impl Into<String>) -> Self {
+        Self {
+            live_reload_endpoint: Some(endpoint.into()),
+        }
+    }
+
+    fn apply_to_config(&self, config: &mut Config) -> Result<()> {
+        if let Some(endpoint) = &self.live_reload_endpoint {
+            config
+                .set("output.html.live-reload-endpoint", endpoint)
+                .context("failed to set serve live-reload endpoint in mdBook config")?;
+        }
+
+        Ok(())
+    }
+}
+
+pub(crate) fn build_bookshelf_site_with_options(
+    config_path: impl AsRef<Path>,
+    dest_dir: Option<PathBuf>,
+    options: BuildOptions,
+) -> Result<PathBuf> {
     let config_path = config_path.as_ref();
     let catalog = absolutize_catalog_paths(build_input_catalog(config_path)?)
         .context("failed to resolve bookshelf catalog paths")?;
-    let mdbook_config = catalog.mdbook_config.clone();
+    let mut mdbook_config = catalog.mdbook_config.clone();
+    options.apply_to_config(&mut mdbook_config)?;
     let site_dest_dir = resolve_site_dest_dir(&catalog.config_dir, &mdbook_config, dest_dir)?;
     let config_root = catalog.config_dir.clone();
     let site_root_link_map = SiteRootLinkMap::from_catalog(&catalog)

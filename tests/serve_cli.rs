@@ -129,6 +129,96 @@ fn serve_cli_defaults_config_path_to_invoking_directory_bookshelf_toml() {
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
 
+#[test]
+fn serve_cli_rebuilds_changed_source_and_serves_live_reload_output() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let fixture_root = make_temp_dir("serve-watch-fixture", &repo_root);
+    let serve_output_dir = make_temp_dir("serve-watch-output", &repo_root);
+    let build_output_dir = make_temp_dir("serve-watch-build-output", &repo_root);
+    copy_dir_all(&repo_root.join("examples/self-contained"), &fixture_root)
+        .expect("fixture should be copied to temp directory");
+    let config_path = fixture_root.join("bookshelf.toml");
+
+    let build_output = Command::new(&bin)
+        .arg("build")
+        .arg(&config_path)
+        .arg("--dest-dir")
+        .arg(&build_output_dir)
+        .output()
+        .expect("build command should run");
+    assert!(
+        build_output.status.success(),
+        "build command failed\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&build_output.stdout),
+        String::from_utf8_lossy(&build_output.stderr)
+    );
+    let built_page = fs::read_to_string(build_output_dir.join("modules/parser/docs/grammar.html"))
+        .expect("normal build output page should be readable");
+    assert_text_not_contains(&built_page, "__livereload");
+
+    let mut child = Command::new(&bin)
+        .arg("serve")
+        .arg(&config_path)
+        .arg("--dest-dir")
+        .arg(&serve_output_dir)
+        .arg("--hostname")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg("0")
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("serve command should spawn");
+
+    let stderr = child
+        .stderr
+        .take()
+        .expect("serve child stderr should be piped");
+    let stderr_lines = spawn_stderr_reader(stderr);
+    let mut stderr_log = String::new();
+    let server_address = wait_for_serving_address(&mut child, &stderr_lines, &mut stderr_log);
+
+    let parser_path = "/modules/parser/docs/grammar.html";
+    let initial_response = wait_for_response(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        parser_path,
+    );
+    assert_status_ok(&initial_response);
+    assert_text_contains(response_body(&initial_response), "__livereload");
+    assert_text_contains(
+        response_body(&initial_response),
+        "Grammar is a parser-only concern.",
+    );
+
+    let marker = format!("Serve watch rebuild marker {}", unique_nanos());
+    let grammar_path = fixture_root.join("modules/parser/docs/grammar.md");
+    let mut grammar =
+        fs::read_to_string(&grammar_path).expect("grammar fixture should be readable");
+    grammar.push_str("\n\n");
+    grammar.push_str(&marker);
+    grammar.push('\n');
+    fs::write(&grammar_path, grammar).expect("grammar fixture should be editable");
+
+    let updated_response = wait_for_response_body_contains(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        parser_path,
+        &marker,
+    );
+    assert_status_ok(&updated_response);
+
+    shutdown_child(&mut child);
+    fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
+    fs::remove_dir_all(&serve_output_dir).expect("temp serve output directory should be removed");
+    fs::remove_dir_all(&build_output_dir).expect("temp build output directory should be removed");
+}
+
 fn wait_for_serving_address(
     child: &mut Child,
     stderr_lines: &Receiver<String>,
@@ -185,6 +275,46 @@ fn wait_for_response(
     );
 }
 
+fn wait_for_response_body_contains(
+    child: &mut Child,
+    stderr_lines: &Receiver<String>,
+    stderr_log: &mut String,
+    server_address: &str,
+    path: &str,
+    expected: &str,
+) -> String {
+    let mut last_response = String::new();
+
+    for _ in 0..200 {
+        if let Some(status) = child
+            .try_wait()
+            .expect("serve child status should be readable")
+        {
+            drain_stderr(stderr_lines, stderr_log);
+            panic!("serve exited early with {status}\nstderr:\n{stderr_log}");
+        }
+
+        match http_get(server_address, path) {
+            Ok(response) => {
+                if response_body(&response).contains(expected) {
+                    return response;
+                }
+                last_response = response;
+            }
+            Err(_) => drain_stderr(stderr_lines, stderr_log),
+        }
+
+        drain_stderr(stderr_lines, stderr_log);
+        thread::sleep(Duration::from_millis(100));
+    }
+
+    shutdown_child(child);
+    panic!(
+        "timed out waiting for HTTP response from serve process for {path} to contain {expected:?}\nstderr:\n{stderr_log}\nlast response body:\n{}",
+        response_body(&last_response)
+    );
+}
+
 fn http_get(server_address: &str, path: &str) -> std::io::Result<String> {
     let mut stream = TcpStream::connect(server_address)?;
     stream.set_read_timeout(Some(Duration::from_secs(2)))?;
@@ -215,6 +345,15 @@ fn assert_text_contains(text: &str, expected: &str) {
         text.contains(expected),
         "expected to find {:?} in response body:\n{}",
         expected,
+        text
+    );
+}
+
+fn assert_text_not_contains(text: &str, unexpected: &str) {
+    assert!(
+        !text.contains(unexpected),
+        "expected not to find {:?} in text:\n{}",
+        unexpected,
         text
     );
 }
@@ -274,11 +413,35 @@ fn drain_stderr(stderr_lines: &Receiver<String>, stderr_log: &mut String) {
 }
 
 fn make_temp_dir(prefix: &str, repo_root: &Path) -> PathBuf {
+    let path = repo_root
+        .join(".tmp")
+        .join(format!("{prefix}-{}", unique_nanos()));
+    fs::create_dir_all(&path).expect("temp directory should be created");
+    path
+}
+
+fn unique_nanos() -> u128 {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .expect("system time should be after unix epoch")
         .as_nanos();
-    let path = repo_root.join(".tmp").join(format!("{prefix}-{nanos}"));
-    fs::create_dir_all(&path).expect("temp directory should be created");
-    path
+    nanos
+}
+
+fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(destination)?;
+
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let destination_path = destination.join(entry.file_name());
+
+        if file_type.is_dir() {
+            copy_dir_all(&entry.path(), &destination_path)?;
+        } else {
+            fs::copy(entry.path(), destination_path)?;
+        }
+    }
+
+    Ok(())
 }
