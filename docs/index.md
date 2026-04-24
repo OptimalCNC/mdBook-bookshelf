@@ -6,6 +6,18 @@ mdBook.
 It keeps mdBook responsible for loading and rendering each individual book, and
 adds a bookshelf layer for multi-book routing, navigation, and search.
 
+## Start By Role
+
+- Evaluators: read this overview, then [Site Behavior](./site-behavior.md) to
+  see the generated routes, shelf page, scoped navigation, and search behavior.
+- Site authors: start with [Configuration](./configuration.md) and
+  [Authoring](./authoring.md), then use [Linking](./linking.md) for local and
+  cross-book links.
+- CLI operators: use [Operations](./operations.md) for the current `book build`
+  and `book serve` commands, flags, output rules, and serve watcher behavior.
+- Contributors: use [Contributing](./contributing.md) for the code map,
+  pipeline, tests, and mdBook-first guardrails.
+
 ## What It Does
 
 - uses one human-owned `bookshelf.toml`
@@ -18,17 +30,14 @@ adds a bookshelf layer for multi-book routing, navigation, and search.
 
 ## Quick Start
 
-Install the `book` binary with either of these commands:
+Install the `book` binary from a local checkout:
 
 ```bash
-# from a local checkout
 cargo install --locked --path .
-
-# directly from GitHub
-cargo install --locked --git https://github.com/OptimalCNC/mdBook-bookshelf mdbook-bookshelf
 ```
 
-Then build this documentation set:
+This repository's own docs configure `mdbook-mermaid`, so install that
+preprocessor before building this docs set:
 
 ```bash
 cargo install mdbook-mermaid
@@ -42,6 +51,9 @@ book serve bookshelf.toml --port 3000
 ```
 
 Then open `http://127.0.0.1:3000`.
+
+See [Operations](./operations.md) for command defaults, flags, output
+directories, and serve rebuild behavior.
 
 ## Config Model
 
@@ -97,10 +109,12 @@ See [Configuration](./configuration.md) for the full config rules.
 
 - [Site Behavior](./site-behavior.md) describes what readers see in the built
   site
-- [Linking](./linking.md) explains how to write cross-book and local links
 - [Configuration](./configuration.md) covers `bookshelf.toml`
+- [Operations](./operations.md) documents current `book build` and `book serve`
+  behavior
 - [Authoring](./authoring.md) covers layout, `SUMMARY.md`, and the generated
   `Bookshelf` page
+- [Linking](./linking.md) explains how to write cross-book and local links
 - [Examples](./examples.md) points at the example tree and repo-scale fixture
 - [Contributing](./contributing.md) explains how the implementation is put
   together

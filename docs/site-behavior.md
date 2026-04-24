@@ -39,7 +39,9 @@ Current behavior:
 The synthetic page also affects the root book sidebar:
 
 - the root book keeps its normal chapter numbering
-- `Bookshelf` appears as an unnumbered trailing sidebar entry
+- `Bookshelf` appears as the first root-book sidebar entry
+- the `Bookshelf` sidebar entry is unnumbered, and authored root chapters keep
+  their normal numbering and order after it
 - child-book sidebars do not include `Bookshelf`
 
 ## Reading Inside A Book

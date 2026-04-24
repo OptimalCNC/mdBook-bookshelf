@@ -1,51 +1,111 @@
 # Objective
-Deliver stock-mdBook-style support for configured mdBook preprocessors and HTML assets, proving `mdbook-mermaid` works without hardcoding Mermaid-specific behavior.
+Improve the project documentation so different users can quickly find the docs
+they need and read them easily, while correcting drift against the current
+codebase.
 
 # Global Constraints
-- Project is under active development; prefer the best current solution over compatibility.
-- Treat upstream mdBook source as reference only; reuse published mdBook crates and public APIs.
-- Keep `build` and `serve` close to stock mdBook shape: thin CLI wrappers over the shared build engine, one initial build for serve, and mdBook-owned single-book processing where practical.
-- Do not special-case Mermaid or any named plugin; support should come from generic mdBook config and plugin seams.
+- Project is under active development; prefer the best current solution over
+  compatibility.
+- Keep the documented product direction mdBook-first: stock mdBook owns
+  single-book loading and rendering, while `mdbook-bookshelf` adds multi-book
+  routing, navigation, search, and bookshelf UI.
+- Documentation changes should reflect current code and tests, not planned
+  behavior.
+- Keep docs concise, navigable, and reader-oriented for distinct audiences:
+  users evaluating the tool, site authors, operators running the CLI, and
+  contributors changing implementation.
 
 # Integration Strategy
-- Continue using `MDBook::load_with_config_and_summary()` for each catalog book so mdBook discovers configured `[preprocessor.*]` command plugins and runs them through the normal preprocessor pipeline during `mdbook.build()`.
-- Preserve stock `output.html.additional-js` / `additional-css` handling by resolving shared config-root assets and staging them into child book roots before rendering.
-- Add focused coverage that configures a real external preprocessor plus additional JS assets and asserts the generated HTML reflects the preprocessed Markdown and asset injection.
+- Treat `README.md`, `docs/SUMMARY.md`, and `docs/index.md` as the first-entry
+  navigation layer.
+- Keep detailed reference content in focused docs under `docs/`.
+- Validate behavioral claims against the Rust code and tests before editing.
+- Use the repo's own `book build bookshelf.toml` flow as documentation build
+  validation.
 
 # Current State
-- `mdbook-mermaid` is installed at `/home/huwei/.cargo/bin/mdbook-mermaid` in the local environment.
-- Commit `f2559ab` adds a focused build CLI regression that configures stock `[preprocessor.mermaid]` plus `[output.html].additional-js`, builds root and child books, and asserts both mdBook command preprocessor output and staged child JS assets.
-- No production code changed; support remains on the existing generic mdBook `Config` -> `MDBook::load_with_config_and_summary()` -> `mdbook.build()` seam.
+- Existing docs cover overview, site behavior, linking, configuration,
+  authoring, examples, and contributing.
+- Initial scan found the docs broadly aligned with the current code, but the
+  entry points can be improved for role-based navigation and easier reading.
+- Drift audit found concrete gaps in sidebar placement, CLI/serve defaults,
+  config validation, shared output assets, linking rules, authoring assumptions,
+  and search caveats.
 
 # Open Risks
-- The regression depends on `mdbook-mermaid` being installed to exercise the external plugin path; when unavailable it reports a clear skip.
+- Documentation drift may exist in lower-level details such as config
+  validation, CLI flags, generated routes, injected UI behavior, or search.
+- The repo docs build may require local command plugins such as
+  `mdbook-mermaid` depending on the current config.
 
 # Active Chunk
-None.
+```yaml
+chunk_id: docs-nav-001
+title: Role-based entry navigation and Bookshelf sidebar drift cleanup
+objective: Make README.md, docs/index.md, and docs/SUMMARY.md route evaluators, site authors, CLI operators, and contributors to the right docs quickly, while correcting the current Bookshelf sidebar placement drift.
+why_now: The first-entry docs are present but generic, and docs/site-behavior.md currently says the Bookshelf sidebar entry is trailing even though the implementation prepends it and tests assert it is first.
+depends_on: []
+touchpoints:
+  - README.md
+  - docs/index.md
+  - docs/SUMMARY.md
+  - docs/site-behavior.md
+  - docs/operations.md
+  - cli/mdbook-bookshelf/src/cmd/command_prelude.rs
+  - cli/mdbook-bookshelf/src/cmd/serve.rs
+  - crates/mdbook-bookshelf/src/root_bookshelf_preprocessor.rs
+  - tests/build_cli.rs
+scope_in:
+  - Add a compact audience router to README.md and docs/index.md.
+  - Add a focused CLI operators page under docs/ that documents only current build/serve behavior and flags.
+  - Add the operators page to docs/SUMMARY.md.
+  - Correct docs/site-behavior.md to say the synthetic Bookshelf sidebar entry is first/prepended and unnumbered.
+scope_out:
+  - No Rust behavior changes.
+  - No broad rewrite of reference docs.
+  - No planned features, compatibility notes, release packaging, or publishing instructions beyond current CLI behavior.
+target_files:
+  - README.md
+  - docs/index.md
+  - docs/SUMMARY.md
+  - docs/site-behavior.md
+  - docs/operations.md
+implementation_tasks:
+  - Rewrite the top README doc pointer into a short audience map for evaluators, authors, operators, and contributors.
+  - Reshape docs/index.md so the audience map appears before detailed reference links and keeps the mdBook-first positioning.
+  - Create docs/operations.md with current book build and book serve usage, default bookshelf.toml, --dest-dir, --hostname, --port, docs-build mdbook-mermaid requirement, and serve rebuild/live-reload behavior.
+  - Insert the new operators page into docs/SUMMARY.md near the existing configuration/authoring material.
+  - Replace the incorrect trailing sidebar entry wording in docs/site-behavior.md with the implemented first-entry behavior.
+acceptance_criteria:
+  - A new reader can choose an evaluator, site author, CLI operator, or contributor path from README.md and docs/index.md without reading the whole doc set.
+  - CLI operator claims match the current clap definitions and serve tests.
+  - Bookshelf sidebar wording matches insert(0, ...) and the build CLI assertion that Bookshelf is the first root-book sidebar link.
+  - The docs remain mdBook-first and do not describe planned behavior.
+verification:
+  - command: cargo test --test cli_help --test bookshelf_config_parse
+    expect: Passes; confirms documented CLI/config basics still match code.
+  - command: cargo test --test build_cli build_cli_emits_bookshelf_ui_assets_without_fixture_residue
+    expect: Passes; covers generated Bookshelf UI, sidebar order, scoped navigation, and search assets.
+  - command: cargo test --test serve_cli serve_cli_serves_built_site
+    expect: Passes; confirms serve builds and serves the current site behavior.
+  - command: cargo run --bin book -- build bookshelf.toml --dest-dir .tmp/project-docs-site
+    expect: Succeeds when mdbook-mermaid is installed; generated docs include the updated navigation pages.
+review_focus:
+  - Check that README.md and docs/index.md route audiences without duplicating full reference content.
+  - Check docs/operations.md against cli/mdbook-bookshelf/src/cmd/command_prelude.rs and cli/mdbook-bookshelf/src/cmd/serve.rs.
+  - Check docs/site-behavior.md against crates/mdbook-bookshelf/src/root_bookshelf_preprocessor.rs and tests/build_cli.rs.
+  - Check that docs/SUMMARY.md stays easy to scan and does not over-nest the documentation set.
+```
 
 # Chunk Ledger
-- `plugin-regression`: approved in commit `f2559ab`; added a temp-fixture build CLI regression for stock configured mdBook command preprocessors and generic `output.html.additional-js` staging across root and child book outputs. No production Mermaid-specific code was added.
+None yet.
 
 # Final Validation
-- `PATH="$HOME/.cargo/bin:$PATH" mdbook-mermaid --version`: passed (`mdbook-mermaid 0.17.0`).
-- `PATH="$HOME/.cargo/bin:$PATH" cargo test --test build_cli build_cli_supports_configured_mdbook_mermaid_preprocessor_and_additional_js -- --nocapture`: passed.
-- `cargo test --test build_cli build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir`: passed.
-- `cargo test`: passed when run without concurrent fixture-mutating commands.
-- Chunk direction review: approved.
-- Chunk implementation review: approved.
-- Final direction review: approved.
-- Final implementation review: approved.
+Pending.
 
 # Activity Log
-2026-04-24T06:03:49Z [coordinator] [setup] [started] Reset coordination artifact for generic mdBook plugin support and captured current build seam.
-2026-04-24T06:05:38Z [researcher-subagent] [plugin-support-seam] [done] Verified stock mdBook preprocessor and additional-asset seams are enough; add focused regression coverage.
-2026-04-24T06:04:56Z [planner] [plugin-regression] [planned] Proposed a focused build CLI regression for stock configured preprocessors and additional JS assets.
-2026-04-24T06:07:08Z [coordinator] [plugin-regression] [accepted] Accepted focused regression chunk; production changes only if a generic stock seam defect appears.
-2026-04-24T06:09:25Z [developer-subagent] [plugin-regression] [started] Adding focused build CLI regression for stock mdBook Mermaid preprocessor and additional JS asset flow.
-2026-04-24T06:10:30Z [developer-subagent] [plugin-regression] [completed] Added temp-fixture build CLI regression; targeted Mermaid and shared-asset tests pass without production changes.
-2026-04-24T06:12:41Z [reviewer-subagent] [plugin-regression] [approved] Regression exercises configured preprocessor output and child staged JS assets; focused validation passes.
-2026-04-24T06:12:23Z [reviewer] [plugin-regression] APPROVED - regression stays on stock mdBook plugin and generic asset seams with no production Mermaid special-casing.
-2026-04-24T06:13:27Z [coordinator] [plugin-regression] [approved] Recorded approved commit f2559ab and final validation results.
-2026-04-24T06:15:01Z [reviewer-final-subagent] [plugin-support-final] APPROVED - final regression covers configured command preprocessor output and child additional-js staging when mdbook-mermaid is available.
-2026-04-24T06:14:48Z [reviewer-final] [plugin-support-final] [approved] Generic mdBook command preprocessor and additional-js seams satisfy final direction with no production Mermaid special-casing.
-2026-04-24T06:15:37Z [coordinator] [plugin-support-final] [completed] Final validation and final review gates approved.
+2026-04-24T06:34:26Z [coordinator] [setup] [started] Reset coordination artifact for documentation navigation and drift cleanup.
+2026-04-24T06:36:12Z [planner] [docs-nav-001] [planned] Proposed role-based entry navigation, operations page, and Bookshelf sidebar drift cleanup.
+2026-04-24T06:38:14Z [researcher-subagent] [docs-drift-audit] [done] Found sidebar drift plus missing CLI, serve, config, linking, authoring, and search caveats.
+2026-04-24T06:39:02Z [coordinator] [docs-nav-001] [accepted] Accepted first docs navigation chunk and recorded concrete scope.
+2026-04-24T06:42:42Z [developer-subagent] [docs-nav-001] [completed] Added role routing, operations docs, SUMMARY entry, and first-sidebar Bookshelf wording; targeted validation passed.
