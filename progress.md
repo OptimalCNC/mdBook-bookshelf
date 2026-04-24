@@ -137,3 +137,6 @@ review_focus:
 2026-04-24T07:00:35Z [coordinator] [docs-authoring-index-001] [accepted] Accepted one-file authoring index contract clarification chunk.
 2026-04-24T07:01:09Z [developer-subagent] [docs-authoring-index-001] [started] Started authoring index contract clarification against catalog and navigation code.
 2026-04-24T07:01:40Z [developer-subagent] [docs-authoring-index-001] [completed] Clarified SUMMARY.md catalog validation versus index.md runtime navigation assumptions; required verification passed.
+2026-04-24T07:02:28Z [coordinator] [docs-authoring-index-001] [checkpoint] Created review checkpoint 1aefd5f docs: clarify authoring entry page assumptions.
+2026-04-24T07:04:23Z [reviewer] [docs-authoring-index-001] [changes-required] Requested narrower site-root redirect wording for bookshelf entry-page mode.
+2026-04-24T07:04:23Z [developer-subagent] [docs-authoring-index-001] [completed] Narrowed redirect wording to default root-book site-root redirect; required verification passed.

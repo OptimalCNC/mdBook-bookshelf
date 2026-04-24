@@ -14,7 +14,8 @@ Minimum catalog-build requirements per book:
 Also author `<src>/index.md` as each book's stable entry page. The catalog
 builder validates the canonical `<src>/SUMMARY.md`; it does not currently
 validate `index.md`. Runtime navigation still assumes `index.html` for
-site-root redirects, synthetic shelf links, and book entry pages.
+synthetic shelf links, book entry pages, and the default root-book site-root
+redirect.
 
 Example:
 
