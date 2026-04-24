@@ -65,8 +65,8 @@ None.
 - `docs-search-caveats-001`: approved in commit `6ffd779`; documented the
   stock per-book search index contract, shared payload compatibility,
   localized `bookshelf-searchindex.js` files, and `?search=` cold-load behavior.
-- `docs-final-review-rework-001`: completed pending checkpoint; corrected final
-  review wording drift for repo-scale `Bookshelf` sidebar placement and
+- `docs-final-review-rework-001`: approved in commit `1f58a62`; corrected
+  final review wording drift for repo-scale `Bookshelf` sidebar placement and
   `/...` authored-link rewrite behavior.
 
 # Final Validation
@@ -161,3 +161,5 @@ None.
 2026-04-24T07:18:44Z [coordinator] [docs-final-review-rework-001] [accepted] Accepted narrow final-review wording correction chunk.
 2026-04-24T07:19:33Z [coordinator] [docs-final-review-rework-001] [completed] Corrected final-review wording drifts in examples/repo-scale.md and docs/index.md.
 2026-04-24T07:20:41Z [coordinator] [final-validation] [passed] Final-review rework stale-phrase scan, docs build, package test suite, and whitespace validation passed.
+2026-04-24T07:21:09Z [coordinator] [docs-final-review-rework-001] [checkpoint] Created review checkpoint 1f58a62 docs: fix final review wording.
+2026-04-24T07:21:48Z [reviewer-subagent] [docs-final-review-rework-001] [approved] Rework resolves stale sidebar placement and site-root link rewrite wording findings.

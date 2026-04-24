@@ -33,6 +33,6 @@ before building this docs set:
 
 ```bash
 cargo install mdbook-mermaid
-book build bookshelf.toml
-book serve bookshelf.toml --port 3000
+book build
+book serve
 ```

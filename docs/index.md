@@ -41,13 +41,13 @@ preprocessor before building this docs set:
 
 ```bash
 cargo install mdbook-mermaid
-book build bookshelf.toml
+book build
 ```
 
 Serve the same docs locally:
 
 ```bash
-book serve bookshelf.toml --port 3000
+book serve --port 3000
 ```
 
 Then open `http://127.0.0.1:3000`.
