@@ -623,7 +623,10 @@ process.stdout.write(
 fn build_cli_emits_bookshelf_ui_assets_from_fixture_without_source_residue() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let fixture_root = repo_root.join(BOOKSHELF_UI_SITE_FIXTURE);
+    let fixture_root = copy_bookshelf_ui_site_fixture(
+        &repo_root,
+        "chunk-011-build-cli-bookshelf-ui-site-fixture",
+    );
     let config_path = fixture_root.join("bookshelf.toml");
     let output_dir = make_temp_dir("chunk-011-build-cli", &repo_root);
     let fixture_entries_before = without_bookshelf_ui_entries(collect_tree_entries(&fixture_root));
@@ -908,6 +911,7 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_without_source_residue() {
     assert!(!fixture_root.join(".mdbook-bookshelf").exists());
     assert_eq!(collect_tree_entries(&fixture_root), fixture_entries_before);
 
+    fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
 
@@ -1301,9 +1305,11 @@ src = "modules/child/docs"
 fn build_cli_uses_shared_site_wide_search_index() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let config_path = repo_root
-        .join(BOOKSHELF_UI_SITE_FIXTURE)
-        .join("bookshelf.toml");
+    let fixture_root = copy_bookshelf_ui_site_fixture(
+        &repo_root,
+        "chunk-019-build-cli-bookshelf-ui-site-fixture",
+    );
+    let config_path = fixture_root.join("bookshelf.toml");
     let output_dir = make_temp_dir("chunk-019-build-cli", &repo_root);
 
     let output = Command::new(&bin)
@@ -1380,6 +1386,7 @@ fn build_cli_uses_shared_site_wide_search_index() {
         "https://example.test/docs/architecture.html?highlight=scoped%20label#architecture",
     );
 
+    fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
 
@@ -2369,4 +2376,25 @@ fn make_temp_dir(tag: &str, root: &Path) -> PathBuf {
         .join(format!("{tag}-{nanos}"));
     fs::create_dir_all(&dir).expect("temp output directory should be created");
     dir
+}
+
+fn copy_bookshelf_ui_site_fixture(repo_root: &Path, tag: &str) -> PathBuf {
+    let fixture_root = make_temp_dir(tag, repo_root);
+    copy_dir_all(&repo_root.join(BOOKSHELF_UI_SITE_FIXTURE), &fixture_root)
+        .expect("bookshelf UI site fixture should be copied");
+    fixture_root
+}
+
+fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let destination_path = destination.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_all(&entry.path(), &destination_path)?;
+        } else {
+            fs::copy(entry.path(), destination_path)?;
+        }
+    }
+    Ok(())
 }
