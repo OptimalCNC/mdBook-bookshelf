@@ -700,7 +700,7 @@ mod tests {
         assert!(temp_root.join(&js_assets[3]).exists());
         let breadcrumb_js = fs::read_to_string(temp_root.join(&js_assets[2]))
             .expect("breadcrumb script should be readable");
-        assert!(breadcrumb_js.contains("\"grammar.html\": \"Example Parser / Grammar\""));
+        assert!(breadcrumb_js.contains("\"grammar.html\": \"Sample Parser / Grammar\""));
         assert!(breadcrumb_js.contains("setAttribute(\"data-bookshelf-breadcrumb\", \"true\")"));
         let search_js = fs::read_to_string(temp_root.join(&js_assets[3]))
             .expect("search override should be readable");
@@ -716,8 +716,8 @@ mod tests {
     fn render_bookshelf_breadcrumb_js_uses_exact_page_map() {
         let script = render_bookshelf_breadcrumb_js(&sample_breadcrumb_pages());
 
-        assert!(script.contains("\"grammar.html\": \"Example Parser / Grammar\""));
-        assert!(script.contains("\"runtime.html\": \"Example Parser / Runtime\""));
+        assert!(script.contains("\"grammar.html\": \"Sample Parser / Grammar\""));
+        assert!(script.contains("\"runtime.html\": \"Sample Parser / Runtime\""));
         assert!(script.contains("breadcrumbByPage[currentPath]"));
         assert!(script.contains("main.prepend(breadcrumb)"));
         assert!(script.contains("currentPath = \"index.html\""));
@@ -873,11 +873,11 @@ mod tests {
         vec![
             BookshelfBreadcrumbPage {
                 html_path: "grammar.html".to_string(),
-                breadcrumb: "Example Parser / Grammar".to_string(),
+                breadcrumb: "Sample Parser / Grammar".to_string(),
             },
             BookshelfBreadcrumbPage {
                 html_path: "runtime.html".to_string(),
-                breadcrumb: "Example Parser / Runtime".to_string(),
+                breadcrumb: "Sample Parser / Runtime".to_string(),
             },
         ]
     }

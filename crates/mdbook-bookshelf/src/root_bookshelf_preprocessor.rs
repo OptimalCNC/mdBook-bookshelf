@@ -91,8 +91,8 @@ mod tests {
     fn inject_root_bookshelf_page_prepends_a_synthetic_chapter() {
         let mut book = Book::new();
         book.push_item(Chapter::new(
-            "Example Core",
-            "# Example Core".to_string(),
+            "Sample Core",
+            "# Sample Core".to_string(),
             "index.md",
             Vec::new(),
         ));
@@ -118,17 +118,17 @@ mod tests {
         );
         assert_eq!(synthetic.source_path, None);
         assert_eq!(synthetic.number, None);
-        assert!(synthetic.content.contains("[Example Core](<index.html>)"));
+        assert!(synthetic.content.contains("[Sample Core](<index.html>)"));
         assert!(synthetic.content.contains("Repository-wide onboarding"));
         assert!(synthetic
             .content
-            .contains("[Example Parser](<../modules/parser/docs/index.html>)"));
+            .contains("[Sample Parser](<../modules/parser/docs/index.html>)"));
 
         let first_authored = match &book.items[1] {
             BookItem::Chapter(chapter) => chapter,
             other => panic!("expected chapter, got {other:?}"),
         };
-        assert_eq!(first_authored.name, "Example Core");
+        assert_eq!(first_authored.name, "Sample Core");
     }
 
     #[test]
@@ -155,13 +155,13 @@ mod tests {
             books: vec![
                 sample_book(
                     "docs",
-                    "Example Core",
+                    "Sample Core",
                     Some("Repository-wide onboarding and architecture notes."),
                     true,
                 ),
                 sample_book(
                     "modules/parser/docs",
-                    "Example Parser",
+                    "Sample Parser",
                     Some("Parser-specific reference pages with their own reading order."),
                     false,
                 ),

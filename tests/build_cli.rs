@@ -3,6 +3,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+const BOOKSHELF_UI_SITE_FIXTURE: &str = "tests/fixtures/bookshelf-ui-site";
+const PUBLIC_SELF_CONTAINED_EXAMPLE: &str = "examples/self-contained";
+
 const BREADCRUMB_RUNTIME_HARNESS: &str = r##"
 const fs = require("node:fs");
 
@@ -617,11 +620,11 @@ process.stdout.write(
 "##;
 
 #[test]
-fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
+fn build_cli_emits_bookshelf_ui_assets_from_fixture_without_source_residue() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let fixture_root = repo_root.join("examples/self-contained");
-    let config_path = repo_root.join("examples/self-contained/bookshelf.toml");
+    let fixture_root = repo_root.join(BOOKSHELF_UI_SITE_FIXTURE);
+    let config_path = fixture_root.join("bookshelf.toml");
     let output_dir = make_temp_dir("chunk-011-build-cli", &repo_root);
     let fixture_entries_before = without_bookshelf_ui_entries(collect_tree_entries(&fixture_root));
 
@@ -652,45 +655,45 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     );
     assert_text_contains(&root_entry_html, "href=\"docs/index.html\"");
     assert_text_not_contains(&root_entry_html, "bookshelf-card__link");
-    assert_text_not_contains(&root_entry_html, "Example Core");
+    assert_text_not_contains(&root_entry_html, "Fixture Core");
 
     let bookshelf_html = assert_read_to_string(output_dir.join("docs/bookshelf.html"));
     assert_text_contains(&bookshelf_html, "<h1 id=\"bookshelf\">");
     assert_text_contains(&bookshelf_html, "Choose a book to enter its root page.");
-    assert_text_contains(&bookshelf_html, "Example Core");
+    assert_text_contains(&bookshelf_html, "Fixture Core");
     assert_text_contains(
         &bookshelf_html,
         "Repository-wide onboarding and architecture notes.",
     );
-    assert_text_contains(&bookshelf_html, "Example Parser");
+    assert_text_contains(&bookshelf_html, "Fixture Parser");
     assert_text_contains(
         &bookshelf_html,
         "Parser-specific reference pages with their own reading order.",
     );
-    assert_text_contains(&bookshelf_html, "Example UI");
+    assert_text_contains(&bookshelf_html, "Fixture UI");
     assert_text_contains(
         &bookshelf_html,
         "Interface and runtime guides for the UI book.",
     );
-    assert_text_contains(&bookshelf_html, "href=\"index.html\">Example Core</a>");
+    assert_text_contains(&bookshelf_html, "href=\"index.html\">Fixture Core</a>");
     assert_text_contains(
         &bookshelf_html,
-        "href=\"../modules/parser/docs/index.html\">Example Parser</a>",
+        "href=\"../modules/parser/docs/index.html\">Fixture Parser</a>",
     );
     assert_text_contains(
         &bookshelf_html,
-        "href=\"../modules/ui/docs/index.html\">Example UI</a>",
+        "href=\"../modules/ui/docs/index.html\">Fixture UI</a>",
     );
-    assert_text_not_contains(&bookshelf_html, "href=\"bookshelf.html\">Example Core</a>");
+    assert_text_not_contains(&bookshelf_html, "href=\"bookshelf.html\">Fixture Core</a>");
 
     let root_index_html = assert_read_to_string(output_dir.join("docs/index.html"));
     assert_text_contains(
         &root_index_html,
-        "<title>Example Core - Example Core</title>",
+        "<title>Fixture Core - Fixture Core</title>",
     );
     assert_text_contains(
         &root_index_html,
-        "Repository-wide onboarding and architecture guidance for the example project.",
+        "Repository-wide onboarding and architecture guidance for the fixture project.",
     );
     assert_text_contains(&root_index_html, "href=\"./onboarding.html\"");
     assert_text_contains(&root_index_html, "bookshelf-breadcrumb.css");
@@ -707,7 +710,7 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     let onboarding_html = assert_read_to_string(output_dir.join("docs/onboarding.html"));
     assert_text_contains(
         &onboarding_html,
-        "href=\"../modules/parser/docs/index.html\">Example Parser</a>",
+        "href=\"../modules/parser/docs/index.html\">Fixture Parser</a>",
     );
     assert_text_not_contains(&onboarding_html, "href=\"/modules/parser/docs/index.md\"");
 
@@ -733,16 +736,16 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     ));
     assert_sidebar_toc_scope(
         &root_toc_html,
-        &["Example Core", "Onboarding", "Architecture", "Bookshelf"],
-        &["Example Parser", "Grammar", "Example UI", "Navigation"],
+        &["Fixture Core", "Onboarding", "Architecture", "Bookshelf"],
+        &["Fixture Parser", "Grammar", "Fixture UI", "Navigation"],
     );
-    assert_root_bookshelf_link_order(&root_toc_html);
+    assert_root_bookshelf_link_order(&root_toc_html, "Fixture Core");
     assert_runtime_toc(
         &root_toc_script,
         "https://example.test/docs/index.html#what-it-does",
         "",
-        &["Bookshelf", "Example Core", "Onboarding", "Architecture"],
-        "Example Core",
+        &["Bookshelf", "Fixture Core", "Onboarding", "Architecture"],
+        "Fixture Core",
         "https://example.test/docs/index.html",
     );
 
@@ -777,7 +780,7 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     assert_runtime_breadcrumb(
         &root_breadcrumb_script,
         "https://example.test/docs/architecture.html",
-        "Example Core / Architecture",
+        "Fixture Core / Architecture",
     );
     assert_runtime_breadcrumb_absent(
         &root_breadcrumb_script,
@@ -803,11 +806,11 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     let parser_toc_html = assert_read_to_string(output_dir.join("modules/parser/docs/toc.html"));
     assert_sidebar_toc_scope(
         &parser_toc_html,
-        &["Example Parser", "Grammar", "Runtime"],
+        &["Fixture Parser", "Grammar", "Runtime"],
         &[
-            "Example Core",
+            "Fixture Core",
             "Bookshelf",
-            "Example UI",
+            "Fixture UI",
             "Navigation",
             "Diagnostics",
         ],
@@ -845,21 +848,21 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     assert_runtime_breadcrumb(
         &parser_breadcrumb_script,
         "https://example.test/modules/parser/docs/grammar.html",
-        "Example Parser / Grammar",
+        "Fixture Parser / Grammar",
     );
     assert_file_contains(parser_breadcrumb_css, ".bookshelf-breadcrumb");
     let parser_runtime_html =
         assert_read_to_string(output_dir.join("modules/parser/docs/runtime.html"));
     assert_text_contains(
         &parser_runtime_html,
-        "href=\"../../ui/docs/index.html\">Example UI</a>",
+        "href=\"../../ui/docs/index.html\">Fixture UI</a>",
     );
     assert_text_not_contains(&parser_runtime_html, "href=\"/modules/ui/docs/index.md\"");
     assert_runtime_toc(
         &parser_toc_script,
         "https://example.test/modules/parser/docs/grammar.html#deep-link",
         "",
-        &["Example Parser", "Grammar", "Runtime"],
+        &["Fixture Parser", "Grammar", "Runtime"],
         "Grammar",
         "https://example.test/modules/parser/docs/grammar.html",
     );
@@ -876,11 +879,11 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
     let ui_toc_html = assert_read_to_string(output_dir.join("modules/ui/docs/toc.html"));
     assert_sidebar_toc_scope(
         &ui_toc_html,
-        &["Example UI", "Navigation", "Diagnostics"],
+        &["Fixture UI", "Navigation", "Diagnostics"],
         &[
-            "Example Core",
+            "Fixture Core",
             "Bookshelf",
-            "Example Parser",
+            "Fixture Parser",
             "Grammar",
             "Runtime",
         ],
@@ -896,7 +899,7 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
         &ui_toc_script,
         "https://example.test/modules/ui/docs/navigation.html?from=deep#section",
         "",
-        &["Example UI", "Navigation", "Diagnostics"],
+        &["Fixture UI", "Navigation", "Diagnostics"],
         "Navigation",
         "https://example.test/modules/ui/docs/navigation.html",
     );
@@ -909,10 +912,10 @@ fn build_cli_emits_bookshelf_ui_assets_without_fixture_residue() {
 }
 
 #[test]
-fn build_cli_defaults_config_path_to_invoking_directory_bookshelf_toml() {
+fn build_cli_smoke_builds_public_self_contained_example_from_default_config_path() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let fixture_root = repo_root.join("examples/self-contained");
+    let fixture_root = repo_root.join(PUBLIC_SELF_CONTAINED_EXAMPLE);
     let output_dir = make_temp_dir("chunk-011-build-cli-default-config", &repo_root);
 
     let output = Command::new(&bin)
@@ -1298,7 +1301,9 @@ src = "modules/child/docs"
 fn build_cli_uses_shared_site_wide_search_index() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let config_path = repo_root.join("examples/self-contained/bookshelf.toml");
+    let config_path = repo_root
+        .join(BOOKSHELF_UI_SITE_FIXTURE)
+        .join("bookshelf.toml");
     let output_dir = make_temp_dir("chunk-019-build-cli", &repo_root);
 
     let output = Command::new(&bin)
@@ -1362,7 +1367,7 @@ fn build_cli_uses_shared_site_wide_search_index() {
         "https://example.test/docs/index.html",
         "",
         "concern sidebar",
-        "Example Parser » Grammar » Grammar",
+        "Fixture Parser » Grammar » Grammar",
         "https://example.test/modules/parser/docs/grammar.html?highlight=concern%20sidebar#grammar",
     );
     assert_runtime_search_result(
@@ -1371,7 +1376,7 @@ fn build_cli_uses_shared_site_wide_search_index() {
         "https://example.test/modules/parser/docs/grammar.html",
         "",
         "scoped label",
-        "Example Core » Architecture » Architecture",
+        "Fixture Core » Architecture » Architecture",
         "https://example.test/docs/architecture.html?highlight=scoped%20label#architecture",
     );
 
@@ -1780,10 +1785,10 @@ fn assert_sidebar_toc_scope(toc_html: &str, expected_labels: &[&str], unexpected
     }
 }
 
-fn assert_root_bookshelf_link_order(root_toc_html: &str) {
+fn assert_root_bookshelf_link_order(root_toc_html: &str, root_title: &str) {
     assert_root_bookshelf_link_order_for(
         root_toc_html,
-        "Example Core",
+        root_title,
         &["Onboarding", "Architecture"],
     );
 }

@@ -1,0 +1,19 @@
+[book]
+title = "Fixture Core"
+description = "Repository-wide onboarding and architecture notes."
+language = "en"
+src = "docs"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "ayu"
+
+[[bookshelf.book]]
+title = "Fixture Parser"
+description = "Parser-specific reference pages with their own reading order."
+src = "modules/parser/docs"
+
+[[bookshelf.book]]
+title = "Fixture UI"
+description = "Interface and runtime guides for the UI book."
+src = "modules/ui/docs"

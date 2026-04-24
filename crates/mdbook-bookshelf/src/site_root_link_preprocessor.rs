@@ -370,11 +370,11 @@ mod tests {
         let rewritten = rewrite_sample_chapter(
             "runtime.md",
             "modules/parser/docs",
-            "[Example UI](/modules/ui/docs/index.md)\n",
+            "[Sample UI](/modules/ui/docs/index.md)\n",
         )
         .expect("chapter should rewrite");
 
-        assert!(rewritten.contains("[Example UI](../../ui/docs/index.html)"));
+        assert!(rewritten.contains("[Sample UI](../../ui/docs/index.html)"));
     }
 
     #[test]

@@ -7,11 +7,16 @@ use std::sync::mpsc::{self, Receiver};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+const BOOKSHELF_UI_SITE_FIXTURE: &str = "tests/fixtures/bookshelf-ui-site";
+const PUBLIC_SELF_CONTAINED_EXAMPLE: &str = "examples/self-contained";
+
 #[test]
-fn serve_cli_serves_built_site() {
+fn serve_cli_serves_bookshelf_ui_fixture_site() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let config_path = repo_root.join("examples/self-contained/bookshelf.toml");
+    let config_path = repo_root
+        .join(BOOKSHELF_UI_SITE_FIXTURE)
+        .join("bookshelf.toml");
     let output_dir = make_temp_dir("chunk-016-serve", &repo_root);
 
     let mut child = Command::new(&bin)
@@ -86,10 +91,10 @@ fn serve_cli_serves_built_site() {
 }
 
 #[test]
-fn serve_cli_defaults_config_path_to_invoking_directory_bookshelf_toml() {
+fn serve_cli_smoke_serves_public_self_contained_example_from_default_config_path() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let fixture_root = repo_root.join("examples/self-contained");
+    let fixture_root = repo_root.join(PUBLIC_SELF_CONTAINED_EXAMPLE);
     let output_dir = make_temp_dir("chunk-016-serve-default-config", &repo_root);
 
     let mut child = Command::new(&bin)
@@ -136,7 +141,7 @@ fn serve_cli_rebuilds_changed_source_and_serves_live_reload_output() {
     let fixture_root = make_temp_dir("serve-watch-fixture", &repo_root);
     let serve_output_dir = make_temp_dir("serve-watch-output", &repo_root);
     let build_output_dir = make_temp_dir("serve-watch-build-output", &repo_root);
-    copy_dir_all(&repo_root.join("examples/self-contained"), &fixture_root)
+    copy_dir_all(&repo_root.join(BOOKSHELF_UI_SITE_FIXTURE), &fixture_root)
         .expect("fixture should be copied to temp directory");
     let config_path = fixture_root.join("bookshelf.toml");
 
