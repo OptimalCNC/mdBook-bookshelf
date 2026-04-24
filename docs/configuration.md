@@ -99,6 +99,7 @@ Examples of invalid layouts:
 ## Shared mdBook Output Settings
 
 Top-level mdBook output settings remain shared site configuration.
+`mdbook-bookshelf` applies them to every built book before invoking mdBook.
 
 That includes settings such as:
 
@@ -106,9 +107,28 @@ That includes settings such as:
 - `output.html.preferred-dark-theme`
 - `output.html.additional-css`
 - `output.html.additional-js`
+- `output.html.input-404`
 - configured `[preprocessor.*]` command plugins
 
-Relative shared asset paths are interpreted from the config root.
+Configured `[preprocessor.*]` command plugins run for each book. Entries in
+`output.html.additional-js` are also included in each book, so plugins such as
+Mermaid can be configured once at the bookshelf root.
+
+Relative `output.html.additional-css` and `output.html.additional-js` paths are
+resolved from the bookshelf config root, the directory containing
+`bookshelf.toml`. They are not resolved from each child book's `src`
+directory.
+
+Before building a child book whose book root differs from the config root,
+`mdbook-bookshelf` stages those configured CSS and JavaScript files under that
+child book root in `bookshelf-config-assets/`. The generated child book output
+then references the emitted `bookshelf-config-assets/...` copies.
+
+`output.html.input-404` is different: mdBook treats a relative value as an
+input page under a single book root. When a shared relative `input-404` would be
+reused for a book with a different root, the build is rejected. Set
+`input-404 = ""` to disable custom 404 generation for multi-book builds that
+cannot share one input page.
 
 ## Descriptions
 

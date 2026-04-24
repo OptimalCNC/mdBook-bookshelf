@@ -40,39 +40,41 @@ codebase.
 
 # Active Chunk
 ```yaml
-chunk_id: docs-authoring-index-001
-title: Clarify authoring index.md versus SUMMARY.md contract
-objective: Correct docs/authoring.md so it distinguishes runtime navigation assumptions for index.md from catalog build validation of SUMMARY.md.
-why_now: This is a small one-file drift fix that directly improves navigation/readability guidance and prevents authors from assuming catalog build validates index.md.
+chunk_id: docs-config-shared-assets-001
+title: Document shared output assets and per-book HTML config behavior
+objective: Correct docs/configuration.md drift around shared HTML output assets, command preprocessors, additional JS, and input-404 behavior across generated child book roots.
+why_now: The current configuration docs do not explain how relative shared assets are resolved and staged during multi-book builds, which can mislead authors configuring CSS, JS, preprocessors, Mermaid, or custom 404 pages.
 depends_on: []
 touchpoints:
-  - crates/mdbook-bookshelf/src/catalog.rs
-  - crates/mdbook-bookshelf/src/root_bookshelf_preprocessor.rs
-  - crates/mdbook-bookshelf/src/build.rs
-  - tests/input_catalog_build.rs
+  - crates/mdbook-bookshelf/src/bookshelf_ui.rs
+  - tests/build_cli.rs
 scope_in:
-  - Explain that index.md is assumed by navigation, redirects, and shelf links.
-  - Explain that catalog build validation currently checks SUMMARY.md, not index.md.
-  - Adjust authoring guidance to make the practical expectation explicit without overstating enforcement.
+  - Document that relative output.html.additional-css and output.html.additional-js paths are resolved from the config root.
+  - Document that shared CSS and JS assets are staged under generated child book roots using bookshelf-config-assets.
+  - Document that configured [preprocessor.*] command plugins and additional JS apply to each built book.
+  - Document that relative output.html.input-404 is rejected when it would cross different book roots, and can be disabled with an empty string.
 scope_out:
-  - Changing code validation behavior.
-  - Editing docs/configuration.md or docs/site-behavior.md.
-  - Broad authoring guide restructuring.
+  - Do not edit docs/source.
+  - Do not change implementation or tests.
+  - Do not cover search behavior drift; leave that for a separate docs/site-behavior.md chunk.
 target_files:
-  - docs/authoring.md
+  - docs/configuration.md
 implementation_tasks:
-  - Inspect current authoring sections that mention book roots, SUMMARY.md, index.md, redirects, and shelf links.
-  - Update only the smallest relevant section to clarify the distinction between assumed index.md behavior and validated SUMMARY.md behavior.
-  - Cross-check wording against the listed code and tests so the documentation describes current behavior, not desired behavior.
+  - Locate the existing configuration sections for HTML output, preprocessors, shared assets, and 404 handling.
+  - Add concise reader-facing guidance that matches the current code and test behavior.
+  - Prefer examples or notes near the relevant configuration keys instead of creating a broad new section.
+  - Cross-check wording against bookshelf_ui.rs and the shared config root, Mermaid/plugin, and input-404 tests in tests/build_cli.rs.
 acceptance_criteria:
-  - docs/authoring.md no longer implies index.md is validated during catalog build.
-  - docs/authoring.md clearly states that index.md is still expected for working navigation, redirects, and shelf links.
-  - The edit is localized and does not introduce new linking/configuration/search guidance.
+  - docs/configuration.md clearly states config-root resolution for relative additional-css and additional-js.
+  - docs/configuration.md explains bookshelf-config-assets staging for child book roots.
+  - docs/configuration.md states that configured command preprocessors and additional JS are applied to every built book.
+  - docs/configuration.md states the current relative input-404 rejection behavior across book roots and the empty-string opt-out.
+  - The change is limited to the configuration documentation and does not introduce source or implementation edits.
 verification:
-  - command: rg -n "index.md|SUMMARY.md|catalog|redirect|shelf" docs/authoring.md crates/mdbook-bookshelf/src/catalog.rs crates/mdbook-bookshelf/src/root_bookshelf_preprocessor.rs crates/mdbook-bookshelf/src/build.rs tests/input_catalog_build.rs
-    expect: Updated wording in docs/authoring.md aligns with code paths and tests showing SUMMARY.md validation plus index.md navigation assumptions.
+  - command: git diff -- docs/configuration.md
+    expect: The diff only updates configuration documentation and covers all listed shared asset, preprocessor, JS, and input-404 behaviors.
 review_focus:
-  - Ensure the documentation is precise about current enforcement boundaries and does not promise validation that the code does not perform.
+  - Verify that path-resolution wording distinguishes config root, generated child book roots, and staged bookshelf-config-assets paths without implying unsupported compatibility behavior.
 ```
 
 # Chunk Ledger
@@ -88,6 +90,10 @@ review_focus:
   `a4e637a`; updated `docs/configuration.md` with enforced `[bookshelf]`,
   title, `src`, duplicate output root, and overlapping output root validation
   rules.
+- `docs-authoring-index-001`: approved across commits `1aefd5f` and
+  `e789107`; clarified that catalog build validates `SUMMARY.md`, while
+  `index.md` remains expected for synthetic shelf links, book entry pages, and
+  the default root-book site-root redirect.
 
 # Final Validation
 - `cargo test --test cli_help --test bookshelf_config_parse`: passed for
@@ -103,6 +109,8 @@ review_focus:
   passed for `docs-linking-001`.
 - `cargo test -p mdbook-bookshelf --test bookshelf_config_parse`: passed for
   `docs-config-validation-001`.
+- `rg -n "index.md|SUMMARY.md|catalog|redirect|shelf" docs/authoring.md crates/mdbook-bookshelf/src/catalog.rs crates/mdbook-bookshelf/src/root_bookshelf_preprocessor.rs crates/mdbook-bookshelf/src/build.rs tests/input_catalog_build.rs`:
+  passed for `docs-authoring-index-001`.
 
 # Activity Log
 2026-04-24T06:34:26Z [coordinator] [setup] [started] Reset coordination artifact for documentation navigation and drift cleanup.
@@ -140,3 +148,11 @@ review_focus:
 2026-04-24T07:02:28Z [coordinator] [docs-authoring-index-001] [checkpoint] Created review checkpoint 1aefd5f docs: clarify authoring entry page assumptions.
 2026-04-24T07:04:23Z [reviewer] [docs-authoring-index-001] [changes-required] Requested narrower site-root redirect wording for bookshelf entry-page mode.
 2026-04-24T07:04:23Z [developer-subagent] [docs-authoring-index-001] [completed] Narrowed redirect wording to default root-book site-root redirect; required verification passed.
+2026-04-24T07:05:02Z [coordinator] [docs-authoring-index-001] [checkpoint] Created rework checkpoint e789107 docs: refine authoring redirect wording.
+2026-04-24T07:05:32Z [reviewer] [docs-authoring-index-001] [approved] Redirect wording now matches current configurable site-root behavior.
+2026-04-24T07:05:55Z [reviewer-subagent] [docs-authoring-index-001] [approved] Rework fixes redirect overstatement while keeping authoring edit localized.
+2026-04-24T07:06:18Z [coordinator] [docs-authoring-index-001] [approved] Moved approved authoring index checkpoints 1aefd5f and e789107 to chunk ledger.
+2026-04-24T07:06:47Z [planner] [docs-config-shared-assets-001] [planned] Proposed focused shared output asset and per-book HTML config documentation chunk.
+2026-04-24T07:07:10Z [coordinator] [docs-config-shared-assets-001] [accepted] Accepted one-file shared output assets configuration drift cleanup chunk.
+2026-04-24T07:07:31Z [developer-subagent] [docs-config-shared-assets-001] [started] Started shared output asset and per-book HTML config documentation correction against bookshelf_ui and build_cli tests.
+2026-04-24T07:08:46Z [developer-subagent] [docs-config-shared-assets-001] [completed] Documented shared CSS/JS config-root resolution, child root staging, per-book preprocessors/JS, and input-404 opt-out; required diff verification passed.
