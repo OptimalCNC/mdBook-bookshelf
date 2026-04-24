@@ -688,14 +688,11 @@ mod tests {
         assert_eq!(js_assets[0], PathBuf::from("shared/site.js"));
         assert!(js_assets[1].starts_with(Path::new(BOOKSHELF_UI_ASSET_DIR)));
         assert!(
-            js_assets[1]
-                .ends_with(Path::new("modules/parser/docs").join(BOOKSHELF_RETURN_JS_NAME))
+            js_assets[1].ends_with(Path::new("modules/parser/docs").join(BOOKSHELF_RETURN_JS_NAME))
         );
         assert!(js_assets[2].starts_with(Path::new(BOOKSHELF_UI_ASSET_DIR)));
-        assert!(
-            js_assets[2]
-                .ends_with(Path::new("modules/parser/docs").join(BOOKSHELF_BREADCRUMB_JS_NAME))
-        );
+        assert!(js_assets[2]
+            .ends_with(Path::new("modules/parser/docs").join(BOOKSHELF_BREADCRUMB_JS_NAME)));
         assert!(js_assets[3].starts_with(Path::new(BOOKSHELF_UI_ASSET_DIR)));
         assert!(js_assets[3].ends_with(Path::new(BOOKSHELF_SEARCH_JS_NAME)));
         assert!(temp_root.join(&js_assets[1]).exists());
@@ -733,11 +730,8 @@ mod tests {
         assert!(script.contains(
             "const rootPath = typeof path_to_root === \"string\" ? path_to_root : \"\";"
         ));
-        assert!(
-            script.contains(
-                "window.path_to_searchindex_js = `${rootPath}bookshelf-searchindex.js`;"
-            )
-        );
+        assert!(script
+            .contains("window.path_to_searchindex_js = `${rootPath}bookshelf-searchindex.js`;"));
     }
 
     #[test]

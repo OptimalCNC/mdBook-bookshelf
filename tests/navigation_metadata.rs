@@ -27,14 +27,20 @@ fn navigation_metadata() {
         .expect("child last page nav");
 
     assert_eq!(None, root_first.prev_page_id);
-    assert_eq!(Some("root-book/docs:0001".to_string()), root_first.next_page_id);
+    assert_eq!(
+        Some("root-book/docs:0001".to_string()),
+        root_first.next_page_id
+    );
     assert_eq!(
         Some("Root Book / Root Intro".to_string()),
         root_first.breadcrumb
     );
     assert_eq!("root-book/docs", root_first.active_book_id);
 
-    assert_eq!(Some("root-book/docs:0000".to_string()), root_last.prev_page_id);
+    assert_eq!(
+        Some("root-book/docs:0000".to_string()),
+        root_last.prev_page_id
+    );
     assert_eq!(None, root_last.next_page_id);
     assert_eq!(
         Some("Root Book / Root Next".to_string()),

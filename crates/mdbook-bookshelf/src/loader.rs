@@ -1,6 +1,6 @@
 use crate::catalog::{build_input_catalog, InputCatalog};
-use crate::root_bookshelf_preprocessor::ensure_reserved_bookshelf_path_is_available;
 use crate::load_single_book_with_config_and_parsed_summary;
+use crate::root_bookshelf_preprocessor::ensure_reserved_bookshelf_path_is_available;
 use anyhow::{Context, Result};
 use mdbook_driver::MDBook;
 use mdbook_summary::{parse_summary, Summary};

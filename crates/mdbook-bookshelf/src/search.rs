@@ -233,7 +233,9 @@ fn ingest_book_payload(
         })?;
 
         doc.insert("id".to_string(), Value::String(new_id.clone()));
-        shared.doc_urls.push(translate_doc_url(output_rel, &doc_url));
+        shared
+            .doc_urls
+            .push(translate_doc_url(output_rel, &doc_url));
         shared.index.document_store.docs.insert(new_id.clone(), doc);
         shared
             .index
@@ -326,7 +328,10 @@ fn write_localized_search_indexes(
     Ok(())
 }
 
-fn localize_search_payload(current_output_rel: &Path, canonical_payload: &SearchPayload) -> SearchPayload {
+fn localize_search_payload(
+    current_output_rel: &Path,
+    canonical_payload: &SearchPayload,
+) -> SearchPayload {
     let mut localized = canonical_payload.clone();
     localized.doc_urls = canonical_payload
         .doc_urls

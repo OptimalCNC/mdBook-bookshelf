@@ -149,8 +149,8 @@ src = "modules/parser/docs/reference"
 "#,
     );
 
-    let child_child_error =
-        load_bookshelf_config(&child_child_config_path).expect_err("nested child overlap must fail");
+    let child_child_error = load_bookshelf_config(&child_child_config_path)
+        .expect_err("nested child overlap must fail");
     assert_eq!(
         "bookshelf.book.src 'modules/parser/docs/reference' resolves to overlapping canonical output root 'modules/parser/docs'",
         child_child_error.to_string()
