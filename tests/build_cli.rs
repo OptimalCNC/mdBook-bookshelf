@@ -921,7 +921,8 @@ fn build_cli_smoke_builds_public_self_contained_example_from_default_config_path
 
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let fixture_root = repo_root.join(PUBLIC_SELF_CONTAINED_EXAMPLE);
+    let fixture_root =
+        copy_public_self_contained_example_fixture(&repo_root, "chunk-011-public-example-fixture");
     let output_dir = make_temp_dir("chunk-011-build-cli-default-config", &repo_root);
 
     let output = Command::new(&bin)
@@ -968,6 +969,7 @@ fn build_cli_smoke_builds_public_self_contained_example_from_default_config_path
     );
     assert_text_not_contains(&parser_runtime_html, "{{UiRoot}}");
 
+    fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
 
@@ -2576,6 +2578,37 @@ fn copy_bookshelf_ui_site_fixture(repo_root: &Path, tag: &str) -> PathBuf {
     copy_dir_all(&repo_root.join(BOOKSHELF_UI_SITE_FIXTURE), &fixture_root)
         .expect("bookshelf UI site fixture should be copied");
     fixture_root
+}
+
+fn copy_public_self_contained_example_fixture(repo_root: &Path, tag: &str) -> PathBuf {
+    let fixture_root = make_temp_dir(tag, repo_root);
+    copy_public_example_dir_all(
+        &repo_root.join(PUBLIC_SELF_CONTAINED_EXAMPLE),
+        &fixture_root,
+    )
+    .expect("public self-contained example fixture should be copied");
+    fixture_root
+}
+
+fn copy_public_example_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(destination)?;
+    for entry in fs::read_dir(source)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let destination_path = destination.join(entry.file_name());
+
+        if file_type.is_dir() {
+            let name = entry.file_name();
+            let name = name.to_string_lossy();
+            if matches!(name.as_ref(), ".mdbook-bookshelf" | ".site" | "book") {
+                continue;
+            }
+            copy_public_example_dir_all(&entry.path(), &destination_path)?;
+        } else {
+            fs::copy(entry.path(), destination_path)?;
+        }
+    }
+    Ok(())
 }
 
 fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {

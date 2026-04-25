@@ -4,6 +4,9 @@ description = "Repository-wide onboarding and architecture notes."
 language = "en"
 src = "docs"
 
+[build]
+build-dir = ".site"
+
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "ayu"
