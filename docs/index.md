@@ -47,10 +47,10 @@ book build
 Serve the same docs locally:
 
 ```bash
-book serve --port 3000
+book serve
 ```
 
-Then open `http://127.0.0.1:3000`.
+Then open the URL printed after `Serving on:`.
 
 See [Operations](./operations.md) for command defaults, flags, output
 directories, and serve rebuild behavior.

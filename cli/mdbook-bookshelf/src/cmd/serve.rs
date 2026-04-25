@@ -21,9 +21,8 @@ pub fn make_subcommand() -> Command {
                 .short('p')
                 .long("port")
                 .value_name("PORT")
-                .default_value("3000")
                 .value_parser(clap::value_parser!(u16))
-                .help("Port to listen on for HTTP connections"),
+                .help("Port to listen on for HTTP connections; omitted selects the first available port from 3000 to 3100"),
         )
 }
 
@@ -35,9 +34,7 @@ pub fn execute(args: &ArgMatches) -> Result<()> {
             .get_one::<String>("hostname")
             .expect("default hostname should be present")
             .clone(),
-        port: *args
-            .get_one::<u16>("port")
-            .expect("default port should be present"),
+        port: args.get_one::<u16>("port").copied(),
     };
 
     mdbook_bookshelf::serve_bookshelf(options)

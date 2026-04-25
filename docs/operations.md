@@ -69,13 +69,13 @@ Network flags:
 
 ```bash
 --hostname HOST  # default: localhost
---port PORT      # default: 3000
+--port PORT      # optional; when omitted, first available port from 3000 to 3100
 ```
 
 Example:
 
 ```bash
-book serve bookshelf.toml --hostname localhost --port 3000
+book serve bookshelf.toml --hostname localhost
 ```
 
 `serve` accepts the same optional `BOOKSHELF_TOML` and `--dest-dir` inputs as

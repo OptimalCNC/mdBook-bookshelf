@@ -1,6 +1,6 @@
 use std::fs;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::TcpStream;
+use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStderr, Command, Stdio};
 use std::sync::mpsc::{self, Receiver};
@@ -131,6 +131,111 @@ fn serve_cli_smoke_serves_public_self_contained_example_from_default_config_path
     assert_text_contains(response_body(&shelf_response), "Example Core");
 
     shutdown_child(&mut child);
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+}
+
+#[test]
+fn serve_cli_without_port_scans_default_port_range() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let config_path = repo_root
+        .join(BOOKSHELF_UI_SITE_FIXTURE)
+        .join("bookshelf.toml");
+    let output_dir = make_temp_dir("serve-default-port-scan", &repo_root);
+    let Some(_reserved_ports) = reserve_tcp_ports(3000, 3099) else {
+        fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+        return;
+    };
+    let Ok(last_port_probe) = TcpListener::bind(("127.0.0.1", 3100)) else {
+        eprintln!("skipping default port scan test because 127.0.0.1:3100 is unavailable");
+        fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+        return;
+    };
+    drop(last_port_probe);
+
+    let mut child = Command::new(&bin)
+        .arg("serve")
+        .arg(&config_path)
+        .arg("--dest-dir")
+        .arg(&output_dir)
+        .arg("--hostname")
+        .arg("127.0.0.1")
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("serve command should spawn");
+
+    let stderr = child
+        .stderr
+        .take()
+        .expect("serve child stderr should be piped");
+    let stderr_lines = spawn_stderr_reader(stderr);
+    let mut stderr_log = String::new();
+    let server_address = wait_for_serving_address(&mut child, &stderr_lines, &mut stderr_log);
+
+    assert_eq!(server_address, "127.0.0.1:3100");
+
+    let root_response = wait_for_response(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        "/",
+    );
+    assert_status_ok(&root_response);
+
+    shutdown_child(&mut child);
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+}
+
+#[test]
+fn serve_cli_explicit_occupied_port_does_not_fall_back() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let config_path = repo_root
+        .join(BOOKSHELF_UI_SITE_FIXTURE)
+        .join("bookshelf.toml");
+    let output_dir = make_temp_dir("serve-explicit-occupied-port", &repo_root);
+    let occupied_listener =
+        TcpListener::bind(("127.0.0.1", 0)).expect("ephemeral test port should bind");
+    let occupied_port = occupied_listener
+        .local_addr()
+        .expect("occupied listener address should be readable")
+        .port();
+
+    let mut child = Command::new(&bin)
+        .arg("serve")
+        .arg(&config_path)
+        .arg("--dest-dir")
+        .arg(&output_dir)
+        .arg("--hostname")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg(occupied_port.to_string())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("serve command should spawn");
+
+    let stderr = child
+        .stderr
+        .take()
+        .expect("serve child stderr should be piped");
+    let stderr_lines = spawn_stderr_reader(stderr);
+    let mut stderr_log = String::new();
+    let status = wait_for_serve_exit(&mut child, &stderr_lines, &mut stderr_log);
+
+    assert!(
+        !status.success(),
+        "serve with an occupied explicit port should fail\nstderr:\n{stderr_log}"
+    );
+    assert!(
+        stderr_log.contains(&format!(
+            "failed to bind HTTP listener at 127.0.0.1:{occupied_port}"
+        )),
+        "stderr should mention the requested port\nstderr:\n{stderr_log}"
+    );
+
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
 
@@ -321,6 +426,32 @@ fn wait_for_serving_address(
 
     shutdown_child(child);
     panic!("timed out waiting for serve process to report a bound address\nstderr:\n{stderr_log}");
+}
+
+fn wait_for_serve_exit(
+    child: &mut Child,
+    stderr_lines: &Receiver<String>,
+    stderr_log: &mut String,
+) -> std::process::ExitStatus {
+    for _ in 0..200 {
+        if let Some(status) = child
+            .try_wait()
+            .expect("serve child status should be readable")
+        {
+            drain_stderr(stderr_lines, stderr_log);
+            return status;
+        }
+
+        if let Some(address) = drain_stderr_for_serving_address(stderr_lines, stderr_log) {
+            shutdown_child(child);
+            panic!("serve started unexpectedly at {address}\nstderr:\n{stderr_log}");
+        }
+
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    shutdown_child(child);
+    panic!("timed out waiting for serve process to exit\nstderr:\n{stderr_log}");
 }
 
 fn wait_for_stderr_contains(
@@ -632,4 +763,22 @@ fn copy_dir_all(source: &Path, destination: &Path) -> std::io::Result<()> {
     }
 
     Ok(())
+}
+
+fn reserve_tcp_ports(start: u16, end: u16) -> Option<Vec<TcpListener>> {
+    let mut listeners = Vec::new();
+
+    for port in start..=end {
+        match TcpListener::bind(("127.0.0.1", port)) {
+            Ok(listener) => listeners.push(listener),
+            Err(err) => {
+                eprintln!(
+                    "skipping default port scan test because 127.0.0.1:{port} is unavailable: {err}"
+                );
+                return None;
+            }
+        }
+    }
+
+    Some(listeners)
 }

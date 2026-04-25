@@ -1,6 +1,6 @@
 use crate::build::{build_bookshelf_site_with_options, BuildOptions};
 use crate::catalog::{build_input_catalog, InputCatalog};
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
     routing::get,
@@ -8,6 +8,7 @@ use axum::{
 };
 use std::collections::HashMap;
 use std::fs::{self, FileType};
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::{Duration, SystemTime};
@@ -17,13 +18,15 @@ use tower_http::services::{ServeDir, ServeFile};
 const LIVE_RELOAD_ENDPOINT: &str = "__livereload";
 const WATCH_POLL_INTERVAL: Duration = Duration::from_secs(1);
 const GENERATED_BOOKSHELF_ASSET_DIR: &str = ".mdbook-bookshelf";
+const DEFAULT_SERVE_PORT_START: u16 = 3000;
+const DEFAULT_SERVE_PORT_END: u16 = 3100;
 
 #[derive(Debug, Clone)]
 pub struct ServeOptions {
     pub config_path: PathBuf,
     pub dest_dir: Option<PathBuf>,
     pub hostname: String,
-    pub port: u16,
+    pub port: Option<u16>,
 }
 
 pub fn serve_bookshelf(options: ServeOptions) -> Result<()> {
@@ -70,13 +73,10 @@ fn build_bookshelf_site_for_serve(
 async fn run_server(
     site_root: PathBuf,
     hostname: String,
-    port: u16,
+    port: Option<u16>,
     reload_tx: broadcast::Sender<String>,
 ) -> Result<()> {
-    let bind_address = format!("{hostname}:{port}");
-    let listener = tokio::net::TcpListener::bind(&bind_address)
-        .await
-        .with_context(|| format!("failed to bind HTTP listener at {bind_address}"))?;
+    let listener = bind_http_listener(&hostname, port).await?;
     let local_addr = listener
         .local_addr()
         .context("failed to read bound HTTP listener address")?;
@@ -86,6 +86,50 @@ async fn run_server(
     axum::serve(listener, build_router(site_root, reload_tx))
         .await
         .context("serve loop exited unexpectedly")
+}
+
+async fn bind_http_listener(hostname: &str, port: Option<u16>) -> Result<tokio::net::TcpListener> {
+    match port {
+        Some(port) => bind_http_listener_at(hostname, port).await,
+        None => bind_first_available_http_listener(hostname).await,
+    }
+}
+
+async fn bind_http_listener_at(hostname: &str, port: u16) -> Result<tokio::net::TcpListener> {
+    let bind_address = format!("{hostname}:{port}");
+
+    tokio::net::TcpListener::bind(&bind_address)
+        .await
+        .with_context(|| format!("failed to bind HTTP listener at {bind_address}"))
+}
+
+async fn bind_first_available_http_listener(hostname: &str) -> Result<tokio::net::TcpListener> {
+    let mut last_addr_in_use = None;
+
+    for port in DEFAULT_SERVE_PORT_START..=DEFAULT_SERVE_PORT_END {
+        let bind_address = format!("{hostname}:{port}");
+
+        match tokio::net::TcpListener::bind(&bind_address).await {
+            Ok(listener) => return Ok(listener),
+            Err(err) if err.kind() == ErrorKind::AddrInUse => {
+                last_addr_in_use = Some(err);
+            }
+            Err(err) => {
+                return Err(err)
+                    .with_context(|| format!("failed to bind HTTP listener at {bind_address}"));
+            }
+        }
+    }
+
+    if let Some(err) = last_addr_in_use {
+        return Err(err).with_context(|| {
+            format!(
+                "failed to bind HTTP listener on {hostname} using ports {DEFAULT_SERVE_PORT_START}-{DEFAULT_SERVE_PORT_END}"
+            )
+        });
+    }
+
+    bail!("failed to bind HTTP listener: no default ports configured for {hostname}")
 }
 
 fn build_router(site_root: PathBuf, reload_tx: broadcast::Sender<String>) -> Router {
