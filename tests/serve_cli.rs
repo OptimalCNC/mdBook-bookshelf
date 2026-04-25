@@ -40,6 +40,15 @@ fn serve_cli_serves_bookshelf_ui_fixture_site() {
     let stderr_lines = spawn_stderr_reader(stderr);
     let mut stderr_log = String::new();
     let server_address = wait_for_serving_address(&mut child, &stderr_lines, &mut stderr_log);
+    assert_text_contains(&stderr_log, "Bookshelf");
+    assert_text_contains(&stderr_log, "root: tests/fixtures/bookshelf-ui-site");
+    assert_text_contains(&stderr_log, "output: .tmp/chunk-016-serve");
+    assert_text_contains(&stderr_log, "sources:");
+    assert_text_contains(
+        &stderr_log,
+        "\"Fixture Core\": tests/fixtures/bookshelf-ui-site/docs",
+    );
+    assert_text_not_contains(&stderr_log, ".tmp/chunk-016-serve/modules/parser/docs");
 
     let root_response = wait_for_response(
         &mut child,
@@ -368,6 +377,16 @@ fn serve_cli_rebuilds_changed_configured_html_asset() {
         &stderr_lines,
         &mut stderr_log,
         "Watching for changes...",
+    );
+    let serving_index = stderr_log
+        .find("Serving on:")
+        .expect("serve stderr should include bound address");
+    let watching_index = stderr_log
+        .find("Watching for changes...")
+        .expect("serve stderr should include watcher startup");
+    assert!(
+        serving_index < watching_index,
+        "serve should log the bound address before watcher startup\nstderr:\n{stderr_log}"
     );
 
     let initial_css = wait_for_served_site_css_body_contains(

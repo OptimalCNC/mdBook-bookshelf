@@ -28,6 +28,11 @@ If `--dest-dir` is omitted, output uses the mdBook `[build].build-dir` value
 from the loaded config. A relative build directory is resolved from the
 directory containing `BOOKSHELF_TOML`.
 
+Both subcommands print the resolved bookshelf root, the site output directory,
+and each content book's source directory before building. Source directories
+are printed as a mapping from book title to source path. Paths are shown
+relative to the directory where the command was invoked when possible.
+
 ## Build
 
 Build a bookshelf site:
@@ -84,6 +89,9 @@ book serve bookshelf.toml --hostname localhost
 During `serve`, the build uses mdBook's live-reload endpoint and the process
 polls for changes once per second. A detected change triggers a rebuild and
 sends a reload message to connected pages.
+
+`serve` prints `Serving on:` after the HTTP listener is bound, then starts the
+watcher and prints `Watching for changes...`.
 
 Watched inputs currently include:
 

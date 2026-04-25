@@ -1,6 +1,6 @@
 [package]
 name = "mdbook-bookshelf"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 description = "Build multi-book documentation sites on top of mdBook."
 license = "MIT"
@@ -36,16 +36,16 @@ name = "book"
 path = "cli/mdbook-bookshelf/src/main.rs"
 
 [dependencies]
-anyhow = "1.0"
-axum = { version = "0.8.8", features = ["ws"] }
-clap = { version = "4.5.60", features = ["wrap_help"] }
+anyhow = "1.0.102"
+axum = { version = "0.8.9", features = ["ws"] }
+clap = { version = "4.6.1", features = ["wrap_help"] }
 mdbook-driver = { version = "0.5.2", features = ["search"] }
 mdbook-markdown = "0.5.2"
 mdbook-preprocessor = "0.5.2"
 mdbook-summary = "0.5.2"
 pulldown-cmark-to-cmark = "22.0.0"
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-tokio = { version = "1.49.0", features = ["net", "rt", "sync"] }
-toml = "0.9"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+tokio = { version = "1.52.1", features = ["net", "rt", "sync"] }
+toml = "1.1.2"
 tower-http = { version = "0.6.8", features = ["fs"] }

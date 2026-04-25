@@ -17,10 +17,16 @@ use mdbook_driver::config::Config;
 use mdbook_summary::parse_summary;
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 
 pub fn build_bookshelf(config_path: impl AsRef<Path>, dest_dir: Option<PathBuf>) -> Result<()> {
-    build_bookshelf_site(config_path, dest_dir).map(|_| ())
+    build_bookshelf_site_with_options(
+        config_path,
+        dest_dir,
+        BuildOptions::default().with_layout_logging(),
+    )
+    .map(|_| ())
 }
 
 pub fn build_bookshelf_site(
@@ -33,13 +39,20 @@ pub fn build_bookshelf_site(
 #[derive(Debug, Clone, Default)]
 pub(crate) struct BuildOptions {
     live_reload_endpoint: Option<String>,
+    log_layout: bool,
 }
 
 impl BuildOptions {
     pub(crate) fn with_live_reload_endpoint(endpoint: impl Into<String>) -> Self {
         Self {
             live_reload_endpoint: Some(endpoint.into()),
+            ..Self::default()
         }
+    }
+
+    pub(crate) fn with_layout_logging(mut self) -> Self {
+        self.log_layout = true;
+        self
     }
 
     fn apply_to_config(&self, config: &mut Config) -> Result<()> {
@@ -64,6 +77,9 @@ pub(crate) fn build_bookshelf_site_with_options(
     let mut mdbook_config = catalog.mdbook_config.clone();
     options.apply_to_config(&mut mdbook_config)?;
     let site_dest_dir = resolve_site_dest_dir(&catalog.config_dir, &mdbook_config, dest_dir)?;
+    if options.log_layout {
+        log_bookshelf_layout(&catalog, &site_dest_dir)?;
+    }
     let config_root = catalog.config_dir.clone();
     let site_root_link_map = SiteRootLinkMap::from_catalog(&catalog)
         .context("failed to build site-root Markdown link map")?;
@@ -316,6 +332,74 @@ fn make_absolute(base: &Path, path: PathBuf) -> PathBuf {
     } else {
         base.join(path)
     }
+}
+
+fn log_bookshelf_layout(catalog: &InputCatalog, site_dest_dir: &Path) -> Result<()> {
+    let cwd = std::env::current_dir().context("failed to determine current working directory")?;
+    let style = LogStyle::stderr();
+
+    eprintln!("{}", style.heading("Bookshelf"));
+    eprintln!(
+        "  {} {}",
+        style.label("root:"),
+        log_path(&catalog.config_dir, &cwd),
+    );
+    eprintln!(
+        "  {} {}",
+        style.label("output:"),
+        log_path(site_dest_dir, &cwd)
+    );
+    eprintln!("  {}", style.label("sources:"));
+    for book in &catalog.books {
+        eprintln!(
+            "    {}: {}",
+            style.source_title(&book.title, book.is_root_book),
+            log_path(&book.book_src_abs, &cwd),
+        );
+    }
+
+    Ok(())
+}
+
+struct LogStyle {
+    enabled: bool,
+}
+
+impl LogStyle {
+    fn stderr() -> Self {
+        Self {
+            enabled: std::io::stderr().is_terminal(),
+        }
+    }
+
+    fn heading(&self, text: &str) -> String {
+        self.paint("1", text)
+    }
+
+    fn label(&self, text: &str) -> String {
+        self.paint("36", text)
+    }
+
+    fn source_title(&self, title: &str, is_root_book: bool) -> String {
+        let quoted = format!("{title:?}");
+        if is_root_book {
+            self.paint("1;32", &quoted)
+        } else {
+            self.paint("36", &quoted)
+        }
+    }
+
+    fn paint(&self, code: &str, text: &str) -> String {
+        if self.enabled {
+            format!("\x1b[{code}m{text}\x1b[0m")
+        } else {
+            text.to_string()
+        }
+    }
+}
+
+fn log_path(path: &Path, cwd: &Path) -> String {
+    path_to_string(&relative_path(cwd, path))
 }
 
 fn absolutize_catalog_paths(mut catalog: InputCatalog) -> Result<InputCatalog> {

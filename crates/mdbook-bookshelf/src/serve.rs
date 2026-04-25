@@ -30,21 +30,15 @@ pub struct ServeOptions {
 }
 
 pub fn serve_bookshelf(options: ServeOptions) -> Result<()> {
-    let site_root = build_bookshelf_site_for_serve(&options.config_path, options.dest_dir.clone())
-        .with_context(|| {
-            format!(
-                "failed to build bookshelf site before serving {}",
-                options.config_path.display()
-            )
-        })?;
+    let site_root =
+        build_bookshelf_site_for_serve(&options.config_path, options.dest_dir.clone(), true)
+            .with_context(|| {
+                format!(
+                    "failed to build bookshelf site before serving {}",
+                    options.config_path.display()
+                )
+            })?;
     let (reload_tx, _reload_rx) = broadcast::channel::<String>(100);
-
-    spawn_rebuild_watcher(
-        options.config_path.clone(),
-        Some(site_root.clone()),
-        site_root.clone(),
-        reload_tx.clone(),
-    );
 
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_io()
@@ -53,6 +47,7 @@ pub fn serve_bookshelf(options: ServeOptions) -> Result<()> {
 
     runtime.block_on(run_server(
         site_root,
+        options.config_path,
         options.hostname,
         options.port,
         reload_tx,
@@ -62,16 +57,19 @@ pub fn serve_bookshelf(options: ServeOptions) -> Result<()> {
 fn build_bookshelf_site_for_serve(
     config_path: &Path,
     dest_dir: Option<PathBuf>,
+    log_layout: bool,
 ) -> Result<PathBuf> {
-    build_bookshelf_site_with_options(
-        config_path,
-        dest_dir,
-        BuildOptions::with_live_reload_endpoint(LIVE_RELOAD_ENDPOINT),
-    )
+    let mut options = BuildOptions::with_live_reload_endpoint(LIVE_RELOAD_ENDPOINT);
+    if log_layout {
+        options = options.with_layout_logging();
+    }
+
+    build_bookshelf_site_with_options(config_path, dest_dir, options)
 }
 
 async fn run_server(
     site_root: PathBuf,
+    config_path: PathBuf,
     hostname: String,
     port: Option<u16>,
     reload_tx: broadcast::Sender<String>,
@@ -82,6 +80,13 @@ async fn run_server(
         .context("failed to read bound HTTP listener address")?;
 
     eprintln!("Serving on: http://{local_addr}");
+
+    spawn_rebuild_watcher(
+        config_path,
+        Some(site_root.clone()),
+        site_root.clone(),
+        reload_tx.clone(),
+    );
 
     axum::serve(listener, build_router(site_root, reload_tx))
         .await
@@ -210,7 +215,7 @@ fn watch_for_rebuilds(
 
         eprintln!("Files changed: {changed_paths:?}");
 
-        match build_bookshelf_site_for_serve(&config_path, dest_dir.clone()) {
+        match build_bookshelf_site_for_serve(&config_path, dest_dir.clone(), false) {
             Ok(_) => {
                 if let Err(err) = watcher.set_roots_from_config(&config_path) {
                     eprintln!(
