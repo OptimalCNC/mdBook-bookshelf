@@ -31,7 +31,8 @@ Before starting, assemble and keep current:
 - the test or validation plan
 - the project constraints and architecture direction
 - the source-of-truth docs and relevant code context
-- the shared progress artifact path, normally `progress.md`
+- the shared coordination artifact path, only when the task explicitly provides
+  one
 
 If any of these are missing, infer the smallest safe working set from local
 context and proceed. Only escalate when the missing information would create a
@@ -74,17 +75,22 @@ direction:
 - do not use mdBook merely as a parser or preprocessor underneath a separate
   clean-room site generator
 - if a stock mdBook crate API or CLI seam appears insufficient, require a
-  narrow investigation and an explicit note in `progress.md` before approving a
+  narrow investigation and an explicit coordination note before approving a
   replacement implementation
 - any chunk that diverges materially from stock mdBook `build`, `serve`, or
   `watch` behavior must name the reason, the rejected stock seam, and the exact
   subsystem being replaced
 
-## Shared Progress Artifact
+## Shared Coordination Artifact
 
-Maintain a concise repo-level coordination file, normally `progress.md`.
+Do not create or maintain repo-root progress files. The retired
+`progress.md` and `config.progress.md` files are not active project artifacts.
 
-Use it as the synchronization artifact across agents. Keep these sections:
+If the task explicitly provides a coordination artifact path, use that path as
+the synchronization artifact across agents. Otherwise keep coordination state in
+prompts and returned summaries.
+
+When a coordination artifact is provided, keep these sections:
 
 - `Objective`
 - `Global Constraints`
@@ -96,7 +102,8 @@ Use it as the synchronization artifact across agents. Keep these sections:
 - `Final Validation`
 - `Activity Log`
 
-All agents append concise status lines to `Activity Log` in exactly this format:
+All agents append concise status lines to `Activity Log` in exactly this format
+when a coordination artifact is provided:
 
 ```text
 YYYY-MM-DDTHH:MM:SSZ [role] [chunk-id] [status] note
@@ -110,6 +117,8 @@ Rules:
   final validation outcomes
 - if an external read-only reviewer cannot write files, require it to emit a
   `ProgressNote:` line and mirror that line into `Activity Log` yourself
+- if no coordination artifact is provided, require subagents to return
+  `ProgressNote:` lines and keep the current state in your coordinator context
 
 ## Planner Contract
 
@@ -129,7 +138,8 @@ Requirements:
 - if mdBook's public APIs may be insufficient, prefer an investigation or
   blocker chunk before any replacement implementation chunk
 - do not edit source files
-- append one concise planner status line to `progress.md`
+- append one concise planner status line to the provided coordination artifact,
+  or return it as `ProgressNote:` when no artifact is provided
 
 Required chunk artifact format:
 
@@ -173,7 +183,8 @@ The researcher:
 - flags stock assumptions that matter before proposing custom code
 - does not redesign the feature
 - does not edit source files
-- appends one concise researcher status line to `progress.md`
+- appends one concise researcher status line to the provided coordination
+  artifact, or returns it as `ProgressNote:` when no artifact is provided
 
 ## Developer Contract
 
@@ -181,8 +192,8 @@ The developer works on exactly one accepted chunk at a time.
 
 Requirements:
 
-- read the chunk artifact, progress artifact, source-of-truth docs, and
-  relevant code before editing
+- read the chunk artifact, any provided coordination artifact,
+  source-of-truth docs, and relevant code before editing
 - implement only the current chunk or explicitly requested review fixes
 - stay within scope; no unrelated refactors
 - reuse the named touchpoints where practical instead of quietly replacing
@@ -197,7 +208,8 @@ Requirements:
 - if blocked, stop and report the concrete blocker precisely, including the
   exact crate, module, API, or CLI path when the blocker comes from mdBook
   integration limits
-- append concise start and finish lines to `progress.md`
+- append concise start and finish lines to the provided coordination artifact,
+  or return them as `ProgressNote:` lines when no artifact is provided
 
 Require this exact return shape from the developer:
 
@@ -244,7 +256,8 @@ Requirements:
   show the chosen direction is inferior
 - if direction drift exists, require revert of the offending checkpoint and
   replanning before more development
-- append one concise reviewer status line to `progress.md`
+- append one concise reviewer status line to the provided coordination
+  artifact, or return it as `ProgressNote:` when no artifact is provided
 
 Required return shape:
 
@@ -272,7 +285,8 @@ Requirements:
   touchpoints were actually reused, or that any deviation is explicitly
   justified
 - ignore optional polish unless it is likely to cause failure or rework
-- append one concise reviewer status line to `progress.md`
+- append one concise reviewer status line to the provided coordination
+  artifact, or return it as `ProgressNote:` when no artifact is provided
 
 Required return shape:
 
@@ -313,11 +327,13 @@ For each chunk, run this loop:
    testable in one loop, send it back for a tighter chunk.
 3. If the chunk touches an important seam or a disputed assumption, ask the
    researcher for one narrow seam report specific to that chunk.
-4. Write the accepted chunk into `Active Chunk` in `progress.md`.
+4. Record the accepted chunk in coordinator state and in `Active Chunk` when a
+   coordination artifact is provided.
 5. Spawn the developer subagent with the exact chunk artifact and current
    constraints.
 6. Require a commit checkpoint before review:
-   - if the developer created a commit, record the hash in `progress.md`
+   - if the developer created a commit, record the hash in coordinator state and
+     in the coordination artifact when provided
    - if the developer returned exact commit metadata for you, create the commit
      immediately and record the hash
    - if no commit was created because git is unavailable, record that fact
@@ -329,7 +345,7 @@ For each chunk, run this loop:
    - revert the offending developer checkpoint so the correction is reflected
      in history
    - record the reverted hash, drift reason, and enforcement action in
-     `progress.md`
+     coordinator state and in the coordination artifact when provided
    - send the work back to the planner for a corrected chunk or revised chunk
      boundary before more development begins
 10. If only the implementation reviewer or external reviewer returns
@@ -337,7 +353,8 @@ For each chunk, run this loop:
     and send it back to the developer.
 11. Repeat the inner loop until all reviewers approve the chunk.
 12. After approval, run or confirm the chunk verification commands and record
-    the results in `progress.md`.
+    the results in coordinator state and in the coordination artifact when
+    provided.
 13. Move the approved chunk to `Chunk Ledger`.
 14. Decide the next chunk and continue immediately if the task is not done.
 
@@ -377,11 +394,13 @@ The job is done only when:
 
 - all relevant acceptance criteria are satisfied
 - required tests and validations are implemented and passing
-- important integration choices are recorded clearly in `progress.md`
+- important integration choices are recorded clearly in coordinator state and in
+  the coordination artifact when provided
 - for mdBook-first work, the final `build` and `serve` path remains close to
   stock mdBook where practical, and any deliberate divergence is recorded
 - all reviewers approve the final whole-system review
-- `progress.md` reflects the completed state and validation summary
+- coordinator state reflects the completed state and validation summary, and the
+  coordination artifact does too when one is provided
 
 ## Spawn Instructions
 
