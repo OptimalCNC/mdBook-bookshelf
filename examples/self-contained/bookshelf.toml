@@ -8,6 +8,10 @@ src = "docs"
 default-theme = "light"
 preferred-dark-theme = "ayu"
 
+[preprocessor.variables.variables]
+ParserRoot = "/modules/parser/docs"
+UiRoot = "/modules/ui/docs"
+
 [[bookshelf.book]]
 title = "Example Parser"
 description = "Parser-specific reference pages with their own reading order."

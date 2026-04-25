@@ -623,10 +623,8 @@ process.stdout.write(
 fn build_cli_emits_bookshelf_ui_assets_from_fixture_without_source_residue() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let fixture_root = copy_bookshelf_ui_site_fixture(
-        &repo_root,
-        "chunk-011-build-cli-bookshelf-ui-site-fixture",
-    );
+    let fixture_root =
+        copy_bookshelf_ui_site_fixture(&repo_root, "chunk-011-build-cli-bookshelf-ui-site-fixture");
     let config_path = fixture_root.join("bookshelf.toml");
     let output_dir = make_temp_dir("chunk-011-build-cli", &repo_root);
     let fixture_entries_before = without_bookshelf_ui_entries(collect_tree_entries(&fixture_root));
@@ -917,6 +915,10 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_without_source_residue() {
 
 #[test]
 fn build_cli_smoke_builds_public_self_contained_example_from_default_config_path() {
+    if !mdbook_variables_available() {
+        return;
+    }
+
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
     let fixture_root = repo_root.join(PUBLIC_SELF_CONTAINED_EXAMPLE);
@@ -942,6 +944,29 @@ fn build_cli_smoke_builds_public_self_contained_example_from_default_config_path
     let bookshelf_html = assert_read_to_string(output_dir.join("docs/bookshelf.html"));
     assert_text_contains(&bookshelf_html, "Example Core");
     assert_text_contains(&bookshelf_html, "Example Parser");
+
+    let onboarding_html = assert_read_to_string(output_dir.join("docs/onboarding.html"));
+    assert_text_contains(
+        &onboarding_html,
+        "href=\"../modules/parser/docs/index.html\">Example Parser</a>",
+    );
+    assert_text_contains(
+        &onboarding_html,
+        "href=\"../modules/parser/docs/grammar.html\">Example Parser Grammar</a>",
+    );
+    assert_text_not_contains(&onboarding_html, "{{ParserRoot}}");
+
+    let parser_runtime_html =
+        assert_read_to_string(output_dir.join("modules/parser/docs/runtime.html"));
+    assert_text_contains(
+        &parser_runtime_html,
+        "href=\"../../ui/docs/index.html\">Example UI</a>",
+    );
+    assert_text_contains(
+        &parser_runtime_html,
+        "href=\"../../ui/docs/index.html\">Example UI Variable</a>",
+    );
+    assert_text_not_contains(&parser_runtime_html, "{{UiRoot}}");
 
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
@@ -1164,6 +1189,116 @@ sequenceDiagram
 }
 
 #[test]
+fn build_cli_supports_mdbook_variables_before_site_root_link_rewrites() {
+    if !mdbook_variables_available() {
+        return;
+    }
+
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let fixture_root = make_temp_dir("plugin-regression-variables", &repo_root);
+    let config_path = fixture_root.join("bookshelf.toml");
+    let output_dir = make_temp_dir("plugin-regression-variables-out", &repo_root);
+
+    fs::create_dir_all(fixture_root.join("docs")).expect("root docs directory should be created");
+    fs::create_dir_all(fixture_root.join("modules/parser/docs"))
+        .expect("parser docs directory should be created");
+    fs::create_dir_all(fixture_root.join("modules/ui/docs"))
+        .expect("ui docs directory should be created");
+    fs::write(
+        &config_path,
+        r#"
+[book]
+title = "Variables Root"
+language = "en"
+src = "docs"
+
+[preprocessor.variables.variables]
+ParserRoot = "/modules/parser/docs"
+UiRoot = "/modules/ui/docs"
+
+[[bookshelf.book]]
+title = "Variables Parser"
+src = "modules/parser/docs"
+
+[[bookshelf.book]]
+title = "Variables UI"
+src = "modules/ui/docs"
+"#,
+    )
+    .expect("bookshelf config should be written");
+    fs::write(
+        fixture_root.join("docs/SUMMARY.md"),
+        "# Summary\n\n- [Root Variables](index.md)\n",
+    )
+    .expect("root summary should be written");
+    fs::write(
+        fixture_root.join("docs/index.md"),
+        r#"# Root Variables
+
+Leading slash route: [Parser Absolute](/modules/parser/docs/index.md).
+
+Variable route: [Parser Variable]({{ParserRoot}}/grammar.md).
+"#,
+    )
+    .expect("root index should be written");
+    fs::write(
+        fixture_root.join("modules/parser/docs/SUMMARY.md"),
+        "# Summary\n\n- [Parser Variables](index.md)\n  - [Grammar](grammar.md)\n",
+    )
+    .expect("parser summary should be written");
+    fs::write(
+        fixture_root.join("modules/parser/docs/index.md"),
+        r#"# Parser Variables
+
+Variable route: [UI Variable]({{UiRoot}}/index.md).
+"#,
+    )
+    .expect("parser index should be written");
+    fs::write(
+        fixture_root.join("modules/parser/docs/grammar.md"),
+        "# Grammar\n",
+    )
+    .expect("parser grammar should be written");
+    fs::write(
+        fixture_root.join("modules/ui/docs/SUMMARY.md"),
+        "# Summary\n\n- [UI Variables](index.md)\n",
+    )
+    .expect("ui summary should be written");
+    fs::write(
+        fixture_root.join("modules/ui/docs/index.md"),
+        "# UI Variables\n",
+    )
+    .expect("ui index should be written");
+
+    run_build_cli(&bin, &config_path, &output_dir);
+
+    let root_index_html = assert_read_to_string(output_dir.join("docs/index.html"));
+    assert_text_contains(
+        &root_index_html,
+        "href=\"../modules/parser/docs/index.html\">Parser Absolute</a>",
+    );
+    assert_text_contains(
+        &root_index_html,
+        "href=\"../modules/parser/docs/grammar.html\">Parser Variable</a>",
+    );
+    assert_text_not_contains(&root_index_html, "{{ParserRoot}}");
+    assert_text_not_contains(&root_index_html, "href=\"/modules/parser/docs/grammar.md\"");
+
+    let parser_index_html =
+        assert_read_to_string(output_dir.join("modules/parser/docs/index.html"));
+    assert_text_contains(
+        &parser_index_html,
+        "href=\"../../ui/docs/index.html\">UI Variable</a>",
+    );
+    assert_text_not_contains(&parser_index_html, "{{UiRoot}}");
+    assert_text_not_contains(&parser_index_html, "href=\"/modules/ui/docs/index.md\"");
+
+    fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+}
+
+#[test]
 fn build_cli_rejects_shared_relative_input_404_for_child_roots() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
@@ -1305,10 +1440,8 @@ src = "modules/child/docs"
 fn build_cli_uses_shared_site_wide_search_index() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let fixture_root = copy_bookshelf_ui_site_fixture(
-        &repo_root,
-        "chunk-019-build-cli-bookshelf-ui-site-fixture",
-    );
+    let fixture_root =
+        copy_bookshelf_ui_site_fixture(&repo_root, "chunk-019-build-cli-bookshelf-ui-site-fixture");
     let config_path = fixture_root.join("bookshelf.toml");
     let output_dir = make_temp_dir("chunk-019-build-cli", &repo_root);
 
@@ -1703,6 +1836,30 @@ fn mdbook_mermaid_available() -> bool {
         }
         Err(err) => {
             eprintln!("skipping Mermaid plugin regression: mdbook-mermaid is unavailable: {err}");
+            false
+        }
+    }
+}
+
+fn mdbook_variables_available() -> bool {
+    match Command::new("mdbook-variables")
+        .arg("supports")
+        .arg("html")
+        .output()
+    {
+        Ok(output) if output.status.success() => true,
+        Ok(output) => {
+            eprintln!(
+                "skipping mdbook-variables plugin regression: mdbook-variables supports html failed\nstdout:\n{}\nstderr:\n{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            false
+        }
+        Err(err) => {
+            eprintln!(
+                "skipping mdbook-variables plugin regression: mdbook-variables is unavailable: {err}"
+            );
             false
         }
     }
