@@ -54,14 +54,3 @@ book serve
 The repository includes a GitHub Actions workflow at
 `.github/workflows/publish.yml` for publishing with crates.io Trusted
 Publishing.
-
-After the first crate version has been published, configure a trusted publisher
-on crates.io with:
-
-- Repository: `OptimalCNC/mdBook-bookshelf`
-- Workflow file: `publish.yml`
-- Environment: `release`
-
-To publish a release, update `Cargo.toml`, merge the change to `main`, and let
-the workflow run. The workflow runs `cargo test --locked`, packages the crate,
-and publishes to crates.io.

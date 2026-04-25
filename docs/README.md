@@ -3,9 +3,11 @@
 This directory is the source tree for the project's own `mdbook-bookshelf`
 documentation.
 
-After installing `book`, build it from the repository root with:
+After installing `book`, install the Mermaid preprocessor configured by the
+repository root `bookshelf.toml`, then build it from the repository root with:
 
 ```bash
+cargo install mdbook-mermaid
 book build bookshelf.toml --dest-dir .tmp/project-docs-site
 ```
 

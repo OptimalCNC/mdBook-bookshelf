@@ -915,9 +915,7 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_without_source_residue() {
 
 #[test]
 fn build_cli_smoke_builds_public_self_contained_example_from_default_config_path() {
-    if !mdbook_variables_available() {
-        return;
-    }
+    require_mdbook_variables();
 
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
@@ -1084,9 +1082,7 @@ fn build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir() {
 
 #[test]
 fn build_cli_supports_configured_mdbook_mermaid_preprocessor_and_additional_js() {
-    if !mdbook_mermaid_available() {
-        return;
-    }
+    require_mdbook_mermaid();
 
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
@@ -1228,9 +1224,7 @@ sequenceDiagram
 
 #[test]
 fn build_cli_supports_mdbook_variables_before_site_root_link_rewrites() {
-    if !mdbook_variables_available() {
-        return;
-    }
+    require_mdbook_variables();
 
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
@@ -1861,45 +1855,31 @@ fn run_build_cli(bin: &Path, config_path: &Path, output_dir: &Path) {
     }
 }
 
-fn mdbook_mermaid_available() -> bool {
+fn require_mdbook_mermaid() {
     match Command::new("mdbook-mermaid").arg("--version").output() {
-        Ok(output) if output.status.success() => true,
-        Ok(output) => {
-            eprintln!(
-                "skipping Mermaid plugin regression: mdbook-mermaid --version failed\nstdout:\n{}\nstderr:\n{}",
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            );
-            false
-        }
-        Err(err) => {
-            eprintln!("skipping Mermaid plugin regression: mdbook-mermaid is unavailable: {err}");
-            false
-        }
+        Ok(output) if output.status.success() => {}
+        Ok(output) => panic!(
+            "mdbook-mermaid test dependency failed: `mdbook-mermaid --version` exited unsuccessfully\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ),
+        Err(err) => panic!("mdbook-mermaid test dependency is unavailable: {err}"),
     }
 }
 
-fn mdbook_variables_available() -> bool {
+fn require_mdbook_variables() {
     match Command::new("mdbook-variables")
         .arg("supports")
         .arg("html")
         .output()
     {
-        Ok(output) if output.status.success() => true,
-        Ok(output) => {
-            eprintln!(
-                "skipping mdbook-variables plugin regression: mdbook-variables supports html failed\nstdout:\n{}\nstderr:\n{}",
-                String::from_utf8_lossy(&output.stdout),
-                String::from_utf8_lossy(&output.stderr)
-            );
-            false
-        }
-        Err(err) => {
-            eprintln!(
-                "skipping mdbook-variables plugin regression: mdbook-variables is unavailable: {err}"
-            );
-            false
-        }
+        Ok(output) if output.status.success() => {}
+        Ok(output) => panic!(
+            "mdbook-variables test dependency failed: `mdbook-variables supports html` exited unsuccessfully\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ),
+        Err(err) => panic!("mdbook-variables test dependency is unavailable: {err}"),
     }
 }
 

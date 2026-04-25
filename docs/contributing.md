@@ -94,16 +94,21 @@ systems.
 
 ## Verification
 
+Install the external tools used by the integration checks:
+
+```bash
+cargo install mdbook-variables mdbook-mermaid
+```
+
 Run the full test suite:
 
 ```bash
-cargo test
+cargo test --locked
 ```
 
 Useful spot checks:
 
 ```bash
-cargo install mdbook-mermaid
 cargo run --bin book -- build bookshelf.toml --dest-dir .tmp/project-docs-site
 cargo run --bin book -- build examples/self-contained/bookshelf.toml --dest-dir .tmp/bookshelf-site
 cargo run --bin book -- build tests/fixtures/build-cli/repo-scale/bookshelf.toml --dest-dir .tmp/repo-scale-site

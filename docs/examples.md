@@ -4,17 +4,16 @@ This repository keeps two primary bookshelf examples.
 
 ## Self-Contained Example
 
-Path:
+See [`examples/self-contained/README.md`](../examples/self-contained/README.md)
+for the fixture layout and authoring guidelines.
 
-- `examples/self-contained/README.md`
+Config:
+
 - `examples/self-contained/bookshelf.toml`
 
-What it shows:
-
-- one root book under `docs/`
-- two child books under `modules/parser/docs/` and `modules/ui/docs/`
-- cross-book links authored against markdown source paths
-- the minimal structure needed to build and serve a bookshelf site
+```bash
+cargo run --bin book -- build examples/self-contained/bookshelf.toml --dest-dir .tmp/self-contained-site
+```
 
 Use it for:
 

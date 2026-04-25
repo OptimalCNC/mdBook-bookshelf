@@ -12,3 +12,9 @@ Layout:
 - child books use config-root-relative mdBook-native `src` values
 - root-book content uses `docs/index.md`, like the other module books use their own `docs/index.md`
 - the `Bookshelf` page is generated in memory, not authored in `docs/SUMMARY.md`
+
+Prerequisite:
+
+```bash
+cargo install mdbook-variables
+```

@@ -37,6 +37,9 @@ jobs:
             exit 1
           fi
 
+      - name: Install binary dependencies for tests
+        run: cargo install mdbook-variables mdbook-mermaid
+
       - name: Run tests
         run: cargo test --locked
 
