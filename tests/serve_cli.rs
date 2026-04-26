@@ -40,6 +40,14 @@ fn serve_cli_serves_bookshelf_ui_fixture_site() {
     let stderr_lines = spawn_stderr_reader(stderr);
     let mut stderr_log = String::new();
     let server_address = wait_for_serving_address(&mut child, &stderr_lines, &mut stderr_log);
+    assert_text_contains(&stderr_log, "Build");
+    assert_text_contains(
+        &stderr_log,
+        "Loading bookshelf config and source catalog...",
+    );
+    assert_text_contains(&stderr_log, "Preparing bookshelf link metadata...");
+    assert_text_contains(&stderr_log, "Building 3 books with mdBook...");
+    assert_text_contains(&stderr_log, "Finished bookshelf site:");
     assert_text_contains(&stderr_log, "Bookshelf");
     assert_text_contains(&stderr_log, "root: tests/fixtures/bookshelf-ui-site");
     assert_text_contains(&stderr_log, "output: .tmp/chunk-016-serve");

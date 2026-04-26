@@ -17,7 +17,6 @@ use tower_http::services::{ServeDir, ServeFile};
 
 const LIVE_RELOAD_ENDPOINT: &str = "__livereload";
 const WATCH_POLL_INTERVAL: Duration = Duration::from_secs(1);
-const GENERATED_BOOKSHELF_ASSET_DIR: &str = ".mdbook-bookshelf";
 const DEFAULT_SERVE_PORT_START: u16 = 3000;
 const DEFAULT_SERVE_PORT_END: u16 = 3100;
 
@@ -59,7 +58,8 @@ fn build_bookshelf_site_for_serve(
     dest_dir: Option<PathBuf>,
     log_layout: bool,
 ) -> Result<PathBuf> {
-    let mut options = BuildOptions::with_live_reload_endpoint(LIVE_RELOAD_ENDPOINT);
+    let mut options =
+        BuildOptions::with_live_reload_endpoint(LIVE_RELOAD_ENDPOINT).with_progress_logging();
     if log_layout {
         options = options.with_layout_logging();
     }
@@ -198,9 +198,12 @@ fn watch_for_rebuilds(
             eprintln!("Watching for changes...");
         }
         Err(err) => {
-            eprintln!(
-                "failed to initialize filesystem watcher for {}: {err:?}",
-                config_path.display()
+            log_error_chain(
+                &format!(
+                    "failed to initialize filesystem watcher for {}",
+                    config_path.display()
+                ),
+                &err,
             );
         }
     }
@@ -218,9 +221,12 @@ fn watch_for_rebuilds(
         match build_bookshelf_site_for_serve(&config_path, dest_dir.clone(), false) {
             Ok(_) => {
                 if let Err(err) = watcher.set_roots_from_config(&config_path) {
-                    eprintln!(
-                        "failed to refresh filesystem watcher roots for {}: {err:?}",
-                        config_path.display()
+                    log_error_chain(
+                        &format!(
+                            "failed to refresh filesystem watcher roots for {}",
+                            config_path.display()
+                        ),
+                        &err,
                     );
                 } else {
                     watcher.scan();
@@ -229,9 +235,23 @@ fn watch_for_rebuilds(
                 let _ = reload_tx.send("reload".to_string());
             }
             Err(err) => {
-                eprintln!("failed to rebuild bookshelf site after change: {err:?}");
+                log_error_chain("failed to rebuild bookshelf site after change", &err);
             }
         }
+    }
+}
+
+fn log_error_chain(prefix: &str, err: &anyhow::Error) {
+    eprintln!("{prefix}: {err}");
+
+    let mut causes = err.chain().skip(1).peekable();
+    if causes.peek().is_none() {
+        return;
+    }
+
+    eprintln!("Caused by:");
+    for (index, cause) in causes.enumerate() {
+        eprintln!("  {}. {cause}", index + 1);
     }
 }
 
@@ -247,6 +267,7 @@ struct PollWatcher {
     root_paths: Vec<PathBuf>,
     path_data: HashMap<PathBuf, PathData>,
     output_dir: PathBuf,
+    generated_asset_dirs: Vec<PathBuf>,
 }
 
 impl PollWatcher {
@@ -255,6 +276,7 @@ impl PollWatcher {
             root_paths: Vec::new(),
             path_data: HashMap::new(),
             output_dir: normalize_path(&output_dir),
+            generated_asset_dirs: Vec::new(),
         }
     }
 
@@ -263,7 +285,10 @@ impl PollWatcher {
             format!("failed to load watch roots from {}", config_path.display())
         })?;
 
-        self.root_paths = collect_watch_roots(&catalog, &self.output_dir);
+        self.generated_asset_dirs =
+            vec![normalize_path(&catalog.config_dir.join(&catalog.asset_dir))];
+        self.root_paths =
+            collect_watch_roots(&catalog, &self.output_dir, &self.generated_asset_dirs);
         Ok(())
     }
 
@@ -293,7 +318,7 @@ impl PollWatcher {
     }
 
     fn scan_path(&self, path: &Path, path_data: &mut HashMap<PathBuf, PathData>) {
-        if self.is_output_path(path) || is_generated_bookshelf_asset_path(path) {
+        if self.is_output_path(path) || self.is_generated_asset_path(path) {
             return;
         }
 
@@ -310,7 +335,7 @@ impl PollWatcher {
 
             for entry in entries.flatten() {
                 let entry_path = entry.path();
-                if is_generated_bookshelf_asset_path(&entry_path) {
+                if self.is_generated_asset_path(&entry_path) {
                     continue;
                 }
                 self.scan_path(&entry_path, path_data);
@@ -319,7 +344,7 @@ impl PollWatcher {
         }
 
         let normalized = normalize_path(path);
-        if self.is_output_path(&normalized) || is_generated_bookshelf_asset_path(&normalized) {
+        if self.is_output_path(&normalized) || self.is_generated_asset_path(&normalized) {
             return;
         }
 
@@ -337,16 +362,37 @@ impl PollWatcher {
         let normalized = normalize_path(path);
         normalized == self.output_dir || normalized.starts_with(&self.output_dir)
     }
+
+    fn is_generated_asset_path(&self, path: &Path) -> bool {
+        let normalized = normalize_path(path);
+        self.generated_asset_dirs
+            .iter()
+            .any(|asset_dir| normalized == asset_dir.as_path() || normalized.starts_with(asset_dir))
+    }
 }
 
-fn collect_watch_roots(catalog: &InputCatalog, output_dir: &Path) -> Vec<PathBuf> {
+fn collect_watch_roots(
+    catalog: &InputCatalog,
+    output_dir: &Path,
+    generated_asset_dirs: &[PathBuf],
+) -> Vec<PathBuf> {
     let html_config = catalog.mdbook_config.html_config();
     let mut roots = Vec::new();
 
-    push_watch_root(&mut roots, catalog.config_path.clone(), output_dir);
+    push_watch_root(
+        &mut roots,
+        catalog.config_path.clone(),
+        output_dir,
+        generated_asset_dirs,
+    );
 
     for book in &catalog.books {
-        push_watch_root(&mut roots, book.book_src_abs.clone(), output_dir);
+        push_watch_root(
+            &mut roots,
+            book.book_src_abs.clone(),
+            output_dir,
+            generated_asset_dirs,
+        );
     }
 
     if let Some(theme) = html_config
@@ -357,10 +403,16 @@ fn collect_watch_roots(catalog: &InputCatalog, output_dir: &Path) -> Vec<PathBuf
             &mut roots,
             resolve_config_dir_path(&catalog.config_dir, theme),
             output_dir,
+            generated_asset_dirs,
         );
     } else {
         for book in &catalog.books {
-            push_watch_root(&mut roots, book.book_root_abs.join("theme"), output_dir);
+            push_watch_root(
+                &mut roots,
+                book.book_root_abs.join("theme"),
+                output_dir,
+                generated_asset_dirs,
+            );
         }
     }
 
@@ -369,6 +421,7 @@ fn collect_watch_roots(catalog: &InputCatalog, output_dir: &Path) -> Vec<PathBuf
             &mut roots,
             resolve_config_dir_path(&catalog.config_dir, extra_dir),
             output_dir,
+            generated_asset_dirs,
         );
     }
 
@@ -382,6 +435,7 @@ fn collect_watch_roots(catalog: &InputCatalog, output_dir: &Path) -> Vec<PathBuf
                 &mut roots,
                 resolve_config_dir_path(&catalog.config_dir, asset),
                 output_dir,
+                generated_asset_dirs,
             );
         }
     }
@@ -397,20 +451,25 @@ fn resolve_config_dir_path(config_dir: &Path, path: &Path) -> PathBuf {
     }
 }
 
-fn push_watch_root(roots: &mut Vec<PathBuf>, path: PathBuf, output_dir: &Path) {
+fn push_watch_root(
+    roots: &mut Vec<PathBuf>,
+    path: PathBuf,
+    output_dir: &Path,
+    generated_asset_dirs: &[PathBuf],
+) {
     let path = normalize_path(&path);
 
-    if path == output_dir || path.starts_with(output_dir) || roots.contains(&path) {
+    if path == output_dir
+        || path.starts_with(output_dir)
+        || generated_asset_dirs
+            .iter()
+            .any(|asset_dir| path == asset_dir.as_path() || path.starts_with(asset_dir))
+        || roots.contains(&path)
+    {
         return;
     }
 
     roots.push(path);
-}
-
-fn is_generated_bookshelf_asset_path(path: &Path) -> bool {
-    path.components().any(|component| {
-        component.as_os_str() == std::ffi::OsStr::new(GENERATED_BOOKSHELF_ASSET_DIR)
-    })
 }
 
 fn normalize_path(path: &Path) -> PathBuf {
@@ -507,7 +566,6 @@ additional-js = ["scripts/site.js", "{}"]
                 fixture_root.join("docs"),
                 fixture_root.join("modules/child/docs"),
                 fixture_root.join("theme"),
-                fixture_root.join("modules/child/theme"),
             ]),
             watcher.root_paths
         );
@@ -523,6 +581,9 @@ additional-js = ["scripts/site.js", "{}"]
             r#"
 [build]
 extra-watch-dirs = ["."]
+
+[bookshelf]
+asset-dir = ".generated/bookshelf"
 "#,
         );
         let output_dir = fixture_root.join("book");
@@ -543,9 +604,7 @@ extra-watch-dirs = ["."]
         .expect("normal change parent should be created");
         fs::write(&normal_changed, "changed\n").expect("normal change should be written");
 
-        let generated_changed = fixture_root
-            .join(GENERATED_BOOKSHELF_ASSET_DIR)
-            .join("build-test/shared/generated.css");
+        let generated_changed = fixture_root.join(".generated/bookshelf/generated.css");
         fs::create_dir_all(
             generated_changed
                 .parent()
@@ -553,6 +612,16 @@ extra-watch-dirs = ["."]
         )
         .expect("generated change parent should be created");
         fs::write(&generated_changed, "generated\n").expect("generated change should be written");
+
+        let unrelated_mdbook_changed = fixture_root.join(".mdbook/user-cache.txt");
+        fs::create_dir_all(
+            unrelated_mdbook_changed
+                .parent()
+                .expect("unrelated .mdbook path should have parent"),
+        )
+        .expect("unrelated .mdbook change parent should be created");
+        fs::write(&unrelated_mdbook_changed, "watch me\n")
+            .expect("unrelated .mdbook change should be written");
 
         let output_changed = output_dir.join("generated.html");
         fs::write(&output_changed, "<p>generated</p>\n").expect("output change should be written");
@@ -568,6 +637,10 @@ extra-watch-dirs = ["."]
                 .iter()
                 .any(|path| path.starts_with(normalize_path(&generated_changed))),
             "generated bookshelf asset changes should be excluded: {changed_paths:?}"
+        );
+        assert!(
+            changed_paths.contains(&normalize_path(&unrelated_mdbook_changed)),
+            "unrelated .mdbook changes should remain watchable: {changed_paths:?}"
         );
         assert!(
             !changed_paths

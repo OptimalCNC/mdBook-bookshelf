@@ -1,30 +1,29 @@
-use crate::bookshelf_ui::{BookshelfBreadcrumbPage, TransientBookshelfUiAssets};
+use crate::bookshelf_ui::{BookshelfAssets, BookshelfPageMetadataPreprocessor};
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
 use crate::config::BookshelfEntryPage;
 use crate::load_single_book_with_config_and_parsed_summary;
-use crate::loader::load_books_from_catalog;
-use crate::navigation::build_navigation_metadata;
 use crate::root_bookshelf_preprocessor::{
     ensure_reserved_bookshelf_path_is_available, inject_root_bookshelf_page,
     site_root_bookshelf_entry_path,
 };
 use crate::route_paths::{path_to_string, relative_path};
 use crate::search::{write_site_wide_search_index, LOCAL_SHARED_SEARCH_INDEX_NAME};
-use crate::site_model::{build_site_model, SitePageKind};
 use crate::site_root_link_preprocessor::{SiteRootLinkMap, SiteRootLinkPreprocessor};
 use anyhow::{Context, Result};
 use mdbook_driver::config::Config;
 use mdbook_summary::parse_summary;
-use std::collections::BTreeMap;
 use std::fs;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 pub fn build_bookshelf(config_path: impl AsRef<Path>, dest_dir: Option<PathBuf>) -> Result<()> {
     build_bookshelf_site_with_options(
         config_path,
         dest_dir,
-        BuildOptions::default().with_layout_logging(),
+        BuildOptions::default()
+            .with_layout_logging()
+            .with_progress_logging(),
     )
     .map(|_| ())
 }
@@ -40,6 +39,7 @@ pub fn build_bookshelf_site(
 pub(crate) struct BuildOptions {
     live_reload_endpoint: Option<String>,
     log_layout: bool,
+    log_progress: bool,
 }
 
 impl BuildOptions {
@@ -52,6 +52,11 @@ impl BuildOptions {
 
     pub(crate) fn with_layout_logging(mut self) -> Self {
         self.log_layout = true;
+        self
+    }
+
+    pub(crate) fn with_progress_logging(mut self) -> Self {
+        self.log_progress = true;
         self
     }
 
@@ -72,31 +77,51 @@ pub(crate) fn build_bookshelf_site_with_options(
     options: BuildOptions,
 ) -> Result<PathBuf> {
     let config_path = config_path.as_ref();
+    let progress = BuildProgress::new(options.log_progress);
+    let build_started = Instant::now();
+
+    progress.start(config_path);
+    progress.step("Loading bookshelf config and source catalog...");
     let catalog = absolutize_catalog_paths(build_input_catalog(config_path)?)
         .context("failed to resolve bookshelf catalog paths")?;
+    progress.step_done(format!(
+        "Catalog contains {} book{}.",
+        catalog.books.len(),
+        plural_suffix(catalog.books.len())
+    ));
+
     let mut mdbook_config = catalog.mdbook_config.clone();
     options.apply_to_config(&mut mdbook_config)?;
     let site_dest_dir = resolve_site_dest_dir(&catalog.config_dir, &mdbook_config, dest_dir)?;
     if options.log_layout {
         log_bookshelf_layout(&catalog, &site_dest_dir)?;
     }
+
     let config_root = catalog.config_dir.clone();
-    let site_root_link_map = SiteRootLinkMap::from_catalog(&catalog)
+    progress.step("Preparing bookshelf link metadata...");
+    let site_root_link_map =
+        SiteRootLinkMap::from_catalog_with_progress(&catalog, |index, total, book| {
+            progress.book_started("mapping site-root links for", index, total, book);
+        })
         .context("failed to build site-root Markdown link map")?;
-    let book_breadcrumbs = build_book_breadcrumbs(&catalog)
-        .context("failed to build exact book/page breadcrumb metadata")?;
     let root_bookshelf_rel = PathBuf::from(site_root_bookshelf_entry_path(
         &catalog
             .root_book()
             .context("failed to resolve root book for synthetic bookshelf routing")?
             .output_rel,
     ));
+    progress.step_done("Prepared bookshelf metadata.");
+    let bookshelf_assets = BookshelfAssets::new(&config_root, &catalog.asset_dir);
 
-    for book in &catalog.books {
-        let breadcrumb_pages: &[BookshelfBreadcrumbPage] = book_breadcrumbs
-            .get(&book.id)
-            .map(Vec::as_slice)
-            .unwrap_or(&[]);
+    let total_books = catalog.books.len();
+    progress.step(format!(
+        "Building {} book{} with mdBook...",
+        total_books,
+        plural_suffix(total_books)
+    ));
+    for (index, book) in catalog.books.iter().enumerate() {
+        let book_started = Instant::now();
+        progress.book_started("building", index + 1, total_books, book);
         build_catalog_book(
             book,
             &catalog,
@@ -104,13 +129,34 @@ pub(crate) fn build_bookshelf_site_with_options(
             &config_root,
             &site_dest_dir,
             &root_bookshelf_rel,
-            breadcrumb_pages,
             &site_root_link_map,
-        )?;
+            &bookshelf_assets,
+        )
+        .with_context(|| {
+            format!(
+                "failed while building book {}/{} '{}' from {}",
+                index + 1,
+                total_books,
+                book.title,
+                book.book_src_abs.display()
+            )
+        })?;
+        progress.book_done(index + 1, total_books, book_started.elapsed());
     }
 
-    write_site_wide_search_index(&catalog, &site_dest_dir)?;
-    write_site_root_index(&catalog, &mdbook_config, &site_dest_dir)?;
+    progress.step("Writing shared search index...");
+    let search_started = Instant::now();
+    write_site_wide_search_index(&catalog, &site_dest_dir)
+        .context("failed to write bookshelf shared search output")?;
+    progress.step_done(format!(
+        "Wrote shared search index in {}.",
+        format_duration(search_started.elapsed())
+    ));
+
+    progress.step("Writing site-root redirect...");
+    write_site_root_index(&catalog, &mdbook_config, &site_dest_dir)
+        .context("failed to write bookshelf site-root redirect")?;
+    progress.finish(&site_dest_dir, build_started.elapsed());
 
     Ok(site_dest_dir)
 }
@@ -122,8 +168,8 @@ fn build_catalog_book(
     config_root: &Path,
     site_dest_dir: &Path,
     root_bookshelf_rel: &Path,
-    breadcrumb_pages: &[BookshelfBreadcrumbPage],
     site_root_link_map: &SiteRootLinkMap,
+    bookshelf_assets: &BookshelfAssets,
 ) -> Result<()> {
     let summary_text = fs::read_to_string(&book.summary_abs).with_context(|| {
         format!(
@@ -143,35 +189,9 @@ fn build_catalog_book(
     let mut config = shared_config.clone();
     config.book = book.book_config.clone();
     config.build.build_dir = site_dest_dir.join(&book.output_rel);
-    let mut ui_assets =
-        TransientBookshelfUiAssets::new(&book.book_root_abs).with_context(|| {
-            format!(
-                "book '{}' failed to create transient bookshelf UI assets under {}",
-                book.id,
-                book.book_root_abs.display()
-            )
-        })?;
-    ui_assets
-        .stage_config_root_output_assets(&mut config, config_root)
-        .with_context(|| {
-            format!(
-                "book '{}' failed to stage shared mdBook output assets from {} into {}",
-                book.id,
-                config_root.display(),
-                book.book_root_abs.display()
-            )
-        })?;
-    let return_target = path_to_string(&relative_path(&book.output_rel, &root_bookshelf_rel));
-    let searchindex_target = LOCAL_SHARED_SEARCH_INDEX_NAME.to_string();
 
-    ui_assets
-        .inject_bookshelf_ui_assets(
-            &mut config,
-            &book.id,
-            &return_target,
-            &searchindex_target,
-            breadcrumb_pages,
-        )
+    bookshelf_assets
+        .inject_bookshelf_runtime_assets(&mut config)
         .with_context(|| {
             format!(
                 "book '{}' failed to inject bookshelf UI assets under {}",
@@ -215,6 +235,11 @@ fn build_catalog_book(
         book.output_rel.clone(),
         site_root_link_map.clone(),
     ));
+    mdbook.with_preprocessor(BookshelfPageMetadataPreprocessor::new(
+        book.output_rel.clone(),
+        root_bookshelf_rel.to_path_buf(),
+        book.output_rel.join(LOCAL_SHARED_SEARCH_INDEX_NAME),
+    ));
 
     let html_build_dir = mdbook.build_dir_for("html");
     mdbook.build().with_context(|| {
@@ -234,13 +259,7 @@ fn build_catalog_book(
         })?;
     }
 
-    ui_assets.cleanup().with_context(|| {
-        format!(
-            "book '{}' failed to clean transient bookshelf UI assets under {}",
-            book.id,
-            book.book_root_abs.display()
-        )
-    })
+    Ok(())
 }
 
 fn patch_root_bookshelf_toc_index_alias(book_output_dir: &Path) -> Result<()> {
@@ -361,6 +380,93 @@ fn log_bookshelf_layout(catalog: &InputCatalog, site_dest_dir: &Path) -> Result<
     Ok(())
 }
 
+struct BuildProgress {
+    enabled: bool,
+    style: LogStyle,
+    cwd: Option<PathBuf>,
+}
+
+impl BuildProgress {
+    fn new(enabled: bool) -> Self {
+        Self {
+            enabled,
+            style: LogStyle::stderr(),
+            cwd: std::env::current_dir().ok(),
+        }
+    }
+
+    fn start(&self, config_path: &Path) {
+        if !self.enabled {
+            return;
+        }
+
+        eprintln!("{}", self.style.heading("Build"));
+        eprintln!(
+            "  {} {}",
+            self.style.label("config:"),
+            self.format_path(config_path)
+        );
+    }
+
+    fn step(&self, message: impl AsRef<str>) {
+        if self.enabled {
+            eprintln!("  {}", message.as_ref());
+        }
+    }
+
+    fn step_done(&self, message: impl AsRef<str>) {
+        if self.enabled {
+            eprintln!("  {}", self.style.success(message.as_ref()));
+        }
+    }
+
+    fn book_started(&self, verb: &str, index: usize, total: usize, book: &InputBook) {
+        if !self.enabled {
+            return;
+        }
+
+        eprintln!(
+            "    [{index}/{total}] {verb} {}: {}",
+            self.style.source_title(&book.title, book.is_root_book),
+            self.format_path(&book.book_src_abs)
+        );
+    }
+
+    fn book_done(&self, index: usize, total: usize, elapsed: Duration) {
+        if self.enabled {
+            eprintln!(
+                "    [{index}/{total}] {}",
+                self.style
+                    .success(&format!("finished in {}", format_duration(elapsed)))
+            );
+        }
+    }
+
+    fn finish(&self, site_dest_dir: &Path, elapsed: Duration) {
+        if !self.enabled {
+            return;
+        }
+
+        eprintln!(
+            "  {} {} ({})",
+            self.style.success("Finished bookshelf site:"),
+            self.format_path(site_dest_dir),
+            format_duration(elapsed)
+        );
+    }
+
+    fn format_path(&self, path: &Path) -> String {
+        if !path.is_absolute() {
+            return path_to_string(path);
+        }
+
+        self.cwd
+            .as_ref()
+            .map(|cwd| log_path(path, cwd))
+            .unwrap_or_else(|| path.display().to_string())
+    }
+}
+
 struct LogStyle {
     enabled: bool,
 }
@@ -389,6 +495,10 @@ impl LogStyle {
         }
     }
 
+    fn success(&self, text: &str) -> String {
+        self.paint("32", text)
+    }
+
     fn paint(&self, code: &str, text: &str) -> String {
         if self.enabled {
             format!("\x1b[{code}m{text}\x1b[0m")
@@ -400,6 +510,28 @@ impl LogStyle {
 
 fn log_path(path: &Path, cwd: &Path) -> String {
     path_to_string(&relative_path(cwd, path))
+}
+
+fn plural_suffix(count: usize) -> &'static str {
+    if count == 1 {
+        ""
+    } else {
+        "s"
+    }
+}
+
+fn format_duration(duration: Duration) -> String {
+    let millis = duration.as_millis();
+    if millis < 1_000 {
+        return format!("{millis}ms");
+    }
+
+    let seconds = duration.as_secs_f64();
+    if seconds < 10.0 {
+        format!("{seconds:.1}s")
+    } else {
+        format!("{}s", duration.as_secs())
+    }
 }
 
 fn absolutize_catalog_paths(mut catalog: InputCatalog) -> Result<InputCatalog> {
@@ -418,68 +550,6 @@ fn absolutize_book_paths(book: &mut InputBook, cwd: &Path) {
     book.book_root_abs = make_absolute(cwd, book.book_root_abs.clone());
     book.book_src_abs = make_absolute(cwd, book.book_src_abs.clone());
     book.summary_abs = make_absolute(cwd, book.summary_abs.clone());
-}
-
-fn build_book_breadcrumbs(
-    catalog: &InputCatalog,
-) -> Result<BTreeMap<String, Vec<BookshelfBreadcrumbPage>>> {
-    let loaded =
-        load_books_from_catalog(catalog).context("failed to load books for breadcrumb metadata")?;
-    let site_model = build_site_model(catalog, &loaded)
-        .context("failed to build site model for breadcrumb metadata")?;
-    let navigation = build_navigation_metadata(&site_model)
-        .context("failed to build navigation metadata for breadcrumb strings")?;
-    let mut by_book = catalog
-        .books
-        .iter()
-        .map(|book| (book.id.clone(), Vec::new()))
-        .collect::<BTreeMap<_, _>>();
-
-    for page in &site_model.pages {
-        if page.kind != SitePageKind::Content {
-            continue;
-        }
-
-        let html_path = page
-            .source_path
-            .as_ref()
-            .map(|path| chapter_output_html_path(path))
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "content page '{}' is missing a source path for breadcrumb output",
-                    page.page_id
-                )
-            })?;
-        let breadcrumb = navigation
-            .for_page(&page.page_id)
-            .and_then(|entry| entry.breadcrumb.clone())
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "content page '{}' is missing breadcrumb text in navigation metadata",
-                    page.page_id
-                )
-            })?;
-
-        by_book
-            .entry(page.owning_book_id.clone())
-            .or_default()
-            .push(BookshelfBreadcrumbPage {
-                html_path,
-                breadcrumb,
-            });
-    }
-
-    for breadcrumb_pages in by_book.values_mut() {
-        breadcrumb_pages.sort();
-    }
-
-    Ok(by_book)
-}
-
-fn chapter_output_html_path(path: &Path) -> String {
-    path.with_extension("html")
-        .to_string_lossy()
-        .replace('\\', "/")
 }
 
 fn write_site_root_index(

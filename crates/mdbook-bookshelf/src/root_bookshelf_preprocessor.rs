@@ -152,6 +152,7 @@ mod tests {
             config_dir: PathBuf::from("."),
             mdbook_config: mdbook_driver::config::Config::default(),
             entry_page: crate::config::BookshelfEntryPage::RootBook,
+            asset_dir: PathBuf::from(".mdbook/bookshelf"),
             books: vec![
                 sample_book(
                     "docs",
@@ -178,7 +179,7 @@ mod tests {
         let mut book_config = mdbook_driver::config::BookConfig::default();
         book_config.title = Some(title.to_string());
         book_config.description = description.map(str::to_string);
-        book_config.src = PathBuf::from("docs");
+        book_config.src = PathBuf::from(id);
 
         InputBook {
             id: id.to_string(),
@@ -188,9 +189,9 @@ mod tests {
             description: description.map(str::to_string),
             book_root_rel: PathBuf::from("."),
             book_root_abs: PathBuf::from("/tmp"),
-            book_src_rel: PathBuf::from("docs"),
-            book_src_abs: PathBuf::from("/tmp/docs"),
-            summary_abs: PathBuf::from("/tmp/docs/SUMMARY.md"),
+            book_src_rel: PathBuf::from(id),
+            book_src_abs: PathBuf::from("/tmp").join(id),
+            summary_abs: PathBuf::from("/tmp").join(id).join("SUMMARY.md"),
             is_root_book,
         }
     }

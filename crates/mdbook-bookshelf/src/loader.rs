@@ -1,4 +1,4 @@
-use crate::catalog::{build_input_catalog, InputCatalog};
+use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
 use crate::load_single_book_with_config_and_parsed_summary;
 use crate::root_bookshelf_preprocessor::ensure_reserved_bookshelf_path_is_available;
 use anyhow::{Context, Result};
@@ -24,10 +24,20 @@ pub fn load_books_from_config(config_path: impl AsRef<Path>) -> Result<LoadedBoo
 }
 
 pub fn load_books_from_catalog(catalog: &InputCatalog) -> Result<LoadedBooks> {
+    load_books_from_catalog_with_progress(catalog, |_, _, _| {})
+}
+
+pub(crate) fn load_books_from_catalog_with_progress(
+    catalog: &InputCatalog,
+    mut before_book: impl FnMut(usize, usize, &InputBook),
+) -> Result<LoadedBooks> {
     let mut books = Vec::with_capacity(catalog.books.len());
     let root_book_id = catalog.root_book()?.id.clone();
+    let total_books = catalog.books.len();
 
-    for book in &catalog.books {
+    for (index, book) in catalog.books.iter().enumerate() {
+        before_book(index + 1, total_books, book);
+
         let summary_text = fs::read_to_string(&book.summary_abs).with_context(|| {
             format!(
                 "book '{}' failed to read canonical summary at {}",

@@ -64,6 +64,7 @@ with one extra table:
 - top-level mdBook config stays stock
 - `[book]` is the root book
 - `[bookshelf]` enables bookshelf behavior
+- `[bookshelf].asset-dir` configures tool-owned generated runtime assets
 - `[[bookshelf.book]]` adds child books
 
 Each `[[bookshelf.book]]` entry is taken directly from mdBook's stock
@@ -81,6 +82,7 @@ src = "docs"
 default-theme = "light"
 
 [bookshelf]
+asset-dir = ".mdbook/bookshelf"
 
 [[bookshelf.book]]
 title = "G-code Parser"
@@ -117,5 +119,6 @@ See [Configuration](./configuration.md) for the full config rules.
   `Bookshelf` page
 - [Linking](./linking.md) explains how to write cross-book and local links
 - [Examples](./examples.md) points at the example tree and repo-scale fixture
+- [Internals](./internals.md) documents the shared root and asset model
 - [Contributing](./contributing.md) explains how the implementation is put
   together

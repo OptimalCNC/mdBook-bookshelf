@@ -34,6 +34,7 @@ src = "modules/child-book/docs"
 
     let catalog = build_input_catalog(&config_path).expect("valid fixture should build catalog");
     assert_eq!(2, catalog.books.len());
+    assert_eq!(Path::new(".mdbook/bookshelf"), catalog.asset_dir.as_path());
 
     let root = catalog.root_book().expect("root book should exist");
     assert_eq!("root-book/docs", root.id);
@@ -56,11 +57,12 @@ src = "modules/child-book/docs"
         Path::new("modules/child-book/docs"),
         child.output_rel.as_path()
     );
+    assert_eq!(Path::new("."), child.book_root_rel.as_path());
     assert_eq!(
-        Path::new("modules/child-book"),
-        child.book_root_rel.as_path()
+        Path::new("modules/child-book/docs"),
+        child.book_src_rel.as_path()
     );
-    assert_eq!(Path::new("docs"), child.book_src_rel.as_path());
+    assert_eq!(temp.path(), child.book_root_abs);
     assert_eq!(
         temp.path().join("modules/child-book/docs"),
         child.book_src_abs

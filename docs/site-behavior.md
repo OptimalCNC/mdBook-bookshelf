@@ -51,13 +51,7 @@ When a reader opens a content page:
 - the sidebar shows only that book's table of contents
 - previous and next links stay inside that book
 - the page header gets a `Bookshelf` return button
-- a breadcrumb is injected above the page body in `Book / Page` form
 - direct links into nested pages still activate the correct book context
-
-Examples:
-
-- `MetaNC / Architecture`
-- `G-code Parser / Modal Groups`
 
 The `Bookshelf` return control is not shown on the `Bookshelf` page itself.
 
@@ -73,7 +67,7 @@ Current search behavior:
 - each book also gets a localized `bookshelf-searchindex.js`
 - page runtime switches mdBook's search loader to the localized shared index
 - results can open pages in other books
-- result labels use breadcrumb-style text, for example
+- result labels use mdBook's normal breadcrumb-style search labels, for example
   `G-code Parser » Grammar » Modal Groups » Modal Groups`
 
 In other words, the chrome still feels like mdBook, but search scope is the

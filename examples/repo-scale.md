@@ -27,7 +27,6 @@ It checks:
   chapters
 - child-book sidebars that stay scoped to the active book
 - direct links into nested parser pages such as `reference/modal-groups.md`
-- breadcrumb labels such as `MetaNC / Architecture`
 - site-wide search results that can open pages in other books
 
 ## Why It Matters

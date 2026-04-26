@@ -11,6 +11,7 @@ pub struct BookshelfConfig {
     pub config_dir: PathBuf,
     pub mdbook_config: Config,
     pub entry_page: BookshelfEntryPage,
+    pub asset_dir: PathBuf,
     pub books: Vec<BookshelfBook>,
 }
 
@@ -38,6 +39,8 @@ impl Default for BookshelfEntryPage {
 struct RawBookshelf {
     #[serde(default)]
     entry_page: BookshelfEntryPage,
+    #[serde(default = "default_bookshelf_asset_dir")]
+    asset_dir: PathBuf,
     #[serde(default, rename = "book")]
     books: Vec<toml::Table>,
 }
@@ -69,18 +72,19 @@ fn validate_and_build(
     let root_source_rel = normalize_root_source_rel_path(&mdbook_config.book.src)?;
     validate_canonical_output_root(&root_source_rel, "book.src")?;
     mdbook_config.book.src = root_source_rel.clone();
+    let asset_dir = normalize_bookshelf_asset_dir_path(&raw.asset_dir)?;
 
     let mut seen_output_roots = vec![root_source_rel.clone()];
     let mut books = Vec::with_capacity(raw.books.len());
     for raw_book in raw.books {
-        let mut child_book = parse_child_book(raw_book)?;
+        let mut child_book = parse_child_book(raw_book, &mdbook_config.book)?;
         validate_book_title(&child_book, "bookshelf.book.title")?;
         let source_rel = normalize_child_source_rel_path(&child_book.src)?;
         validate_canonical_output_root(&source_rel, "bookshelf.book.src")?;
         ensure_output_root_available(&source_rel, &seen_output_roots)?;
         seen_output_roots.push(source_rel.clone());
 
-        child_book.src = derive_local_book_src(&source_rel)?;
+        child_book.src = source_rel.clone();
 
         books.push(BookshelfBook {
             source_rel,
@@ -93,6 +97,7 @@ fn validate_and_build(
         config_dir,
         mdbook_config,
         entry_page: raw.entry_page,
+        asset_dir,
         books,
     })
 }
@@ -126,10 +131,46 @@ fn parse_mdbook_config(toml_root: toml::Table, config_path: &Path) -> Result<Con
     })
 }
 
-fn parse_child_book(raw: toml::Table) -> Result<BookConfig> {
-    toml::Value::Table(raw)
-        .try_into::<BookConfig>()
-        .with_context(|| "failed to parse mdBook book config for bookshelf.book")
+fn parse_child_book(raw: toml::Table, root_book: &BookConfig) -> Result<BookConfig> {
+    let mut book = root_book.clone();
+
+    for (key, value) in raw {
+        match key.as_str() {
+            "title" => {
+                book.title = Some(parse_toml_value(value, "bookshelf.book.title")?);
+            }
+            "authors" => {
+                book.authors = parse_toml_value(value, "bookshelf.book.authors")?;
+            }
+            "description" => {
+                book.description = Some(parse_toml_value(value, "bookshelf.book.description")?);
+            }
+            "src" => {
+                book.src = parse_toml_value(value, "bookshelf.book.src")?;
+            }
+            "language" => {
+                book.language = Some(parse_toml_value(value, "bookshelf.book.language")?);
+            }
+            "text-direction" => {
+                book.text_direction =
+                    Some(parse_toml_value(value, "bookshelf.book.text-direction")?);
+            }
+            unknown => {
+                bail!("unknown field `{unknown}` in bookshelf.book");
+            }
+        }
+    }
+
+    Ok(book)
+}
+
+fn parse_toml_value<T>(value: toml::Value, key: &str) -> Result<T>
+where
+    T: serde::de::DeserializeOwned,
+{
+    value
+        .try_into()
+        .with_context(|| format!("failed to parse {key}"))
 }
 
 fn validate_book_title(book: &BookConfig, key: &str) -> Result<()> {
@@ -148,11 +189,13 @@ fn normalize_child_source_rel_path(raw_path: &Path) -> Result<PathBuf> {
     normalize_rel_dir_path("bookshelf.book", raw_path, "src path", true)
 }
 
-fn derive_local_book_src(source_rel: &Path) -> Result<PathBuf> {
-    source_rel
-        .file_name()
-        .map(PathBuf::from)
-        .ok_or_else(|| anyhow::anyhow!("bookshelf.book.src must name a source directory"))
+fn normalize_bookshelf_asset_dir_path(raw_path: &Path) -> Result<PathBuf> {
+    let normalized = normalize_rel_dir_path("bookshelf", raw_path, "asset-dir path", false)?;
+    if normalized == Path::new(".") {
+        bail!("[bookshelf].asset-dir must name a directory below the bookshelf config root");
+    }
+
+    Ok(normalized)
 }
 
 fn validate_canonical_output_root(output_rel: &Path, key: &str) -> Result<()> {
@@ -246,4 +289,8 @@ fn normalize_rel_dir_path(
     }
 
     Ok(normalized)
+}
+
+fn default_bookshelf_asset_dir() -> PathBuf {
+    PathBuf::from(".mdbook/bookshelf")
 }

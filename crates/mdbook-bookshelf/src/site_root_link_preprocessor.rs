@@ -1,5 +1,5 @@
 use crate::catalog::{InputBook, InputCatalog};
-use crate::loader::load_books_from_catalog;
+use crate::loader::load_books_from_catalog_with_progress;
 use crate::route_paths::{path_to_string, relative_path};
 use anyhow::{bail, Context, Result};
 use mdbook_markdown::pulldown_cmark::{CowStr, Event, Tag};
@@ -16,9 +16,19 @@ pub(crate) struct SiteRootLinkMap {
 }
 
 impl SiteRootLinkMap {
-    pub(crate) fn from_catalog(catalog: &InputCatalog) -> Result<Self> {
-        let loaded = load_books_from_catalog(catalog)
+    pub(crate) fn from_catalog_with_progress(
+        catalog: &InputCatalog,
+        before_book: impl FnMut(usize, usize, &InputBook),
+    ) -> Result<Self> {
+        let loaded = load_books_from_catalog_with_progress(catalog, before_book)
             .context("failed to load books for site-root Markdown link map")?;
+        Self::from_catalog_and_loaded_books(catalog, &loaded)
+    }
+
+    fn from_catalog_and_loaded_books(
+        catalog: &InputCatalog,
+        loaded: &crate::loader::LoadedBooks,
+    ) -> Result<Self> {
         let mut map = Self {
             pages: BTreeMap::new(),
         };
@@ -487,9 +497,9 @@ mod tests {
             description: None,
             book_root_rel: PathBuf::from("."),
             book_root_abs: PathBuf::from("/tmp"),
-            book_src_rel: PathBuf::from("docs"),
-            book_src_abs: PathBuf::from("/tmp/docs"),
-            summary_abs: PathBuf::from("/tmp/docs/SUMMARY.md"),
+            book_src_rel: PathBuf::from(output_rel),
+            book_src_abs: PathBuf::from("/tmp").join(output_rel),
+            summary_abs: PathBuf::from("/tmp").join(output_rel).join("SUMMARY.md"),
             is_root_book: false,
         }
     }

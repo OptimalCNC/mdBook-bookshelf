@@ -38,7 +38,7 @@ What it shows:
 Use it for:
 
 - full-system verification
-- checking nested breadcrumb and `path_to_root` behavior
+- checking nested routes and `path_to_root` behavior
 - checking cross-book search results and labels
 
 ## Other Fixtures

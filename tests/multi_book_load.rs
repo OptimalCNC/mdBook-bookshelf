@@ -67,7 +67,7 @@ fn multi_book_load() {
     assert_eq!(
         format!(
             "book 'missing-book/docs' failed to load mdbook from root {} and source {}",
-            fixtures.join("invalid-mdbook-load/missing-book").display(),
+            fixtures.join("invalid-mdbook-load").display(),
             fixtures
                 .join("invalid-mdbook-load/missing-book/docs")
                 .display()

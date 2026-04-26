@@ -7,4 +7,5 @@
   - [Authoring](authoring.md)
   - [Linking](linking.md)
   - [Examples](examples.md)
+  - [Internals](internals.md)
   - [Contributing](contributing.md)

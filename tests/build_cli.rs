@@ -6,68 +6,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 const BOOKSHELF_UI_SITE_FIXTURE: &str = "tests/fixtures/bookshelf-ui-site";
 const PUBLIC_SELF_CONTAINED_EXAMPLE: &str = "examples/self-contained";
 
-const BREADCRUMB_RUNTIME_HARNESS: &str = r##"
-const fs = require("node:fs");
-
-const [scriptPath, pageHref, pathToRoot] = process.argv.slice(1);
-const pageUrl = new URL(pageHref);
-let existingBreadcrumb = null;
-
-const main = {
-  prepended: [],
-  prepend(node) {
-    this.prepended.unshift(node);
-    if (node.id) {
-      existingBreadcrumb = node;
-    }
-  },
-};
-
-globalThis.document = {
-  querySelector(selector) {
-    return selector === "#mdbook-content main" ? main : null;
-  },
-  getElementById(id) {
-    return existingBreadcrumb && existingBreadcrumb.id === id ? existingBreadcrumb : null;
-  },
-  createElement(tagName) {
-    return {
-      tagName: String(tagName).toUpperCase(),
-      id: "",
-      className: "",
-      textContent: "",
-      attributes: {},
-      setAttribute(name, value) {
-        this.attributes[String(name)] = String(value);
-      },
-    };
-  },
-};
-
-globalThis.window = {
-  location: {
-    href: pageHref,
-    pathname: pageUrl.pathname,
-  },
-};
-globalThis.path_to_root = pathToRoot;
-
-const script = fs.readFileSync(scriptPath, "utf8");
-eval(script);
-
-const node = main.prepended[0];
-const lines = [`count=${main.prepended.length}`];
-if (node) {
-  lines.push(`tag=${node.tagName}`);
-  lines.push(`id=${node.id}`);
-  lines.push(`class=${node.className}`);
-  lines.push(`text=${node.textContent}`);
-  lines.push(`data=${node.attributes["data-bookshelf-breadcrumb"] || ""}`);
-  lines.push(`aria=${node.attributes["aria-label"] || ""}`);
-}
-process.stdout.write(lines.join("\n"));
-"##;
-
 const TOC_RUNTIME_HARNESS: &str = r##"
 const fs = require("node:fs");
 
@@ -429,6 +367,7 @@ class FakeClassList {
 function createElement(id, initialClassName = "") {
   return {
     id,
+    textContent: "",
     value: "",
     attributes: {},
     children: [],
@@ -497,6 +436,15 @@ const elements = new Map([
   ["mdbook-search-toggle", createElement("mdbook-search-toggle")],
   ["mdbook-content", createElement("mdbook-content")],
 ]);
+
+const metadataMatch = pageHtml.match(
+  /<script type="application\/json" id="mdbook-bookshelf-page-metadata">([\s\S]*?)<\/script>/,
+);
+if (metadataMatch) {
+  const metadata = createElement("mdbook-bookshelf-page-metadata");
+  metadata.textContent = metadataMatch[1] || "";
+  elements.set("mdbook-bookshelf-page-metadata", metadata);
+}
 
 globalThis.Mark = function Mark() {
   return {
@@ -620,14 +568,15 @@ process.stdout.write(
 "##;
 
 #[test]
-fn build_cli_emits_bookshelf_ui_assets_from_fixture_without_source_residue() {
+fn build_cli_emits_bookshelf_ui_assets_from_fixture_asset_dir() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
     let fixture_root =
         copy_bookshelf_ui_site_fixture(&repo_root, "chunk-011-build-cli-bookshelf-ui-site-fixture");
     let config_path = fixture_root.join("bookshelf.toml");
     let output_dir = make_temp_dir("chunk-011-build-cli", &repo_root);
-    let fixture_entries_before = without_bookshelf_ui_entries(collect_tree_entries(&fixture_root));
+    let fixture_entries_before =
+        without_bookshelf_asset_entries(collect_tree_entries(&fixture_root));
 
     let output = Command::new(&bin)
         .arg("build")
@@ -697,10 +646,16 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_without_source_residue() {
         "Repository-wide onboarding and architecture guidance for the fixture project.",
     );
     assert_text_contains(&root_index_html, "href=\"./onboarding.html\"");
-    assert_text_contains(&root_index_html, "bookshelf-breadcrumb.css");
-    assert_text_contains(&root_index_html, "bookshelf-breadcrumb.js");
     assert_text_contains(&root_index_html, "bookshelf-return.css");
     assert_text_contains(&root_index_html, "bookshelf-return.js");
+    assert_text_contains(&root_index_html, "bookshelf-search.js");
+    assert_text_contains(&root_index_html, "id=\"mdbook-bookshelf-page-metadata\"");
+    assert_text_contains(&root_index_html, "\"bookshelfTarget\":\"bookshelf.html\"");
+    assert_text_contains(
+        &root_index_html,
+        "\"searchIndexTarget\":\"bookshelf-searchindex.js\"",
+    );
+    assert_text_not_contains(&root_index_html, "bookshelf-breadcrumb");
     assert_stock_search_contract(&output_dir.join("docs"), &root_index_html);
     assert_text_not_contains(&root_index_html, "Choose a book to enter its root page.");
     assert_text_not_contains(
@@ -717,17 +672,23 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_without_source_residue() {
 
     let parser_index_html =
         assert_read_to_string(output_dir.join("modules/parser/docs/index.html"));
-    assert_text_contains(&parser_index_html, "bookshelf-breadcrumb.css");
-    assert_text_contains(&parser_index_html, "bookshelf-breadcrumb.js");
     assert_text_contains(&parser_index_html, "bookshelf-return.css");
     assert_text_contains(&parser_index_html, "bookshelf-return.js");
+    assert_text_contains(&parser_index_html, "bookshelf-search.js");
+    assert_text_contains(
+        &parser_index_html,
+        "\"bookshelfTarget\":\"../../../docs/bookshelf.html\"",
+    );
+    assert_text_contains(
+        &parser_index_html,
+        "\"searchIndexTarget\":\"bookshelf-searchindex.js\"",
+    );
+    assert_text_not_contains(&parser_index_html, "bookshelf-breadcrumb");
     assert_stock_search_contract(&output_dir.join("modules/parser/docs"), &parser_index_html);
     let architecture_html = assert_read_to_string(output_dir.join("docs/architecture.html"));
-    assert_text_contains(&architecture_html, "bookshelf-breadcrumb.css");
-    assert_text_contains(&architecture_html, "bookshelf-breadcrumb.js");
+    assert_text_not_contains(&architecture_html, "bookshelf-breadcrumb");
     let grammar_html = assert_read_to_string(output_dir.join("modules/parser/docs/grammar.html"));
-    assert_text_contains(&grammar_html, "bookshelf-breadcrumb.css");
-    assert_text_contains(&grammar_html, "bookshelf-breadcrumb.js");
+    assert_text_not_contains(&grammar_html, "bookshelf-breadcrumb");
 
     let root_toc_html = assert_read_to_string(output_dir.join("docs/toc.html"));
     let root_toc_script = output_dir.join("docs").join(assert_has_file_with_prefix(
@@ -760,14 +721,7 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_without_source_residue() {
         assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.js");
     let root_return_css =
         assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.css");
-    let root_breadcrumb_script =
-        assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.js");
-    let root_breadcrumb_css =
-        assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.css");
-    assert_file_contains(
-        root_return_script.clone(),
-        "const bookshelfTarget = \"bookshelf.html\";",
-    );
+    assert_file_contains(root_return_script.clone(), "readBookshelfPageMetadata");
     assert_file_contains(
         root_return_script.clone(),
         "link.textContent = \"Bookshelf\";",
@@ -776,30 +730,10 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_without_source_residue() {
         root_return_script.clone(),
         "document.querySelector(\"#mdbook-menu-bar .right-buttons\")",
     );
-    assert_file_contains(root_return_script, "currentPage === \"bookshelf.html\"");
+    assert_file_contains(root_return_script, "metadata.bookshelfTarget");
     assert_file_contains(root_return_css, ".bookshelf-return-link");
-    assert_runtime_breadcrumb(
-        &root_breadcrumb_script,
-        "https://example.test/docs/architecture.html",
-        "Fixture Core / Architecture",
-    );
-    assert_runtime_breadcrumb_absent(
-        &root_breadcrumb_script,
-        "https://example.test/docs/bookshelf.html",
-    );
-    assert_runtime_breadcrumb_absent(
-        &root_breadcrumb_script,
-        "https://example.test/docs/print.html",
-    );
-    assert_runtime_breadcrumb_absent(
-        &root_breadcrumb_script,
-        "https://example.test/docs/404.html",
-    );
-    assert_runtime_breadcrumb_absent(
-        &root_breadcrumb_script,
-        "https://example.test/docs/toc.html",
-    );
-    assert_file_contains(root_breadcrumb_css, ".bookshelf-breadcrumb");
+    assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.js");
+    assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.css");
     assert_exists(output_dir.join("modules/parser/docs/index.html"));
     assert_exists(output_dir.join("modules/parser/docs/grammar.html"));
     assert_exists(output_dir.join("modules/parser/docs/toc.html"));
@@ -832,26 +766,9 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_without_source_residue() {
         &output_dir.join("modules/parser/docs"),
         "bookshelf-return.css",
     );
-    let parser_breadcrumb_script = assert_single_file_named_recursive(
-        &output_dir.join("modules/parser/docs"),
-        "bookshelf-breadcrumb.js",
-    );
-    let parser_breadcrumb_css = assert_single_file_named_recursive(
-        &output_dir.join("modules/parser/docs"),
-        "bookshelf-breadcrumb.css",
-    );
-    assert_file_contains(
-        parser_return_script.clone(),
-        "const bookshelfTarget = \"../../../docs/bookshelf.html\";",
-    );
+    assert_file_contains(parser_return_script.clone(), "metadata.bookshelfTarget");
     assert_file_contains(parser_return_script, "link.rel = \"up\";");
     assert_file_contains(parser_return_css, ".bookshelf-return-link");
-    assert_runtime_breadcrumb(
-        &parser_breadcrumb_script,
-        "https://example.test/modules/parser/docs/grammar.html",
-        "Fixture Parser / Grammar",
-    );
-    assert_file_contains(parser_breadcrumb_css, ".bookshelf-breadcrumb");
     let parser_runtime_html =
         assert_read_to_string(output_dir.join("modules/parser/docs/runtime.html"));
     assert_text_contains(
@@ -907,7 +824,16 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_without_source_residue() {
     assert_text_not_contains(&bookshelf_html, "data-bookshelf-breadcrumb");
     assert_no_authored_root_relative_markdown_links(&output_dir);
     assert!(!fixture_root.join(".mdbook-bookshelf").exists());
-    assert_eq!(collect_tree_entries(&fixture_root), fixture_entries_before);
+    assert!(fixture_root
+        .join(".mdbook/bookshelf/bookshelf-return.js")
+        .exists());
+    assert!(fixture_root
+        .join(".mdbook/bookshelf/bookshelf-search.js")
+        .exists());
+    assert_eq!(
+        without_bookshelf_asset_entries(collect_tree_entries(&fixture_root)),
+        fixture_entries_before
+    );
 
     fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
@@ -995,6 +921,10 @@ fn build_cli_prints_relative_layout_paths() {
     }
 
     let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_text_contains(&stderr, "Build");
+    assert_text_contains(&stderr, "  config: bookshelf.toml");
+    assert_text_contains(&stderr, "Loading bookshelf config and source catalog...");
+    assert_text_contains(&stderr, "Catalog contains 3 books.");
     assert_text_contains(&stderr, "Bookshelf");
     assert_text_contains(&stderr, "  root: .");
     assert_text_contains(&stderr, "  output: .site-log");
@@ -1002,9 +932,62 @@ fn build_cli_prints_relative_layout_paths() {
     assert_text_contains(&stderr, "    \"Fixture Core\": docs");
     assert_text_contains(&stderr, "    \"Fixture Parser\": modules/parser/docs");
     assert_text_contains(&stderr, "    \"Fixture UI\": modules/ui/docs");
+    assert_text_contains(&stderr, "Preparing bookshelf link metadata...");
+    assert_text_contains(
+        &stderr,
+        "[1/3] mapping site-root links for \"Fixture Core\": docs",
+    );
+    assert_text_contains(&stderr, "Building 3 books with mdBook...");
+    assert_text_contains(&stderr, "[1/3] building \"Fixture Core\": docs");
+    assert_text_contains(&stderr, "Writing shared search index...");
+    assert_text_contains(&stderr, "Writing site-root redirect...");
+    assert_text_contains(&stderr, "Finished bookshelf site: .site-log");
     assert_text_not_contains(&stderr, ".site-log/modules/parser/docs");
 
     fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
+}
+
+#[test]
+fn build_cli_prints_error_cause_chain_for_authoring_failures() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let config_path =
+        repo_root.join("tests/fixtures/multi-book-load/invalid-summary-parse/bookshelf.toml");
+    let output_dir = make_temp_dir("build-cli-error-chain", &repo_root);
+
+    let output = Command::new(&bin)
+        .arg("build")
+        .arg(&config_path)
+        .arg("--dest-dir")
+        .arg(&output_dir)
+        .output()
+        .expect("build command should run");
+
+    assert!(
+        !output.status.success(),
+        "invalid summary fixture should fail\nstdout:\n{}\nstderr:\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_text_contains(
+        &stderr,
+        "error: failed to build site-root Markdown link map",
+    );
+    assert_text_contains(&stderr, "Caused by:");
+    assert_text_contains(
+        &stderr,
+        "failed to load books for site-root Markdown link map",
+    );
+    assert_text_contains(
+        &stderr,
+        "book 'broken-book/docs' failed to parse canonical summary",
+    );
+    assert_text_contains(&stderr, "broken-book/docs/SUMMARY.md");
+    assert_text_contains(&stderr, "failed to parse SUMMARY.md line");
+
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
 
 #[test]
@@ -1183,11 +1166,16 @@ sequenceDiagram
         "__bookshelfMermaidInit",
     );
 
-    let child_staged_assets = child_output.join("bookshelf-config-assets");
-    let child_mermaid_js =
-        assert_single_file_with_prefix_recursive(&child_staged_assets, "mermaid-", ".min.js");
-    let child_mermaid_init_js =
-        assert_single_file_with_prefix_recursive(&child_staged_assets, "mermaid-init-", ".js");
+    let child_mermaid_js = child_output.join(assert_has_file_with_prefix(
+        &child_output,
+        "mermaid-",
+        ".min.js",
+    ));
+    let child_mermaid_init_js = child_output.join(assert_has_file_with_prefix(
+        &child_output,
+        "mermaid-init-",
+        ".js",
+    ));
     let child_mermaid_ref = child_mermaid_js
         .strip_prefix(&child_output)
         .expect("child mermaid script should be staged under child output")
@@ -1198,25 +1186,23 @@ sequenceDiagram
         .expect("child mermaid init script should be staged under child output")
         .to_string_lossy()
         .replace('\\', "/");
-    assert_text_contains(&child_mermaid_ref, "bookshelf-config-assets/");
-    assert_text_contains(&child_mermaid_init_ref, "bookshelf-config-assets/");
+    assert_text_not_contains(&child_mermaid_ref, "bookshelf-config-assets/");
+    assert_text_not_contains(&child_mermaid_init_ref, "bookshelf-config-assets/");
     assert_text_contains(&child_index_html, &child_mermaid_ref);
     assert_text_contains(&child_index_html, &child_mermaid_init_ref);
     assert_file_contains(child_mermaid_js, "__bookshelfMermaidRuntime");
     assert_file_contains(child_mermaid_init_js, "__bookshelfMermaidInit");
 
     assert_text_contains(&root_index_html, "bookshelf-return.js");
-    assert_text_contains(&root_index_html, "bookshelf-breadcrumb.js");
     assert_text_contains(&root_index_html, "bookshelf-search.js");
     assert_text_contains(&child_index_html, "bookshelf-return.js");
-    assert_text_contains(&child_index_html, "bookshelf-breadcrumb.js");
     assert_text_contains(&child_index_html, "bookshelf-search.js");
     assert_single_file_named_recursive(&root_output, "bookshelf-return.js");
-    assert_single_file_named_recursive(&root_output, "bookshelf-breadcrumb.js");
     assert_single_file_named_recursive(&root_output, "bookshelf-search.js");
     assert_single_file_named_recursive(&child_output, "bookshelf-return.js");
-    assert_single_file_named_recursive(&child_output, "bookshelf-breadcrumb.js");
     assert_single_file_named_recursive(&child_output, "bookshelf-search.js");
+    assert_no_file_named_recursive(&root_output, "bookshelf-breadcrumb.js");
+    assert_no_file_named_recursive(&child_output, "bookshelf-breadcrumb.js");
 
     fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
@@ -1331,7 +1317,7 @@ Variable route: [UI Variable]({{UiRoot}}/index.md).
 }
 
 #[test]
-fn build_cli_rejects_shared_relative_input_404_for_child_roots() {
+fn build_cli_allows_relative_input_404_from_shared_root_model() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
     let fixture_root = make_temp_dir("chunk-022-shared-input-404", &repo_root);
@@ -1379,6 +1365,11 @@ src = "modules/child/docs"
         "# Child\n",
     )
     .expect("child index should be written");
+    fs::write(
+        fixture_root.join("modules/child/docs/missing.md"),
+        "# Child Missing Page\n",
+    )
+    .expect("child 404 input should be written");
 
     let output = Command::new(&bin)
         .arg("build")
@@ -1388,14 +1379,16 @@ src = "modules/child/docs"
         .output()
         .expect("build command should run");
 
-    assert!(
-        !output.status.success(),
-        "build should fail when shared relative input-404 is reused across child roots"
-    );
-    assert_text_contains(
-        &String::from_utf8_lossy(&output.stderr),
-        "book 'modules/child/docs' failed to stage shared mdBook output assets",
-    );
+    if !output.status.success() {
+        panic!(
+            "build command failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    assert_exists(output_dir.join("docs/index.html"));
+    assert_exists(output_dir.join("modules/child/docs/index.html"));
 
     fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
@@ -1519,11 +1512,15 @@ fn build_cli_uses_shared_site_wide_search_index() {
     );
     assert_file_contains(
         root_search_override,
-        "window.path_to_searchindex_js = `${rootPath}bookshelf-searchindex.js`;",
+        "window.path_to_searchindex_js = metadata.searchIndexTarget;",
     );
     assert_file_contains(
         parser_search_override,
-        "window.path_to_searchindex_js = `${rootPath}bookshelf-searchindex.js`;",
+        "window.path_to_searchindex_js = metadata.searchIndexTarget;",
+    );
+    assert_text_contains(
+        &parser_grammar_html,
+        "\"searchIndexTarget\":\"bookshelf-searchindex.js\"",
     );
 
     let elasticlunr_js = output_dir.join("docs").join(assert_has_file_with_prefix(
@@ -1607,12 +1604,10 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
         &parser_index_html,
     );
     assert_stock_search_contract(&output_dir.join("modules/hmi/docs"), &hmi_index_html);
-    assert_text_contains(&architecture_html, "bookshelf-breadcrumb.css");
-    assert_text_contains(&architecture_html, "bookshelf-breadcrumb.js");
     assert_text_contains(&architecture_html, "bookshelf-search.js");
-    assert_text_contains(&modal_groups_html, "bookshelf-breadcrumb.css");
-    assert_text_contains(&modal_groups_html, "bookshelf-breadcrumb.js");
     assert_text_contains(&modal_groups_html, "bookshelf-search.js");
+    assert_text_not_contains(&architecture_html, "bookshelf-breadcrumb");
+    assert_text_not_contains(&modal_groups_html, "bookshelf-breadcrumb");
 
     let root_toc_html = assert_read_to_string(output_dir.join("docs/toc.html"));
     assert_sidebar_toc_scope(
@@ -1655,23 +1650,10 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
         ],
     );
 
-    let metanc_breadcrumb_script =
-        assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.js");
-    assert_runtime_breadcrumb(
-        &metanc_breadcrumb_script,
-        "https://example.test/docs/architecture.html",
-        "MetaNC / Architecture",
-    );
-
-    let parser_breadcrumb_script = assert_single_file_named_recursive(
+    assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.js");
+    assert_no_file_named_recursive(
         &output_dir.join("modules/gcode-parser/docs"),
         "bookshelf-breadcrumb.js",
-    );
-    assert_runtime_breadcrumb_with_path_to_root(
-        &parser_breadcrumb_script,
-        "https://example.test/modules/gcode-parser/docs/reference/modal-groups.html",
-        "../",
-        "G-code Parser / Modal Groups",
     );
 
     let parser_toc_script =
@@ -1773,7 +1755,11 @@ fn build_cli_audits_search_cold_load_residual_on_repo_scale_output() {
     );
     assert_file_contains(
         search_override,
-        "window.path_to_searchindex_js = `${rootPath}bookshelf-searchindex.js`;",
+        "window.path_to_searchindex_js = metadata.searchIndexTarget;",
+    );
+    assert_text_contains(
+        &parser_page_html,
+        "\"searchIndexTarget\":\"../bookshelf-searchindex.js\"",
     );
 
     let audit = run_search_cold_load_audit(
@@ -2040,41 +2026,6 @@ fn assert_stock_search_contract(book_dir: &Path, page_html: &str) {
     );
 }
 
-fn assert_runtime_breadcrumb(script_path: &Path, page_href: &str, expected_text: &str) {
-    assert_runtime_breadcrumb_with_path_to_root(script_path, page_href, "", expected_text);
-}
-
-fn assert_runtime_breadcrumb_with_path_to_root(
-    script_path: &Path,
-    page_href: &str,
-    path_to_root: &str,
-    expected_text: &str,
-) {
-    let result = run_breadcrumb_runtime(script_path, page_href, path_to_root);
-    assert_eq!(
-        result.count, 1,
-        "expected exactly one breadcrumb node for {page_href}"
-    );
-    assert_eq!(result.tag.as_deref(), Some("NAV"));
-    assert_eq!(result.id.as_deref(), Some("bookshelf-breadcrumb"));
-    assert_eq!(result.class_name.as_deref(), Some("bookshelf-breadcrumb"));
-    assert_eq!(result.text.as_deref(), Some(expected_text));
-    assert_eq!(result.data_marker.as_deref(), Some("true"));
-    assert_eq!(result.aria_label.as_deref(), Some("Breadcrumb"));
-}
-
-fn assert_runtime_breadcrumb_absent(script_path: &Path, page_href: &str) {
-    let result = run_breadcrumb_runtime(script_path, page_href, "");
-    assert_eq!(
-        result.count, 0,
-        "expected breadcrumb runtime to no-op for {page_href}"
-    );
-    assert_eq!(result.tag, None);
-    assert_eq!(result.id, None);
-    assert_eq!(result.class_name, None);
-    assert_eq!(result.text, None);
-}
-
 fn assert_runtime_toc(
     script_path: &Path,
     page_href: &str,
@@ -2146,32 +2097,6 @@ fn assert_runtime_search_result(
         query,
         page_href
     );
-}
-
-fn run_breadcrumb_runtime(
-    script_path: &Path,
-    page_href: &str,
-    path_to_root: &str,
-) -> BreadcrumbRuntimeResult {
-    let output = Command::new("node")
-        .arg("-e")
-        .arg(BREADCRUMB_RUNTIME_HARNESS)
-        .arg(script_path)
-        .arg(page_href)
-        .arg(path_to_root)
-        .output()
-        .expect("node breadcrumb harness should run");
-
-    if !output.status.success() {
-        panic!(
-            "node breadcrumb harness failed for {}\nstdout:\n{}\nstderr:\n{}",
-            script_path.display(),
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-
-    parse_breadcrumb_runtime_output(&String::from_utf8_lossy(&output.stdout))
 }
 
 fn run_toc_runtime(script_path: &Path, page_href: &str, path_to_root: &str) -> TocRuntimeResult {
@@ -2319,6 +2244,16 @@ fn collect_files_named_recursive(dir: &Path, name: &str, matches: &mut Vec<PathB
     }
 }
 
+fn assert_no_file_named_recursive(dir: &Path, name: &str) {
+    let mut matches = Vec::new();
+    collect_files_named_recursive(dir, name, &mut matches);
+    assert!(
+        matches.is_empty(),
+        "expected no files named {name} under {}, found {matches:?}",
+        dir.display()
+    );
+}
+
 fn collect_tree_entries(root: &Path) -> Vec<PathBuf> {
     let mut entries = Vec::new();
     collect_tree_entries_recursive(root, root, &mut entries);
@@ -2345,57 +2280,11 @@ fn collect_tree_entries_recursive(root: &Path, dir: &Path, entries: &mut Vec<Pat
     }
 }
 
-fn without_bookshelf_ui_entries(entries: Vec<PathBuf>) -> Vec<PathBuf> {
+fn without_bookshelf_asset_entries(entries: Vec<PathBuf>) -> Vec<PathBuf> {
     entries
         .into_iter()
-        .filter(|entry| !entry.starts_with(".mdbook-bookshelf"))
+        .filter(|entry| entry != Path::new(".mdbook") && !entry.starts_with(".mdbook/bookshelf"))
         .collect()
-}
-
-#[derive(Debug, Default, PartialEq, Eq)]
-struct BreadcrumbRuntimeResult {
-    count: usize,
-    tag: Option<String>,
-    id: Option<String>,
-    class_name: Option<String>,
-    text: Option<String>,
-    data_marker: Option<String>,
-    aria_label: Option<String>,
-}
-
-fn parse_breadcrumb_runtime_output(output: &str) -> BreadcrumbRuntimeResult {
-    let mut result = BreadcrumbRuntimeResult::default();
-
-    for line in output.lines() {
-        if let Some(value) = line.strip_prefix("count=") {
-            result.count = value
-                .parse::<usize>()
-                .unwrap_or_else(|err| panic!("invalid breadcrumb count {:?}: {err}", value));
-        } else if let Some(value) = line.strip_prefix("tag=") {
-            result.tag = Some(value.to_string());
-        } else if let Some(value) = line.strip_prefix("id=") {
-            result.id = Some(value.to_string());
-        } else if let Some(value) = line.strip_prefix("class=") {
-            result.class_name = Some(value.to_string());
-        } else if let Some(value) = line.strip_prefix("text=") {
-            result.text = Some(value.to_string());
-        } else if let Some(value) = line.strip_prefix("data=") {
-            result.data_marker = Some(value.to_string());
-        } else if let Some(value) = line.strip_prefix("aria=") {
-            result.aria_label = Some(value.to_string());
-        }
-    }
-
-    if result.count == 0 {
-        result.tag = None;
-        result.id = None;
-        result.class_name = None;
-        result.text = None;
-        result.data_marker = None;
-        result.aria_label = None;
-    }
-
-    result
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]

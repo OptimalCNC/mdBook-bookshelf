@@ -31,10 +31,6 @@ fn navigation_metadata() {
         Some("root-book/docs:0001".to_string()),
         root_first.next_page_id
     );
-    assert_eq!(
-        Some("Root Book / Root Intro".to_string()),
-        root_first.breadcrumb
-    );
     assert_eq!("root-book/docs", root_first.active_book_id);
 
     assert_eq!(
@@ -42,20 +38,12 @@ fn navigation_metadata() {
         root_last.prev_page_id
     );
     assert_eq!(None, root_last.next_page_id);
-    assert_eq!(
-        Some("Root Book / Root Next".to_string()),
-        root_last.breadcrumb
-    );
     assert_eq!("root-book/docs", root_last.active_book_id);
 
     assert_eq!(None, child_first.prev_page_id);
     assert_eq!(
         Some("modules/child/docs:0001".to_string()),
         child_first.next_page_id
-    );
-    assert_eq!(
-        Some("Child Book / Child Intro".to_string()),
-        child_first.breadcrumb
     );
     assert_eq!("modules/child/docs", child_first.active_book_id);
 
@@ -64,10 +52,6 @@ fn navigation_metadata() {
         child_last.prev_page_id
     );
     assert_eq!(None, child_last.next_page_id);
-    assert_eq!(
-        Some("Child Book / Child Next".to_string()),
-        child_last.breadcrumb
-    );
     assert_eq!("modules/child/docs", child_last.active_book_id);
 
     assert_ne!(

@@ -38,7 +38,11 @@ src = "modules/parser/docs"
         Path::new("modules/parser/docs"),
         config.books[0].source_rel.as_path()
     );
-    assert_eq!(Path::new("docs"), config.books[0].book.src.as_path());
+    assert_eq!(
+        Path::new("modules/parser/docs"),
+        config.books[0].book.src.as_path()
+    );
+    assert_eq!(Path::new(".mdbook/bookshelf"), config.asset_dir.as_path());
 }
 
 #[test]
@@ -58,6 +62,31 @@ entry-page = "bookshelf"
 
     let config = load_bookshelf_config(&config_path).expect("fixture should parse");
     assert_eq!(BookshelfEntryPage::Bookshelf, config.entry_page);
+}
+
+#[test]
+fn child_book_config_inherits_root_book_config_defaults() {
+    let temp = TempDir::new("chunk-asset-dir-child-inherits-root-book");
+    let config_path = write_temp_bookshelf_toml(
+        temp.path(),
+        r#"
+[book]
+title = "Core Docs"
+authors = ["Docs Team"]
+language = "zh"
+src = "docs"
+
+[bookshelf]
+
+[[bookshelf.book]]
+title = "Parser Docs"
+src = "modules/parser/docs"
+"#,
+    );
+
+    let config = load_bookshelf_config(&config_path).expect("fixture should parse");
+    assert_eq!(vec!["Docs Team"], config.books[0].book.authors);
+    assert_eq!("zh", config.books[0].book.language.as_deref().unwrap());
 }
 
 #[test]
@@ -203,7 +232,7 @@ src = "."
 }
 
 #[test]
-fn preserves_local_book_src_for_nested_child_source() {
+fn preserves_site_root_relative_book_src_for_nested_child_source() {
     let temp = TempDir::new("chunk-06a-config-parse-dotted-child-src");
     let config_path = write_temp_bookshelf_toml(
         temp.path(),
@@ -225,7 +254,79 @@ src = "./modules/parser/docs"
         Path::new("modules/parser/docs"),
         config.books[0].source_rel.as_path()
     );
-    assert_eq!(Path::new("docs"), config.books[0].book.src.as_path());
+    assert_eq!(
+        Path::new("modules/parser/docs"),
+        config.books[0].book.src.as_path()
+    );
+}
+
+#[test]
+fn parses_custom_bookshelf_asset_dir() {
+    let temp = TempDir::new("chunk-asset-dir-custom");
+    let config_path = write_temp_bookshelf_toml(
+        temp.path(),
+        r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+asset-dir = ".generated/bookshelf"
+"#,
+    );
+
+    let config = load_bookshelf_config(&config_path).expect("custom asset-dir should parse");
+    assert_eq!(
+        Path::new(".generated/bookshelf"),
+        config.asset_dir.as_path()
+    );
+}
+
+#[test]
+fn rejects_invalid_bookshelf_asset_dirs() {
+    for (tag, asset_dir, expected) in [
+        (
+            "empty",
+            "",
+            "book 'bookshelf' asset-dir path must not be empty",
+        ),
+        (
+            "absolute",
+            "/tmp/bookshelf-assets",
+            "book 'bookshelf' asset-dir path must be relative",
+        ),
+        (
+            "parent",
+            "../bookshelf-assets",
+            "book 'bookshelf' asset-dir path must not contain '..'",
+        ),
+        (
+            "dot",
+            ".",
+            "[bookshelf].asset-dir must name a directory below the bookshelf config root",
+        ),
+    ] {
+        let temp = TempDir::new(&format!("chunk-asset-dir-invalid-{tag}"));
+        let config_path = write_temp_bookshelf_toml(
+            temp.path(),
+            &format!(
+                r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+asset-dir = "{asset_dir}"
+"#
+            ),
+        );
+
+        let error = load_bookshelf_config(&config_path).expect_err("invalid asset-dir must fail");
+        assert!(
+            error.to_string().contains(expected),
+            "expected {expected:?}, got {error:#}"
+        );
+    }
 }
 
 struct TempDir {

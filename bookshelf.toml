@@ -16,3 +16,4 @@ preferred-dark-theme = "ayu"
 additional-js = [".mdbook/mermaid.min.js", ".mdbook/mermaid-init.js"]
 
 [bookshelf]
+asset-dir = ".mdbook/bookshelf"

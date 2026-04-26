@@ -10,10 +10,14 @@ This document explains how to write `bookshelf.toml`.
 - `[book]` is the root book
 - `[bookshelf]` is required and enables bookshelf behavior
 - `[bookshelf].entry-page` selects where `/` redirects
+- `[bookshelf].asset-dir` selects the tool-owned generated asset directory
 - `[[bookshelf.book]]` adds child books
 
 The root `[book]` and each `[[bookshelf.book]]` entry use mdBook's own
 `BookConfig` fields such as `title`, `description`, `language`, and `src`.
+Child book entries are applied as overrides on top of the root `[book]`
+configuration, then their `src` is kept as the full config-root-relative
+source path.
 
 ## Minimal Example
 
@@ -29,6 +33,7 @@ default-theme = "light"
 preferred-dark-theme = "ayu"
 
 [bookshelf]
+asset-dir = ".mdbook/bookshelf"
 
 [[bookshelf.book]]
 title = "Example Parser"
@@ -53,6 +58,10 @@ These rules are enforced when `mdbook-bookshelf` parses `bookshelf.toml`:
 - `book.src` and `bookshelf.book.src` must not contain `..`
 - `book.src` and `bookshelf.book.src` must not resolve to `.`
 - `book.src` and `bookshelf.book.src` must not name `SUMMARY.md`
+- `bookshelf.asset-dir` must not be empty
+- `bookshelf.asset-dir` must be relative to the config root
+- `bookshelf.asset-dir` must not contain `..`
+- `bookshelf.asset-dir` must name a directory below the config root
 - child book output roots must not duplicate the root book or another child
   book output root
 - child book output roots must not overlap the root book or another child book
@@ -82,6 +91,32 @@ Valid values:
   `<src>/bookshelf.html`
 
 When omitted, `entry-page` defaults to `root-book`.
+
+## Asset Directory
+
+`[bookshelf].asset-dir` configures the tool-owned source asset directory used
+by `mdbook-bookshelf`.
+
+Default:
+
+```toml
+[bookshelf]
+asset-dir = ".mdbook/bookshelf"
+```
+
+The path is relative to the directory containing `bookshelf.toml`.
+`mdbook-bookshelf` writes its runtime CSS and JavaScript there, then appends
+those files to `output.html.additional-css` and `output.html.additional-js` for
+each book. mdBook copies those files into each book output using the same
+relative path.
+
+Treat this directory as generated state. Do not put human-owned assets under
+it; use normal `output.html.additional-css` and `output.html.additional-js`
+paths for project assets.
+
+The build writes a `README.md` explaining that the directory is generated, and
+a `.gitignore` file containing `*`. That keeps generated runtime files, the
+generated README, and the generated `.gitignore` itself out of version control.
 
 Output root conflict terms:
 
@@ -119,16 +154,14 @@ resolved from the bookshelf config root, the directory containing
 `bookshelf.toml`. They are not resolved from each child book's `src`
 directory.
 
-Before building a child book whose book root differs from the config root,
-`mdbook-bookshelf` stages those configured CSS and JavaScript files under that
-child book root in `bookshelf-config-assets/`. The generated child book output
-then references the emitted `bookshelf-config-assets/...` copies.
+Every book now uses the bookshelf config root as its mdBook root, and differs
+only by `book.src`. That means shared relative mdBook output settings can stay
+relative to the config root for every book. There is no
+`bookshelf-config-assets/` staging directory.
 
-`output.html.input-404` is different: mdBook treats a relative value as an
-input page under a single book root. When a shared relative `input-404` would be
-reused for a book with a different root, the build is rejected. Set
-`input-404 = ""` to disable custom 404 generation for multi-book builds that
-cannot share one input page.
+`output.html.input-404` remains stock mdBook behavior: a relative value is
+resolved by mdBook for the active book during rendering. Set `input-404 = ""`
+to disable custom 404 generation.
 
 ## Descriptions
 
@@ -142,6 +175,7 @@ Descriptions are optional, but they are the text shown on the generated
 - root-book route slugs
 - separate site roots
 - temporary build staging directories
+- breadcrumb UI
 - duplicated child-book summaries inside the root book
 
 Keep the config human-owned and close to stock mdBook.

@@ -22,11 +22,11 @@ At a high level the build works like this:
 2. build an input catalog from the root book and child books
 3. load each book's canonical `SUMMARY.md`
 4. inject the synthetic root `Bookshelf` page into the root book
-5. stage temporary UI assets for the header return button, breadcrumbs, and
-   search override
-6. build each book with mdBook's HTML renderer into its canonical output root
-7. merge per-book search indexes into one shared site-wide search index
-8. write the site-root redirect to the configured entry page
+5. generate stable bookshelf runtime assets under `[bookshelf].asset-dir`
+6. inject per-page bookshelf runtime metadata with an mdBook preprocessor
+7. build each book with mdBook's HTML renderer into its canonical output root
+8. merge per-book search indexes into one shared site-wide search index
+9. write the site-root redirect to the configured entry page
 
 The serve path builds first, then serves the output directory as static files.
 
@@ -36,12 +36,14 @@ flowchart TD
     Config --> SharedConfig["shared mdBook config"]
     SharedConfig --> Plugins["configured preprocessors"]
     SharedConfig --> Assets["configured HTML assets"]
+    SharedConfig --> RuntimeAssets["bookshelf asset-dir"]
     Catalog --> RootBook["root book"]
     Catalog --> ChildBooks["child books"]
     RootBook --> MdBook["mdBook load and build"]
     ChildBooks --> MdBook
     Plugins --> MdBook
     Assets --> MdBook
+    RuntimeAssets --> MdBook
     MdBook --> BookOutputs["per-book HTML outputs"]
     BookOutputs --> Search["site-wide search index"]
     BookOutputs --> Redirect["site-root redirect"]
@@ -55,8 +57,8 @@ flowchart TD
 - `catalog.rs` builds the canonical book catalog and output roots
 - `build.rs` orchestrates the full site build
 - `root_bookshelf_preprocessor.rs` injects the synthetic root `Bookshelf` page
-- `bookshelf_ui.rs` stages the runtime UI assets for return button,
-  breadcrumbs, and search override
+- `bookshelf_ui.rs` writes the runtime assets for the return button and search
+  override, and injects page metadata
 - `search.rs` composes the shared search index and localized wrappers
 - `serve.rs` builds and serves the generated site
 - `tests/` holds config, navigation, build, and serve coverage
@@ -71,7 +73,8 @@ Changes should preserve these properties:
 - the `Bookshelf` page stays synthetic
 - authored page routes stay source-derived
 - duplicate and overlapping canonical output roots stay invalid
-- sidebars, breadcrumbs, and previous/next stay scoped to the active book
+- sidebars and previous/next stay scoped to the active book
+- bookshelf-owned generated source assets stay under `[bookshelf].asset-dir`
 
 Current reserved behavior that matters during implementation:
 
@@ -91,6 +94,10 @@ The implementation intentionally leans on stock mdBook concepts:
 
 When possible, extend this model instead of inventing parallel authoring
 systems.
+
+Bookshelf should not absorb unrelated mdBook extensions. Features such as
+Mermaid diagrams belong in standalone preprocessors like `mdbook-mermaid`, then
+bookshelf can run those preprocessors through normal mdBook configuration.
 
 ## Verification
 

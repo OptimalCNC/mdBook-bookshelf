@@ -9,6 +9,7 @@ pub struct InputCatalog {
     pub config_dir: PathBuf,
     pub mdbook_config: Config,
     pub entry_page: BookshelfEntryPage,
+    pub asset_dir: PathBuf,
     pub books: Vec<InputBook>,
 }
 
@@ -55,7 +56,6 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
         &config.config_dir,
         &path_to_book_key(&root_output_rel),
         root_output_rel,
-        PathBuf::from("."),
         &config.mdbook_config.book,
         true,
     )?);
@@ -65,7 +65,6 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
             &config.config_dir,
             &path_to_book_key(&book.source_rel),
             book.source_rel.clone(),
-            book_root_from_source_rel(&book.source_rel),
             &book.book,
             false,
         )?);
@@ -81,6 +80,7 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
         config_dir: config.config_dir.clone(),
         mdbook_config: config.mdbook_config.clone(),
         entry_page: config.entry_page,
+        asset_dir: config.asset_dir.clone(),
         books,
     })
 }
@@ -89,12 +89,12 @@ fn build_catalog_book(
     config_dir: &Path,
     id: &str,
     output_rel: PathBuf,
-    book_root_rel: PathBuf,
     book_config: &BookConfig,
     is_root_book: bool,
 ) -> Result<InputBook> {
     let book_src_rel = book_config.src.clone();
-    let book_root_abs = join_rel_dir(config_dir, &book_root_rel);
+    let book_root_rel = PathBuf::from(".");
+    let book_root_abs = config_dir.to_path_buf();
     let book_src_abs = book_root_abs.join(&book_src_rel);
     let summary_abs = book_src_abs.join("SUMMARY.md");
     let summary_rel = book_src_rel.join("SUMMARY.md");
@@ -132,21 +132,6 @@ fn build_catalog_book(
         summary_abs,
         is_root_book,
     })
-}
-
-fn join_rel_dir(base: &Path, rel: &Path) -> PathBuf {
-    if rel == Path::new(".") {
-        base.to_path_buf()
-    } else {
-        base.join(rel)
-    }
-}
-
-fn book_root_from_source_rel(source_rel: &Path) -> PathBuf {
-    source_rel
-        .parent()
-        .map(Path::to_path_buf)
-        .unwrap_or_else(|| PathBuf::from("."))
 }
 
 fn path_to_book_key(path: &Path) -> String {

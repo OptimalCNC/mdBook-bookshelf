@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Error, Result};
 use clap::Command;
 use std::process::ExitCode;
 
@@ -8,9 +8,23 @@ fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
-            eprintln!("command failed: {err}");
+            print_error_chain(&err);
             ExitCode::from(1)
         }
+    }
+}
+
+fn print_error_chain(err: &Error) {
+    eprintln!("error: {err}");
+
+    let mut causes = err.chain().skip(1).peekable();
+    if causes.peek().is_none() {
+        return;
+    }
+
+    eprintln!("Caused by:");
+    for (index, cause) in causes.enumerate() {
+        eprintln!("  {}. {cause}", index + 1);
     }
 }
 

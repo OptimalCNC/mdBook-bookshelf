@@ -15,6 +15,9 @@ preferred-dark-theme = "ayu"
 ParserRoot = "/modules/parser/docs"
 UiRoot = "/modules/ui/docs"
 
+[bookshelf]
+asset-dir = ".mdbook/bookshelf"
+
 [[bookshelf.book]]
 title = "Example Parser"
 description = "Parser-specific reference pages with their own reading order."

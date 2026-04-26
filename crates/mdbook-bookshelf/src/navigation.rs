@@ -14,7 +14,6 @@ pub struct PageNavigation {
     pub owning_book_id: String,
     pub prev_page_id: Option<String>,
     pub next_page_id: Option<String>,
-    pub breadcrumb: Option<String>,
     pub active_book_id: String,
 }
 
@@ -54,7 +53,6 @@ pub fn build_navigation_metadata(site_model: &SiteModel) -> Result<NavigationMet
             owning_book_id: synthetic.owning_book_id.clone(),
             prev_page_id: None,
             next_page_id: None,
-            breadcrumb: None,
             active_book_id: site_model.root_book_id.clone(),
         },
     );
@@ -94,8 +92,6 @@ pub fn build_navigation_metadata(site_model: &SiteModel) -> Result<NavigationMet
             } else {
                 Some(book.page_ids_in_order[idx + 1].clone())
             };
-            let breadcrumb = format!("{} / {}", book.title, page.title);
-
             by_page_id.insert(
                 page.page_id.clone(),
                 PageNavigation {
@@ -103,7 +99,6 @@ pub fn build_navigation_metadata(site_model: &SiteModel) -> Result<NavigationMet
                     owning_book_id: page.owning_book_id.clone(),
                     prev_page_id,
                     next_page_id,
-                    breadcrumb: Some(breadcrumb),
                     active_book_id: book.book_id.clone(),
                 },
             );

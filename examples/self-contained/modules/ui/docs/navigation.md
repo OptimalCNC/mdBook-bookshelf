@@ -1,5 +1,5 @@
 # Navigation
 
-Navigation verifies that the UI book owns its own sidebar and breadcrumbs.
+Navigation verifies that the UI book owns its own sidebar and previous/next links.
 
 Return to the generated [site root](/).
