@@ -898,7 +898,7 @@ fn build_cli_smoke_builds_public_self_contained_example_from_default_config_path
 }
 
 #[test]
-fn build_cli_prints_relative_layout_paths() {
+fn build_cli_prints_concise_relative_progress() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
     let fixture_root = copy_bookshelf_ui_site_fixture(&repo_root, "build-cli-layout-log");
@@ -923,28 +923,57 @@ fn build_cli_prints_relative_layout_paths() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert_text_contains(&stderr, "Build");
     assert_text_contains(&stderr, "  config: bookshelf.toml");
-    assert_text_contains(&stderr, "Loading bookshelf config and source catalog...");
-    assert_text_contains(&stderr, "Catalog contains 3 books.");
-    assert_text_contains(&stderr, "Bookshelf");
     assert_text_contains(&stderr, "  root: .");
     assert_text_contains(&stderr, "  output: .site-log");
-    assert_text_contains(&stderr, "  sources:");
-    assert_text_contains(&stderr, "    \"Fixture Core\": docs");
-    assert_text_contains(&stderr, "    \"Fixture Parser\": modules/parser/docs");
-    assert_text_contains(&stderr, "    \"Fixture UI\": modules/ui/docs");
-    assert_text_contains(&stderr, "Preparing bookshelf link metadata...");
-    assert_text_contains(
-        &stderr,
-        "[1/3] mapping site-root links for \"Fixture Core\": docs",
-    );
-    assert_text_contains(&stderr, "Building 3 books with mdBook...");
-    assert_text_contains(&stderr, "[1/3] building \"Fixture Core\": docs");
-    assert_text_contains(&stderr, "Writing shared search index...");
-    assert_text_contains(&stderr, "Writing site-root redirect...");
-    assert_text_contains(&stderr, "Finished bookshelf site: .site-log");
+    assert_text_contains(&stderr, "  books: 3");
+    assert_text_contains(&stderr, "[1/3] Fixture Core: docs");
+    assert_text_contains(&stderr, "[2/3] Fixture Parser: modules/parser/docs");
+    assert_text_contains(&stderr, "[3/3] Fixture UI: modules/ui/docs");
+    assert_text_contains(&stderr, "search index:");
+    assert_text_contains(&stderr, "Finished: .site-log");
+    assert_text_not_contains(&stderr, "Loading bookshelf config and source catalog...");
+    assert_text_not_contains(&stderr, "Catalog contains 3 books.");
+    assert_text_not_contains(&stderr, "sources:");
+    assert_text_not_contains(&stderr, "Preparing bookshelf link metadata...");
+    assert_text_not_contains(&stderr, "mapping site-root links");
+    assert_text_not_contains(&stderr, "Building 3 books with mdBook...");
+    assert_text_not_contains(&stderr, "Writing site-root redirect...");
     assert_text_not_contains(&stderr, ".site-log/modules/parser/docs");
 
     fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
+}
+
+#[test]
+fn build_cli_prints_absolute_output_path_outside_current_directory() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let fixture_root = copy_bookshelf_ui_site_fixture(&repo_root, "build-cli-outside-cwd");
+    let output_dir = make_temp_dir("build-cli-outside-cwd-output", &repo_root);
+    let output_display = output_dir.to_string_lossy().replace('\\', "/");
+
+    let output = Command::new(&bin)
+        .current_dir(&fixture_root)
+        .arg("build")
+        .arg("--dest-dir")
+        .arg(&output_dir)
+        .output()
+        .expect("build command should run");
+
+    if !output.status.success() {
+        panic!(
+            "build command failed\nstdout:\n{}\nstderr:\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_text_contains(&stderr, &format!("  output: {output_display}"));
+    assert_text_contains(&stderr, &format!("Finished: {output_display}"));
+    assert_text_not_contains(&stderr, "../build-cli-outside-cwd-output");
+
+    fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
 }
 
 #[test]

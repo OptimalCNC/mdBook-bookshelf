@@ -99,10 +99,11 @@ During `serve`, the build uses mdBook's live-reload endpoint and the process
 polls for changes once per second. A detected change triggers a rebuild and
 sends a reload message to connected pages.
 
-`serve` prints the same build progress before binding HTTP. It prints
+`serve` prints the same concise build progress before binding HTTP. It prints
 `Serving on:` after the HTTP listener is bound, then starts the watcher and
-prints `Watching for changes...`. Rebuilds triggered by the watcher also print
-progress and report the full error cause chain when they fail.
+prints `Watching for changes...`. Rebuilds triggered by the watcher print the
+changed-path summary and rebuild duration. Failed rebuilds still report the
+full error cause chain.
 
 CLI failures are printed as an error followed by its `Caused by:` chain when
 lower-level context is available. For authoring failures, the chain usually

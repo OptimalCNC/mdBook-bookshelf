@@ -1,5 +1,6 @@
-use crate::build::{build_bookshelf_site_with_options, BuildOptions};
+use crate::build::{build_bookshelf_site_with_options, format_duration, BuildOptions};
 use crate::catalog::{build_input_catalog, InputCatalog};
+use crate::route_paths::{path_to_string, relative_path};
 use anyhow::{bail, Context, Result};
 use axum::{
     extract::ws::{Message, WebSocket, WebSocketUpgrade},
@@ -30,7 +31,7 @@ pub struct ServeOptions {
 
 pub fn serve_bookshelf(options: ServeOptions) -> Result<()> {
     let site_root =
-        build_bookshelf_site_for_serve(&options.config_path, options.dest_dir.clone(), true)
+        build_bookshelf_site_for_serve(&options.config_path, options.dest_dir.clone(), true, true)
             .with_context(|| {
                 format!(
                     "failed to build bookshelf site before serving {}",
@@ -57,9 +58,12 @@ fn build_bookshelf_site_for_serve(
     config_path: &Path,
     dest_dir: Option<PathBuf>,
     log_layout: bool,
+    log_progress: bool,
 ) -> Result<PathBuf> {
-    let mut options =
-        BuildOptions::with_live_reload_endpoint(LIVE_RELOAD_ENDPOINT).with_progress_logging();
+    let mut options = BuildOptions::with_live_reload_endpoint(LIVE_RELOAD_ENDPOINT);
+    if log_progress {
+        options = options.with_progress_logging();
+    }
     if log_layout {
         options = options.with_layout_logging();
     }
@@ -216,9 +220,13 @@ fn watch_for_rebuilds(
             continue;
         }
 
-        eprintln!("Files changed: {changed_paths:?}");
+        eprintln!(
+            "Change detected: {}",
+            summarize_changed_paths(&changed_paths)
+        );
 
-        match build_bookshelf_site_for_serve(&config_path, dest_dir.clone(), false) {
+        let rebuild_started = std::time::Instant::now();
+        match build_bookshelf_site_for_serve(&config_path, dest_dir.clone(), false, false) {
             Ok(_) => {
                 if let Err(err) = watcher.set_roots_from_config(&config_path) {
                     log_error_chain(
@@ -233,12 +241,36 @@ fn watch_for_rebuilds(
                 }
 
                 let _ = reload_tx.send("reload".to_string());
+                eprintln!("Rebuilt in {}.", format_duration(rebuild_started.elapsed()));
             }
             Err(err) => {
                 log_error_chain("failed to rebuild bookshelf site after change", &err);
             }
         }
     }
+}
+
+fn summarize_changed_paths(changed_paths: &[PathBuf]) -> String {
+    let mut paths = changed_paths.to_vec();
+    paths.sort();
+
+    let Some(first_path) = paths.first() else {
+        return "unknown input".to_string();
+    };
+    let first_path = format_watch_path(first_path);
+
+    match paths.len() {
+        1 => first_path,
+        count => format!("{count} files; first: {first_path}"),
+    }
+}
+
+fn format_watch_path(path: &Path) -> String {
+    let Ok(cwd) = std::env::current_dir() else {
+        return path.display().to_string();
+    };
+
+    path_to_string(&relative_path(&cwd, path))
 }
 
 fn log_error_chain(prefix: &str, err: &anyhow::Error) {

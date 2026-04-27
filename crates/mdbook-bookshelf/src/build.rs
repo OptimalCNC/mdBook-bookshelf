@@ -81,28 +81,18 @@ pub(crate) fn build_bookshelf_site_with_options(
     let build_started = Instant::now();
 
     progress.start(config_path);
-    progress.step("Loading bookshelf config and source catalog...");
     let catalog = absolutize_catalog_paths(build_input_catalog(config_path)?)
         .context("failed to resolve bookshelf catalog paths")?;
-    progress.step_done(format!(
-        "Catalog contains {} book{}.",
-        catalog.books.len(),
-        plural_suffix(catalog.books.len())
-    ));
 
     let mut mdbook_config = catalog.mdbook_config.clone();
     options.apply_to_config(&mut mdbook_config)?;
     let site_dest_dir = resolve_site_dest_dir(&catalog.config_dir, &mdbook_config, dest_dir)?;
     if options.log_layout {
-        log_bookshelf_layout(&catalog, &site_dest_dir)?;
+        progress.summary(&catalog, &site_dest_dir);
     }
 
     let config_root = catalog.config_dir.clone();
-    progress.step("Preparing bookshelf link metadata...");
-    let site_root_link_map =
-        SiteRootLinkMap::from_catalog_with_progress(&catalog, |index, total, book| {
-            progress.book_started("mapping site-root links for", index, total, book);
-        })
+    let site_root_link_map = SiteRootLinkMap::from_catalog_with_progress(&catalog, |_, _, _| {})
         .context("failed to build site-root Markdown link map")?;
     let root_bookshelf_rel = PathBuf::from(site_root_bookshelf_entry_path(
         &catalog
@@ -110,18 +100,11 @@ pub(crate) fn build_bookshelf_site_with_options(
             .context("failed to resolve root book for synthetic bookshelf routing")?
             .output_rel,
     ));
-    progress.step_done("Prepared bookshelf metadata.");
     let bookshelf_assets = BookshelfAssets::new(&config_root, &catalog.asset_dir);
 
     let total_books = catalog.books.len();
-    progress.step(format!(
-        "Building {} book{} with mdBook...",
-        total_books,
-        plural_suffix(total_books)
-    ));
     for (index, book) in catalog.books.iter().enumerate() {
         let book_started = Instant::now();
-        progress.book_started("building", index + 1, total_books, book);
         build_catalog_book(
             book,
             &catalog,
@@ -141,19 +124,14 @@ pub(crate) fn build_bookshelf_site_with_options(
                 book.book_src_abs.display()
             )
         })?;
-        progress.book_done(index + 1, total_books, book_started.elapsed());
+        progress.book_finished(index + 1, total_books, book, book_started.elapsed());
     }
 
-    progress.step("Writing shared search index...");
     let search_started = Instant::now();
     write_site_wide_search_index(&catalog, &site_dest_dir)
         .context("failed to write bookshelf shared search output")?;
-    progress.step_done(format!(
-        "Wrote shared search index in {}.",
-        format_duration(search_started.elapsed())
-    ));
+    progress.search_index_written(search_started.elapsed());
 
-    progress.step("Writing site-root redirect...");
     write_site_root_index(&catalog, &mdbook_config, &site_dest_dir)
         .context("failed to write bookshelf site-root redirect")?;
     progress.finish(&site_dest_dir, build_started.elapsed());
@@ -353,33 +331,6 @@ fn make_absolute(base: &Path, path: PathBuf) -> PathBuf {
     }
 }
 
-fn log_bookshelf_layout(catalog: &InputCatalog, site_dest_dir: &Path) -> Result<()> {
-    let cwd = std::env::current_dir().context("failed to determine current working directory")?;
-    let style = LogStyle::stderr();
-
-    eprintln!("{}", style.heading("Bookshelf"));
-    eprintln!(
-        "  {} {}",
-        style.label("root:"),
-        log_path(&catalog.config_dir, &cwd),
-    );
-    eprintln!(
-        "  {} {}",
-        style.label("output:"),
-        log_path(site_dest_dir, &cwd)
-    );
-    eprintln!("  {}", style.label("sources:"));
-    for book in &catalog.books {
-        eprintln!(
-            "    {}: {}",
-            style.source_title(&book.title, book.is_root_book),
-            log_path(&book.book_src_abs, &cwd),
-        );
-    }
-
-    Ok(())
-}
-
 struct BuildProgress {
     enabled: bool,
     style: LogStyle,
@@ -408,38 +359,47 @@ impl BuildProgress {
         );
     }
 
-    fn step(&self, message: impl AsRef<str>) {
-        if self.enabled {
-            eprintln!("  {}", message.as_ref());
-        }
-    }
-
-    fn step_done(&self, message: impl AsRef<str>) {
-        if self.enabled {
-            eprintln!("  {}", self.style.success(message.as_ref()));
-        }
-    }
-
-    fn book_started(&self, verb: &str, index: usize, total: usize, book: &InputBook) {
+    fn summary(&self, catalog: &InputCatalog, site_dest_dir: &Path) {
         if !self.enabled {
             return;
         }
 
         eprintln!(
-            "    [{index}/{total}] {verb} {}: {}",
+            "  {} {}",
+            self.style.label("root:"),
+            self.format_path(&catalog.config_dir)
+        );
+        eprintln!(
+            "  {} {}",
+            self.style.label("output:"),
+            self.format_output_path(site_dest_dir)
+        );
+        eprintln!("  {} {}", self.style.label("books:"), catalog.books.len());
+    }
+
+    fn book_finished(&self, index: usize, total: usize, book: &InputBook, elapsed: Duration) {
+        if !self.enabled {
+            return;
+        }
+
+        eprintln!(
+            "  [{index}/{total}] {}: {} ({})",
             self.style.source_title(&book.title, book.is_root_book),
-            self.format_path(&book.book_src_abs)
+            self.format_path(&book.book_src_abs),
+            format_duration(elapsed)
         );
     }
 
-    fn book_done(&self, index: usize, total: usize, elapsed: Duration) {
-        if self.enabled {
-            eprintln!(
-                "    [{index}/{total}] {}",
-                self.style
-                    .success(&format!("finished in {}", format_duration(elapsed)))
-            );
+    fn search_index_written(&self, elapsed: Duration) {
+        if !self.enabled {
+            return;
         }
+
+        eprintln!(
+            "  {} {}",
+            self.style.label("search index:"),
+            format_duration(elapsed)
+        );
     }
 
     fn finish(&self, site_dest_dir: &Path, elapsed: Duration) {
@@ -449,8 +409,8 @@ impl BuildProgress {
 
         eprintln!(
             "  {} {} ({})",
-            self.style.success("Finished bookshelf site:"),
-            self.format_path(site_dest_dir),
+            self.style.success("Finished:"),
+            self.format_output_path(site_dest_dir),
             format_duration(elapsed)
         );
     }
@@ -464,6 +424,23 @@ impl BuildProgress {
             .as_ref()
             .map(|cwd| log_path(path, cwd))
             .unwrap_or_else(|| path.display().to_string())
+    }
+
+    fn format_output_path(&self, path: &Path) -> String {
+        if !path.is_absolute() {
+            return path_to_string(path);
+        }
+
+        let Some(cwd) = &self.cwd else {
+            return path.display().to_string();
+        };
+        let path = normalize_log_path(path);
+        let cwd = normalize_log_path(cwd);
+
+        match path.strip_prefix(&cwd) {
+            Ok(relative) => path_to_string(relative),
+            Err(_) => path_to_string(&path),
+        }
     }
 }
 
@@ -487,11 +464,10 @@ impl LogStyle {
     }
 
     fn source_title(&self, title: &str, is_root_book: bool) -> String {
-        let quoted = format!("{title:?}");
         if is_root_book {
-            self.paint("1;32", &quoted)
+            self.paint("1;32", title)
         } else {
-            self.paint("36", &quoted)
+            self.paint("36", title)
         }
     }
 
@@ -512,15 +488,23 @@ fn log_path(path: &Path, cwd: &Path) -> String {
     path_to_string(&relative_path(cwd, path))
 }
 
-fn plural_suffix(count: usize) -> &'static str {
-    if count == 1 {
-        ""
-    } else {
-        "s"
+fn normalize_log_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+
+    for component in path.components() {
+        match component {
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            component => normalized.push(component.as_os_str()),
+        }
     }
+
+    normalized
 }
 
-fn format_duration(duration: Duration) -> String {
+pub(crate) fn format_duration(duration: Duration) -> String {
     let millis = duration.as_millis();
     if millis < 1_000 {
         return format!("{millis}ms");

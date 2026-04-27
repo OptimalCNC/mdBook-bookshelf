@@ -41,21 +41,22 @@ fn serve_cli_serves_bookshelf_ui_fixture_site() {
     let mut stderr_log = String::new();
     let server_address = wait_for_serving_address(&mut child, &stderr_lines, &mut stderr_log);
     assert_text_contains(&stderr_log, "Build");
+    assert_text_contains(&stderr_log, "root: tests/fixtures/bookshelf-ui-site");
+    assert_text_contains(&stderr_log, "output: .tmp/chunk-016-serve");
+    assert_text_contains(&stderr_log, "books: 3");
     assert_text_contains(
+        &stderr_log,
+        "[1/3] Fixture Core: tests/fixtures/bookshelf-ui-site/docs",
+    );
+    assert_text_contains(&stderr_log, "search index:");
+    assert_text_contains(&stderr_log, "Finished:");
+    assert_text_not_contains(
         &stderr_log,
         "Loading bookshelf config and source catalog...",
     );
-    assert_text_contains(&stderr_log, "Preparing bookshelf link metadata...");
-    assert_text_contains(&stderr_log, "Building 3 books with mdBook...");
-    assert_text_contains(&stderr_log, "Finished bookshelf site:");
-    assert_text_contains(&stderr_log, "Bookshelf");
-    assert_text_contains(&stderr_log, "root: tests/fixtures/bookshelf-ui-site");
-    assert_text_contains(&stderr_log, "output: .tmp/chunk-016-serve");
-    assert_text_contains(&stderr_log, "sources:");
-    assert_text_contains(
-        &stderr_log,
-        "\"Fixture Core\": tests/fixtures/bookshelf-ui-site/docs",
-    );
+    assert_text_not_contains(&stderr_log, "Preparing bookshelf link metadata...");
+    assert_text_not_contains(&stderr_log, "Building 3 books with mdBook...");
+    assert_text_not_contains(&stderr_log, "sources:");
     assert_text_not_contains(&stderr_log, ".tmp/chunk-016-serve/modules/parser/docs");
 
     let root_response = wait_for_response(
@@ -341,6 +342,14 @@ fn serve_cli_rebuilds_changed_source_and_serves_live_reload_output() {
         &marker,
     );
     assert_status_ok(&updated_response);
+    wait_for_stderr_contains(&mut child, &stderr_lines, &mut stderr_log, "Rebuilt in");
+    assert_text_contains(&stderr_log, "Change detected:");
+    assert_text_not_contains(&stderr_log, "Files changed:");
+    assert_eq!(
+        stderr_log.matches("Build").count(),
+        1,
+        "serve rebuilds should avoid replaying full build progress\nstderr:\n{stderr_log}"
+    );
 
     shutdown_child(&mut child);
     fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
