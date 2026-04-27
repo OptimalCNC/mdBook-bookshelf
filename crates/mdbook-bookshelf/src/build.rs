@@ -10,6 +10,7 @@ use crate::route_paths::{path_to_string, relative_path};
 use crate::search::{write_site_wide_search_index, LOCAL_SHARED_SEARCH_INDEX_NAME};
 use crate::site_root_link_preprocessor::{SiteRootLinkMap, SiteRootLinkPreprocessor};
 use anyhow::{Context, Result};
+use mdbook_driver::book::Book;
 use mdbook_driver::config::Config;
 use mdbook_summary::parse_summary;
 use std::fs;
@@ -105,7 +106,7 @@ pub(crate) fn build_bookshelf_site_with_options(
     let total_books = catalog.books.len();
     for (index, book) in catalog.books.iter().enumerate() {
         let book_started = Instant::now();
-        build_catalog_book(
+        let page_count = build_catalog_book(
             book,
             &catalog,
             &mdbook_config,
@@ -124,7 +125,13 @@ pub(crate) fn build_bookshelf_site_with_options(
                 book.book_src_abs.display()
             )
         })?;
-        progress.book_finished(index + 1, total_books, book, book_started.elapsed());
+        progress.book_finished(
+            index + 1,
+            total_books,
+            book,
+            book_started.elapsed(),
+            page_count,
+        );
     }
 
     let search_started = Instant::now();
@@ -148,7 +155,7 @@ fn build_catalog_book(
     root_bookshelf_rel: &Path,
     site_root_link_map: &SiteRootLinkMap,
     bookshelf_assets: &BookshelfAssets,
-) -> Result<()> {
+) -> Result<usize> {
     let summary_text = fs::read_to_string(&book.summary_abs).with_context(|| {
         format!(
             "book '{}' failed to read canonical summary at {}",
@@ -208,6 +215,7 @@ fn build_catalog_book(
             )
         })?;
     }
+    let page_count = count_book_pages(&mdbook.book);
 
     mdbook.with_preprocessor(SiteRootLinkPreprocessor::new(
         book.output_rel.clone(),
@@ -237,7 +245,11 @@ fn build_catalog_book(
         })?;
     }
 
-    Ok(())
+    Ok(page_count)
+}
+
+fn count_book_pages(book: &Book) -> usize {
+    book.chapters().count()
 }
 
 fn patch_root_bookshelf_toc_index_alias(book_output_dir: &Path) -> Result<()> {
@@ -377,16 +389,24 @@ impl BuildProgress {
         eprintln!("  {} {}", self.style.label("books:"), catalog.books.len());
     }
 
-    fn book_finished(&self, index: usize, total: usize, book: &InputBook, elapsed: Duration) {
+    fn book_finished(
+        &self,
+        index: usize,
+        total: usize,
+        book: &InputBook,
+        elapsed: Duration,
+        page_count: usize,
+    ) {
         if !self.enabled {
             return;
         }
 
         eprintln!(
-            "  [{index}/{total}] {}: {} ({})",
+            "  [{index}/{total}] {}: {} ({}, {})",
             self.style.source_title(&book.title, book.is_root_book),
             self.format_path(&book.book_src_abs),
-            format_duration(elapsed)
+            format_duration(elapsed),
+            format_page_count(page_count)
         );
     }
 
@@ -515,6 +535,13 @@ pub(crate) fn format_duration(duration: Duration) -> String {
         format!("{seconds:.1}s")
     } else {
         format!("{}s", duration.as_secs())
+    }
+}
+
+fn format_page_count(page_count: usize) -> String {
+    match page_count {
+        1 => "1 page".to_string(),
+        count => format!("{count} pages"),
     }
 }
 

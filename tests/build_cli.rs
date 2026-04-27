@@ -929,6 +929,21 @@ fn build_cli_prints_concise_relative_progress() {
     assert_text_contains(&stderr, "[1/3] Fixture Core: docs");
     assert_text_contains(&stderr, "[2/3] Fixture Parser: modules/parser/docs");
     assert_text_contains(&stderr, "[3/3] Fixture UI: modules/ui/docs");
+    let core_line = stderr
+        .lines()
+        .find(|line| line.contains("[1/3] Fixture Core: docs"))
+        .expect("core progress line should be present");
+    let parser_line = stderr
+        .lines()
+        .find(|line| line.contains("[2/3] Fixture Parser: modules/parser/docs"))
+        .expect("parser progress line should be present");
+    let ui_line = stderr
+        .lines()
+        .find(|line| line.contains("[3/3] Fixture UI: modules/ui/docs"))
+        .expect("ui progress line should be present");
+    assert_text_contains(core_line, ", 4 pages)");
+    assert_text_contains(parser_line, ", 3 pages)");
+    assert_text_contains(ui_line, ", 3 pages)");
     assert_text_contains(&stderr, "search index:");
     assert_text_contains(&stderr, "Finished: .site-log");
     assert_text_not_contains(&stderr, "Loading bookshelf config and source catalog...");
