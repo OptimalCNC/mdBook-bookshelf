@@ -85,10 +85,7 @@ fn serve_cli_serves_bookshelf_ui_fixture_site() {
     );
     assert_status_ok(&shelf_response);
     assert_text_contains(response_body(&shelf_response), "<h1 id=\"bookshelf\">");
-    assert_text_contains(
-        response_body(&shelf_response),
-        "Choose a book to enter its root page.",
-    );
+    assert_text_contains(response_body(&shelf_response), "class=\"bookshelf-list\"");
 
     let parser_response = wait_for_response(
         &mut child,

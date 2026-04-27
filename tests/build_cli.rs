@@ -604,12 +604,11 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_asset_dir() {
         "window.location.replace(\"docs/index.html\")",
     );
     assert_text_contains(&root_entry_html, "href=\"docs/index.html\"");
-    assert_text_not_contains(&root_entry_html, "bookshelf-card__link");
+    assert_text_not_contains(&root_entry_html, "bookshelf-list");
     assert_text_not_contains(&root_entry_html, "Fixture Core");
 
     let bookshelf_html = assert_read_to_string(output_dir.join("docs/bookshelf.html"));
     assert_text_contains(&bookshelf_html, "<h1 id=\"bookshelf\">");
-    assert_text_contains(&bookshelf_html, "Choose a book to enter its root page.");
     assert_text_contains(&bookshelf_html, "Fixture Core");
     assert_text_contains(
         &bookshelf_html,
@@ -625,14 +624,22 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_asset_dir() {
         &bookshelf_html,
         "Interface and runtime guides for the UI book.",
     );
-    assert_text_contains(&bookshelf_html, "href=\"index.html\">Fixture Core</a>");
+    assert_text_contains(&bookshelf_html, "class=\"bookshelf-list\"");
     assert_text_contains(
         &bookshelf_html,
-        "href=\"../modules/parser/docs/index.html\">Fixture Parser</a>",
+        "<a class=\"bookshelf-book\" href=\"index.html\">",
     );
     assert_text_contains(
         &bookshelf_html,
-        "href=\"../modules/ui/docs/index.html\">Fixture UI</a>",
+        "<span class=\"bookshelf-book-title\">Fixture Core</span>",
+    );
+    assert_text_contains(
+        &bookshelf_html,
+        "<a class=\"bookshelf-book\" href=\"../modules/parser/docs/index.html\">",
+    );
+    assert_text_contains(
+        &bookshelf_html,
+        "<a class=\"bookshelf-book\" href=\"../modules/ui/docs/index.html\">",
     );
     assert_text_not_contains(&bookshelf_html, "href=\"bookshelf.html\">Fixture Core</a>");
 
@@ -724,14 +731,19 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_asset_dir() {
     assert_file_contains(root_return_script.clone(), "readBookshelfPageMetadata");
     assert_file_contains(
         root_return_script.clone(),
-        "link.textContent = \"Bookshelf\";",
+        "label.textContent = \"Bookshelf\";",
+    );
+    assert_file_contains(
+        root_return_script.clone(),
+        "document.createElementNS(svgNamespace, \"svg\")",
     );
     assert_file_contains(
         root_return_script.clone(),
         "document.querySelector(\"#mdbook-menu-bar .right-buttons\")",
     );
     assert_file_contains(root_return_script, "metadata.bookshelfTarget");
-    assert_file_contains(root_return_css, ".bookshelf-return-link");
+    assert_file_contains(root_return_css.clone(), ".bookshelf-return-link");
+    assert_file_contains(root_return_css, ".bookshelf-list");
     assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.js");
     assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.css");
     assert_exists(output_dir.join("modules/parser/docs/index.html"));
@@ -1620,15 +1632,22 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
 
     let bookshelf_html = assert_read_to_string(output_dir.join("docs/bookshelf.html"));
     assert_text_contains(&bookshelf_html, "<h1 id=\"bookshelf\">");
-    assert_text_contains(&bookshelf_html, "Choose a book to enter its root page.");
-    assert_text_contains(&bookshelf_html, "href=\"index.html\">MetaNC</a>");
+    assert_text_contains(&bookshelf_html, "class=\"bookshelf-list\"");
     assert_text_contains(
         &bookshelf_html,
-        "href=\"../modules/gcode-parser/docs/index.html\">G-code Parser</a>",
+        "<span class=\"bookshelf-book-title\">MetaNC</span>",
     );
     assert_text_contains(
         &bookshelf_html,
-        "href=\"../modules/hmi/docs/index.html\">HMI</a>",
+        "<a class=\"bookshelf-book\" href=\"index.html\">",
+    );
+    assert_text_contains(
+        &bookshelf_html,
+        "<a class=\"bookshelf-book\" href=\"../modules/gcode-parser/docs/index.html\">",
+    );
+    assert_text_contains(
+        &bookshelf_html,
+        "<a class=\"bookshelf-book\" href=\"../modules/hmi/docs/index.html\">",
     );
     assert_text_not_contains(&bookshelf_html, "href=\"bookshelf.html\">MetaNC</a>");
     assert_text_not_contains(&bookshelf_html, "data-bookshelf-breadcrumb");

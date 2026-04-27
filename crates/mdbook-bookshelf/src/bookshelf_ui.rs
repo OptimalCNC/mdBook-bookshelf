@@ -209,68 +209,211 @@ fn write_asset_file(path: &Path, contents: &str) -> Result<()> {
 }
 
 fn render_bookshelf_return_js() -> String {
-    format!(
-        "(() => {{\n\
-const metadata = readBookshelfPageMetadata();\n\
-const bookshelfTarget = typeof metadata.bookshelfTarget === \"string\" ? metadata.bookshelfTarget : \"\";\n\
-if (!bookshelfTarget) {{\n\
-    return;\n\
-}}\n\
-const buttonContainer = document.querySelector(\"#mdbook-menu-bar .right-buttons\");\n\
-if (!buttonContainer || document.getElementById(\"{link_id}\")) {{\n\
-    return;\n\
-}}\n\
-const link = document.createElement(\"a\");\n\
-link.id = \"{link_id}\";\n\
-link.className = \"{link_class}\";\n\
-link.href = bookshelfTarget;\n\
-link.rel = \"up\";\n\
-link.title = \"Return to Bookshelf\";\n\
-link.setAttribute(\"aria-label\", \"Return to Bookshelf\");\n\
-link.textContent = \"Bookshelf\";\n\
-buttonContainer.prepend(link);\n\
-\n\
-function readBookshelfPageMetadata() {{\n\
-    const node = document.getElementById(\"{metadata_id}\");\n\
-    if (!node) {{\n\
-        return {{}};\n\
-    }}\n\
-    try {{\n\
-        return JSON.parse(node.textContent || \"{{}}\");\n\
-    }} catch (_err) {{\n\
-        return {{}};\n\
-    }}\n\
-}}\n\
-}})();\n",
-        link_class = BOOKSHELF_RETURN_LINK_CLASS,
-        link_id = BOOKSHELF_RETURN_LINK_ID,
-        metadata_id = BOOKSHELF_PAGE_METADATA_ID,
-    )
+    r##"(() => {
+const metadata = readBookshelfPageMetadata();
+const bookshelfTarget = typeof metadata.bookshelfTarget === "string" ? metadata.bookshelfTarget : "";
+if (!bookshelfTarget) {
+    return;
+}
+const buttonContainer = document.querySelector("#mdbook-menu-bar .right-buttons");
+if (!buttonContainer || document.getElementById("__LINK_ID__")) {
+    return;
+}
+const svgNamespace = "http://www.w3.org/2000/svg";
+const link = document.createElement("a");
+link.id = "__LINK_ID__";
+link.className = "__LINK_CLASS__";
+link.href = bookshelfTarget;
+link.rel = "up";
+link.title = "Return to Bookshelf";
+link.setAttribute("aria-label", "Return to Bookshelf");
+
+const icon = document.createElementNS(svgNamespace, "svg");
+icon.setAttribute("class", "bookshelf-return-icon");
+icon.setAttribute("viewBox", "0 0 24 24");
+icon.setAttribute("fill", "none");
+icon.setAttribute("stroke", "currentColor");
+icon.setAttribute("stroke-width", "2");
+icon.setAttribute("stroke-linecap", "round");
+icon.setAttribute("stroke-linejoin", "round");
+icon.setAttribute("aria-hidden", "true");
+icon.setAttribute("focusable", "false");
+
+const shapes = [
+    ["rect", { x: "3", y: "4", width: "3.5", height: "14", rx: "0.5" }],
+    ["rect", { x: "8.5", y: "4", width: "3.5", height: "14", rx: "0.5" }],
+    ["rect", { x: "14", y: "4", width: "3.5", height: "14", rx: "0.5" }],
+    ["line", { x1: "2", y1: "20", x2: "22", y2: "20" }],
+];
+for (const [tag, attrs] of shapes) {
+    const node = document.createElementNS(svgNamespace, tag);
+    for (const name in attrs) {
+        node.setAttribute(name, attrs[name]);
+    }
+    icon.appendChild(node);
+}
+
+const label = document.createElement("span");
+label.className = "bookshelf-return-label";
+label.textContent = "Bookshelf";
+
+link.appendChild(icon);
+link.appendChild(label);
+buttonContainer.prepend(link);
+
+function readBookshelfPageMetadata() {
+    const node = document.getElementById("__METADATA_ID__");
+    if (!node) {
+        return {};
+    }
+    try {
+        return JSON.parse(node.textContent || "{}");
+    } catch (_err) {
+        return {};
+    }
+}
+})();
+"##
+    .replace("__LINK_CLASS__", BOOKSHELF_RETURN_LINK_CLASS)
+    .replace("__LINK_ID__", BOOKSHELF_RETURN_LINK_ID)
+    .replace("__METADATA_ID__", BOOKSHELF_PAGE_METADATA_ID)
 }
 
 fn render_bookshelf_return_css() -> String {
-    format!(
-        "#mdbook-menu-bar .right-buttons .{class_name} {{\n\
-    align-items: center;\n\
-    border: 1px solid currentColor;\n\
-    border-radius: 999px;\n\
-    color: var(--fg);\n\
-    display: inline-flex;\n\
-    font-size: 0.85em;\n\
-    font-weight: 600;\n\
-    line-height: 1;\n\
-    margin-right: 0.75rem;\n\
-    padding: 0.3rem 0.75rem;\n\
-    text-decoration: none;\n\
-    white-space: nowrap;\n\
-}}\n\
-#mdbook-menu-bar .right-buttons .{class_name}:hover,\n\
-#mdbook-menu-bar .right-buttons .{class_name}:focus-visible {{\n\
-    border-color: var(--links);\n\
-    color: var(--links);\n\
-}}\n",
-        class_name = BOOKSHELF_RETURN_LINK_CLASS,
-    )
+    r#".bookshelf-list {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
+    list-style: none;
+    margin: 1.5rem 0 0;
+    padding: 0;
+}
+
+.bookshelf-list > li {
+    margin: 0;
+    padding: 0;
+}
+
+.bookshelf-book {
+    background: var(--quote-bg, var(--sidebar-bg, var(--bg)));
+    border: 1px solid var(--table-border-color);
+    border-inline-start: 3px solid var(--links);
+    border-radius: 3px;
+    color: var(--fg);
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    height: 100%;
+    padding: 0.85rem 1rem 0.9rem 1.1rem;
+    position: relative;
+    text-decoration: none;
+    transition: border-inline-start-width 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.content .bookshelf-book:link,
+.content .bookshelf-book:visited {
+    color: var(--fg);
+}
+
+.bookshelf-book:hover,
+.bookshelf-book:focus-visible {
+    border-inline-start-width: 5px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+    text-decoration: none;
+    transform: translateY(-1px);
+}
+
+.bookshelf-book:focus-visible {
+    outline: 2px solid var(--links);
+    outline-offset: 2px;
+}
+
+.bookshelf-book-title {
+    color: var(--links);
+    font-size: 1.05em;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.bookshelf-book-description {
+    color: var(--fg);
+    font-size: 0.95em;
+    line-height: 1.4;
+    opacity: 0.78;
+}
+
+@media (max-width: 480px) {
+    .bookshelf-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bookshelf-book {
+        transition: none;
+    }
+
+    .bookshelf-book:hover,
+    .bookshelf-book:focus-visible {
+        transform: none;
+    }
+}
+
+#mdbook-menu-bar .right-buttons .__LINK_CLASS__ {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 4px;
+    color: var(--icons);
+    display: inline-flex;
+    gap: 0.4rem;
+    height: var(--menu-bar-height);
+    line-height: 1;
+    margin-right: 0.25rem;
+    padding: 0 0.5rem;
+    text-decoration: none;
+    transition: background-color 150ms ease, color 150ms ease;
+    white-space: nowrap;
+}
+
+#mdbook-menu-bar .right-buttons .__LINK_CLASS__:hover,
+#mdbook-menu-bar .right-buttons .__LINK_CLASS__:focus-visible {
+    color: var(--icons-hover);
+    text-decoration: none;
+}
+
+#mdbook-menu-bar .right-buttons .__LINK_CLASS__:focus-visible {
+    outline: 2px solid var(--icons-hover);
+    outline-offset: -2px;
+}
+
+#mdbook-menu-bar .right-buttons .bookshelf-return-icon {
+    display: block;
+    flex-shrink: 0;
+    height: 1.1em;
+    width: 1.1em;
+}
+
+#mdbook-menu-bar .right-buttons .bookshelf-return-label {
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+@media (max-width: 700px) {
+    #mdbook-menu-bar .right-buttons .bookshelf-return-label {
+        border: 0;
+        clip: rect(0 0 0 0);
+        height: 1px;
+        margin: -1px;
+        overflow: hidden;
+        padding: 0;
+        position: absolute;
+        white-space: nowrap;
+        width: 1px;
+    }
+}
+"#
+    .replace("__LINK_CLASS__", BOOKSHELF_RETURN_LINK_CLASS)
 }
 
 fn render_bookshelf_search_js() -> String {

@@ -29,11 +29,11 @@ The `Bookshelf` page is synthetic. It is generated into the root book at
 Current behavior:
 
 - the page title is `Bookshelf`
-- it lists the root book and every child book
-- each shelf item links to that book's `index.html`
+- it presents the root book and every child book as selectable book cards
+- each book card links to that book's `index.html`
 - descriptions come from `book.description` and
   `[[bookshelf.book]].description` when present
-- the root-book shelf item links to the root book's `index.html`, not back to
+- the root-book card links to the root book's `index.html`, not back to
   `bookshelf.html`
 
 The synthetic page also affects the root book sidebar:

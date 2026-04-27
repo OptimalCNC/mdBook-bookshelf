@@ -43,7 +43,7 @@ Bookshelf-owned runtime files live under `[bookshelf].asset-dir`, which
 defaults to `.mdbook/bookshelf`.
 
 These files are generated source assets, not authored docs. The build writes
-the return-button CSS, return-button JavaScript, and shared-search override
+the bookshelf UI CSS, return-button JavaScript, and shared-search override
 there, then appends those paths to mdBook's `additional-css` and
 `additional-js` lists. mdBook copies them into each book output at the same
 relative path.

@@ -50,23 +50,33 @@ fn build_root_bookshelf_chapter(catalog: &InputCatalog) -> Result<Chapter> {
 }
 
 fn render_root_bookshelf_markdown(catalog: &InputCatalog) -> Result<String> {
-    let mut markdown = String::from("# Bookshelf\n\nChoose a book to enter its root page.\n");
+    let mut markdown = String::from(
+        "# Bookshelf\n\n<div class=\"bookshelf\">\n<ul class=\"bookshelf-list\" role=\"list\">\n",
+    );
     let root_output_rel = catalog.root_book()?.output_rel.clone();
 
     for book in &catalog.books {
-        markdown.push_str("\n- [");
-        markdown.push_str(&escape_markdown_text(&book.title));
-        markdown.push_str("](<");
-        markdown.push_str(&bookshelf_book_href(book, &root_output_rel));
-        markdown.push_str(">)");
+        markdown.push_str("<li>\n<a class=\"bookshelf-book\" href=\"");
+        markdown.push_str(&escape_html_attr(&bookshelf_book_href(
+            book,
+            &root_output_rel,
+        )));
+        markdown.push_str("\">\n<span class=\"bookshelf-book-title\">");
+        markdown.push_str(&escape_html_text(&book.title));
+        markdown.push_str("</span>\n");
 
-        if let Some(description) = book.description.as_deref() {
-            markdown.push_str(": ");
-            markdown.push_str(description.trim());
+        if let Some(description) = book.description.as_deref().map(str::trim) {
+            if !description.is_empty() {
+                markdown.push_str("<span class=\"bookshelf-book-description\">");
+                markdown.push_str(&escape_html_text(description));
+                markdown.push_str("</span>\n");
+            }
         }
 
-        markdown.push('\n');
+        markdown.push_str("</a>\n</li>\n");
     }
+
+    markdown.push_str("</ul>\n</div>\n");
 
     Ok(markdown)
 }
@@ -76,10 +86,14 @@ fn bookshelf_book_href(book: &InputBook, root_output_rel: &Path) -> String {
     path_to_string(&relative_path(root_output_rel, &target))
 }
 
-fn escape_markdown_text(text: &str) -> String {
-    text.replace('\\', "\\\\")
-        .replace('[', "\\[")
-        .replace(']', "\\]")
+fn escape_html_attr(text: &str) -> String {
+    escape_html_text(text).replace('"', "&quot;")
+}
+
+fn escape_html_text(text: &str) -> String {
+    text.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 #[cfg(test)]
@@ -118,11 +132,17 @@ mod tests {
         );
         assert_eq!(synthetic.source_path, None);
         assert_eq!(synthetic.number, None);
-        assert!(synthetic.content.contains("[Sample Core](<index.html>)"));
+        assert!(synthetic.content.contains("class=\"bookshelf-list\""));
+        assert!(synthetic
+            .content
+            .contains("<a class=\"bookshelf-book\" href=\"index.html\">"));
+        assert!(synthetic
+            .content
+            .contains("<span class=\"bookshelf-book-title\">Sample Core</span>"));
         assert!(synthetic.content.contains("Repository-wide onboarding"));
         assert!(synthetic
             .content
-            .contains("[Sample Parser](<../modules/parser/docs/index.html>)"));
+            .contains("<a class=\"bookshelf-book\" href=\"../modules/parser/docs/index.html\">"));
 
         let first_authored = match &book.items[1] {
             BookItem::Chapter(chapter) => chapter,
