@@ -25,6 +25,8 @@ include = [
     "/tests/fixtures/**/*.css",
     "/tests/fixtures/**/*.md",
     "/tests/fixtures/**/*.toml",
+    "!/examples/**/.mdbook/**",
+    "!/tests/fixtures/**/.mdbook/**",
 ]
 
 [lib]
