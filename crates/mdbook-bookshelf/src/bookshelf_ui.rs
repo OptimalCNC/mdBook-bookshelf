@@ -25,7 +25,7 @@ This directory is managed by mdbook-bookshelf.
 
 Files here are generated runtime source assets passed to mdBook through
 output.html.additional-css and output.html.additional-js. They can be
-rewritten on any build.
+rewritten when mdbook-bookshelf changes their generated contents.
 
 Do not edit these files or place project-owned assets here. Put your own assets
 outside this directory and configure them with stock mdBook settings.
@@ -44,7 +44,7 @@ impl BookshelfAssets {
         }
     }
 
-    pub fn inject_bookshelf_runtime_assets(&self, config: &mut Config) -> Result<()> {
+    pub fn ensure_bookshelf_runtime_assets(&self) -> Result<()> {
         let return_css_rel_path = self.asset_dir.join(BOOKSHELF_RETURN_CSS_NAME);
         let return_js_rel_path = self.asset_dir.join(BOOKSHELF_RETURN_JS_NAME);
         let search_js_rel_path = self.asset_dir.join(BOOKSHELF_SEARCH_JS_NAME);
@@ -72,6 +72,14 @@ impl BookshelfAssets {
             &render_bookshelf_search_js(),
         )?;
 
+        Ok(())
+    }
+
+    pub fn append_bookshelf_runtime_assets(&self, config: &mut Config) -> Result<()> {
+        let return_css_rel_path = self.asset_dir.join(BOOKSHELF_RETURN_CSS_NAME);
+        let return_js_rel_path = self.asset_dir.join(BOOKSHELF_RETURN_JS_NAME);
+        let search_js_rel_path = self.asset_dir.join(BOOKSHELF_SEARCH_JS_NAME);
+
         append_output_asset(config, "output.html.additional-css", return_css_rel_path).context(
             "failed to append bookshelf return stylesheet to output.html.additional-css",
         )?;
@@ -81,6 +89,11 @@ impl BookshelfAssets {
             .context("failed to append bookshelf search override to output.html.additional-js")?;
 
         Ok(())
+    }
+
+    pub fn inject_bookshelf_runtime_assets(&self, config: &mut Config) -> Result<()> {
+        self.ensure_bookshelf_runtime_assets()?;
+        self.append_bookshelf_runtime_assets(config)
     }
 }
 
@@ -205,6 +218,15 @@ fn write_asset_file(path: &Path, contents: &str) -> Result<()> {
     })?;
     fs::create_dir_all(parent)
         .with_context(|| format!("failed to create asset directory {}", parent.display()))?;
+    match fs::read(path) {
+        Ok(existing) if existing == contents.as_bytes() => return Ok(()),
+        Ok(_) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => {
+            return Err(err).with_context(|| format!("failed to read {}", path.display()));
+        }
+    }
+
     fs::write(path, contents).with_context(|| format!("failed to write {}", path.display()))
 }
 
@@ -569,6 +591,26 @@ mod tests {
         assert!(script.contains("window.path_to_searchindex_js = metadata.searchIndexTarget;"));
     }
 
+    #[test]
+    fn write_asset_file_keeps_unchanged_existing_file() {
+        let temp_root = make_temp_dir("mdbook-bookshelf-stable-asset-write");
+        let asset_path = temp_root.join("assets/runtime.js");
+        write_asset_file(&asset_path, "stable\n").expect("initial asset should be written");
+
+        let mut readonly = fs::metadata(&asset_path)
+            .expect("asset metadata should be readable")
+            .permissions();
+        readonly.set_readonly(true);
+        fs::set_permissions(&asset_path, readonly).expect("asset should become read-only");
+
+        let result = write_asset_file(&asset_path, "stable\n");
+        make_writable(&asset_path);
+        result.expect("unchanged generated asset should not be rewritten");
+        assert_file_contents(asset_path, "stable\n");
+
+        fs::remove_dir_all(temp_root).expect("temporary asset directory should be removed");
+    }
+
     fn make_temp_dir(tag: &str) -> PathBuf {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -585,5 +627,14 @@ mod tests {
         let actual = fs::read_to_string(&path)
             .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
         assert_eq!(actual, expected);
+    }
+
+    fn make_writable(path: &Path) {
+        let mut permissions = fs::metadata(path)
+            .unwrap_or_else(|err| panic!("failed to read {} metadata: {err}", path.display()))
+            .permissions();
+        permissions.set_readonly(false);
+        fs::set_permissions(path, permissions)
+            .unwrap_or_else(|err| panic!("failed to make {} writable: {err}", path.display()));
     }
 }

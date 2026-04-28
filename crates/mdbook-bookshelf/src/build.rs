@@ -102,6 +102,14 @@ pub(crate) fn build_bookshelf_site_with_options(
             .output_rel,
     ));
     let bookshelf_assets = BookshelfAssets::new(&config_root, &catalog.asset_dir);
+    bookshelf_assets
+        .ensure_bookshelf_runtime_assets()
+        .with_context(|| {
+            format!(
+                "failed to write bookshelf UI assets under {}",
+                config_root.display()
+            )
+        })?;
 
     let total_books = catalog.books.len();
     for (index, book) in catalog.books.iter().enumerate() {
@@ -110,7 +118,6 @@ pub(crate) fn build_bookshelf_site_with_options(
             book,
             &catalog,
             &mdbook_config,
-            &config_root,
             &site_dest_dir,
             &root_bookshelf_rel,
             &site_root_link_map,
@@ -150,7 +157,6 @@ fn build_catalog_book(
     book: &InputBook,
     catalog: &InputCatalog,
     shared_config: &Config,
-    config_root: &Path,
     site_dest_dir: &Path,
     root_bookshelf_rel: &Path,
     site_root_link_map: &SiteRootLinkMap,
@@ -176,14 +182,8 @@ fn build_catalog_book(
     config.build.build_dir = site_dest_dir.join(&book.output_rel);
 
     bookshelf_assets
-        .inject_bookshelf_runtime_assets(&mut config)
-        .with_context(|| {
-            format!(
-                "book '{}' failed to inject bookshelf UI assets under {}",
-                book.id,
-                config_root.display()
-            )
-        })?;
+        .append_bookshelf_runtime_assets(&mut config)
+        .with_context(|| format!("book '{}' failed to inject bookshelf UI assets", book.id))?;
 
     let mut mdbook = load_single_book_with_config_and_parsed_summary(
         &book.book_root_abs,

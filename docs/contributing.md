@@ -22,7 +22,7 @@ At a high level the build works like this:
 2. build an input catalog from the root book and child books
 3. load each book's canonical `SUMMARY.md`
 4. inject the synthetic root `Bookshelf` page into the root book
-5. generate stable bookshelf runtime assets under `[bookshelf].asset-dir`
+5. ensure stable bookshelf runtime assets under `[bookshelf].asset-dir`
 6. inject per-page bookshelf runtime metadata with an mdBook preprocessor
 7. build each book with mdBook's HTML renderer into its canonical output root
 8. merge per-book search indexes into one shared site-wide search index

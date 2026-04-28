@@ -57,7 +57,8 @@ The build loads the root `[book]` and each `[[bookshelf.book]]`, lets mdBook
 load and render each book from the bookshelf config root, then writes the
 bookshelf routing, search, and generated runtime assets into the site output.
 Runtime source assets are generated under `[bookshelf].asset-dir`, which
-defaults to `.mdbook/bookshelf`.
+defaults to `.mdbook/bookshelf`; unchanged runtime source assets are left
+untouched between builds.
 
 The repository's own `bookshelf.toml` configures the `mdbook-mermaid`
 preprocessor:
