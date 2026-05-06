@@ -536,6 +536,9 @@ extra-watch-dirs = ["shared/watch"]
 theme = "shared/theme"
 additional-css = ["assets/site.css"]
 additional-js = ["scripts/site.js", "{}"]
+
+[bookshelf]
+root-book-id = "root"
 "#,
                 toml_path(&absolute_script)
             ),
@@ -581,7 +584,13 @@ additional-js = ["scripts/site.js", "{}"]
     #[test]
     fn watch_roots_include_default_book_theme_dirs_without_shared_theme() {
         let fixture_root = make_temp_dir("watch-roots-default-themes");
-        write_minimal_bookshelf_fixture(&fixture_root, "");
+        write_minimal_bookshelf_fixture(
+            &fixture_root,
+            r#"
+[bookshelf]
+root-book-id = "root"
+"#,
+        );
         fs::create_dir_all(fixture_root.join("theme")).expect("root theme should be created");
         fs::create_dir_all(fixture_root.join("modules/child/theme"))
             .expect("child theme should be created");
@@ -615,6 +624,7 @@ additional-js = ["scripts/site.js", "{}"]
 extra-watch-dirs = ["."]
 
 [bookshelf]
+root-book-id = "root"
 asset-dir = ".generated/bookshelf"
 "#,
         );
@@ -715,8 +725,13 @@ language = "en"
 
 {extra_config}
 [[bookshelf.book]]
-title = "Child"
+id = "child"
+title = "Child Book"
 src = "modules/child/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root", "child"]
 "#
             ),
         )

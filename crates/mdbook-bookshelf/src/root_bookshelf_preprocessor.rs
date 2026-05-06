@@ -171,7 +171,6 @@ mod tests {
             config_path: PathBuf::from("bookshelf.toml"),
             config_dir: PathBuf::from("."),
             mdbook_config: mdbook_driver::config::Config::default(),
-            entry_page: crate::config::BookshelfEntryPage::RootBook,
             asset_dir: PathBuf::from(".mdbook/bookshelf"),
             books: vec![
                 sample_book(
