@@ -1,8 +1,8 @@
-pub(crate) mod bookshelf_ui;
 pub mod build;
 pub mod catalog;
 pub mod config;
 pub(crate) mod documentation_index;
+pub(crate) mod documentation_ui;
 pub mod loader;
 pub mod navigation;
 pub(crate) mod route_paths;

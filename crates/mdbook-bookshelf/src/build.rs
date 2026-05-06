@@ -1,6 +1,6 @@
-use crate::bookshelf_ui::{BookshelfAssets, BookshelfPageMetadataPreprocessor};
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
 use crate::documentation_index::{validate_documentation_index_inputs, write_documentation_index};
+use crate::documentation_ui::{DocumentationAssets, DocumentationPageMetadataPreprocessor};
 use crate::load_single_book_with_config_and_parsed_summary;
 use crate::route_paths::{path_to_string, relative_path};
 use crate::search::{write_site_wide_search_index, LOCAL_SHARED_SEARCH_INDEX_NAME};
@@ -93,7 +93,7 @@ pub(crate) fn build_bookshelf_site_with_options(
     let site_root_link_map = SiteRootLinkMap::from_catalog_with_progress(&catalog, |_, _, _| {})
         .context("failed to build site-root Markdown link map")?;
     let documentation_index_rel = PathBuf::from("index.html");
-    let bookshelf_assets = BookshelfAssets::new(&config_root, &catalog.asset_dir);
+    let documentation_assets = DocumentationAssets::new(&config_root, &catalog.asset_dir);
 
     let total_books = catalog.books.len();
     for (index, book) in catalog.books.iter().enumerate() {
@@ -105,7 +105,7 @@ pub(crate) fn build_bookshelf_site_with_options(
             &site_dest_dir,
             &documentation_index_rel,
             &site_root_link_map,
-            &bookshelf_assets,
+            &documentation_assets,
         )
         .with_context(|| {
             format!(
@@ -147,7 +147,7 @@ fn build_catalog_book(
     site_dest_dir: &Path,
     documentation_index_rel: &Path,
     site_root_link_map: &SiteRootLinkMap,
-    bookshelf_assets: &BookshelfAssets,
+    documentation_assets: &DocumentationAssets,
 ) -> Result<usize> {
     let summary_text = fs::read_to_string(&book.summary_abs).with_context(|| {
         format!(
@@ -168,11 +168,11 @@ fn build_catalog_book(
     config.book = book.book_config.clone();
     config.build.build_dir = site_dest_dir.join(&book.output_rel);
 
-    bookshelf_assets
-        .inject_bookshelf_runtime_assets(&mut config)
+    documentation_assets
+        .inject_documentation_runtime_assets(&mut config)
         .with_context(|| {
             format!(
-                "book '{}' failed to inject bookshelf UI assets under {}",
+                "book '{}' failed to inject documentation UI assets under {}",
                 book.id,
                 config_root.display()
             )
@@ -198,7 +198,7 @@ fn build_catalog_book(
         book.output_rel.clone(),
         site_root_link_map.clone(),
     ));
-    mdbook.with_preprocessor(BookshelfPageMetadataPreprocessor::new(
+    mdbook.with_preprocessor(DocumentationPageMetadataPreprocessor::new(
         book.output_rel.clone(),
         documentation_index_rel.to_path_buf(),
         book.output_rel.join(LOCAL_SHARED_SEARCH_INDEX_NAME),

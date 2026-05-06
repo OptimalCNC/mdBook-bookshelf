@@ -519,7 +519,7 @@ while ((match = scriptPattern.exec(pageHtml)) !== null) {
     });
     continue;
   }
-  if (src.endsWith("bookshelf-search.js")) {
+  if (src.endsWith("documentation-search.js")) {
     relevantScripts.push({
       label: src,
       code: fs.readFileSync(path.resolve(path.dirname(pageHtmlPath), src), "utf8"),
@@ -541,7 +541,7 @@ const combinedSource = relevantScripts
       lines.push(
         "globalThis.__audit.configuredAfterSearcher = window.path_to_searchindex_js || \"\";",
       );
-    } else if (script.label.endsWith("bookshelf-search.js")) {
+    } else if (script.label.endsWith("documentation-search.js")) {
       lines.push(
         "globalThis.__audit.configuredAfterOverride = window.path_to_searchindex_js || \"\";",
       );
@@ -620,11 +620,17 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
         "Repository-wide onboarding and architecture guidance for the fixture project.",
     );
     assert_text_contains(&root_index_html, "href=\"./onboarding.html\"");
-    assert_text_contains(&root_index_html, "bookshelf-return.css");
-    assert_text_contains(&root_index_html, "bookshelf-return.js");
-    assert_text_contains(&root_index_html, "bookshelf-search.js");
+    assert_text_contains(&root_index_html, "documentation-return.css");
+    assert_text_contains(&root_index_html, "documentation-return.js");
+    assert_text_contains(&root_index_html, "documentation-search.js");
+    assert_text_not_contains(&root_index_html, "bookshelf-return.css");
+    assert_text_not_contains(&root_index_html, "bookshelf-return.js");
+    assert_text_not_contains(&root_index_html, "bookshelf-search.js");
     assert_text_contains(&root_index_html, "id=\"mdbook-bookshelf-page-metadata\"");
-    assert_text_contains(&root_index_html, "\"bookshelfTarget\":\"../index.html\"");
+    assert_text_contains(
+        &root_index_html,
+        "\"documentationIndexTarget\":\"../index.html\"",
+    );
     assert_text_contains(
         &root_index_html,
         "\"searchIndexTarget\":\"bookshelf-searchindex.js\"",
@@ -646,12 +652,15 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
 
     let parser_index_html =
         assert_read_to_string(output_dir.join("modules/parser/docs/index.html"));
-    assert_text_contains(&parser_index_html, "bookshelf-return.css");
-    assert_text_contains(&parser_index_html, "bookshelf-return.js");
-    assert_text_contains(&parser_index_html, "bookshelf-search.js");
+    assert_text_contains(&parser_index_html, "documentation-return.css");
+    assert_text_contains(&parser_index_html, "documentation-return.js");
+    assert_text_contains(&parser_index_html, "documentation-search.js");
+    assert_text_not_contains(&parser_index_html, "bookshelf-return.css");
+    assert_text_not_contains(&parser_index_html, "bookshelf-return.js");
+    assert_text_not_contains(&parser_index_html, "bookshelf-search.js");
     assert_text_contains(
         &parser_index_html,
-        "\"bookshelfTarget\":\"../../../index.html\"",
+        "\"documentationIndexTarget\":\"../../../index.html\"",
     );
     assert_text_contains(
         &parser_index_html,
@@ -697,13 +706,13 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
     assert_exists(output_dir.join("docs/toc.html"));
     assert_has_file_with_prefix(&output_dir.join("docs"), "book-", ".js");
     let root_return_script =
-        assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.js");
+        assert_single_file_named_recursive(&output_dir.join("docs"), "documentation-return.js");
     let root_return_css =
-        assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.css");
-    assert_file_contains(root_return_script.clone(), "readBookshelfPageMetadata");
+        assert_single_file_named_recursive(&output_dir.join("docs"), "documentation-return.css");
+    assert_file_contains(root_return_script.clone(), "readDocumentationPageMetadata");
     assert_file_contains(
         root_return_script.clone(),
-        "label.textContent = \"Bookshelf\";",
+        "label.textContent = \"Documentation\";",
     );
     assert_file_contains(
         root_return_script.clone(),
@@ -713,9 +722,12 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
         root_return_script.clone(),
         "document.querySelector(\"#mdbook-menu-bar .right-buttons\")",
     );
-    assert_file_contains(root_return_script, "metadata.bookshelfTarget");
-    assert_file_contains(root_return_css.clone(), ".bookshelf-return-link");
+    assert_file_contains(root_return_script, "metadata.documentationIndexTarget");
+    assert_file_contains(root_return_css.clone(), ".documentation-return-link");
     assert_file_contains(root_return_css, ".bookshelf-list");
+    assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.js");
+    assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.css");
+    assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-search.js");
     assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.js");
     assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.css");
     assert_exists(output_dir.join("modules/parser/docs/index.html"));
@@ -744,15 +756,18 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
             ));
     let parser_return_script = assert_single_file_named_recursive(
         &output_dir.join("modules/parser/docs"),
-        "bookshelf-return.js",
+        "documentation-return.js",
     );
     let parser_return_css = assert_single_file_named_recursive(
         &output_dir.join("modules/parser/docs"),
-        "bookshelf-return.css",
+        "documentation-return.css",
     );
-    assert_file_contains(parser_return_script.clone(), "metadata.bookshelfTarget");
+    assert_file_contains(
+        parser_return_script.clone(),
+        "metadata.documentationIndexTarget",
+    );
     assert_file_contains(parser_return_script, "link.rel = \"up\";");
-    assert_file_contains(parser_return_css, ".bookshelf-return-link");
+    assert_file_contains(parser_return_css, ".documentation-return-link");
     let parser_runtime_html =
         assert_read_to_string(output_dir.join("modules/parser/docs/runtime.html"));
     assert_text_contains(
@@ -808,10 +823,10 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
     assert_no_authored_root_relative_markdown_links(&output_dir);
     assert!(!fixture_root.join(".mdbook-bookshelf").exists());
     assert!(fixture_root
-        .join(".mdbook/bookshelf/bookshelf-return.js")
+        .join(".mdbook/bookshelf/documentation-return.js")
         .exists());
     assert!(fixture_root
-        .join(".mdbook/bookshelf/bookshelf-search.js")
+        .join(".mdbook/bookshelf/documentation-search.js")
         .exists());
     assert_eq!(
         without_bookshelf_asset_entries(collect_tree_entries(&fixture_root)),
@@ -1263,14 +1278,14 @@ sequenceDiagram
     assert_file_contains(child_mermaid_js, "__bookshelfMermaidRuntime");
     assert_file_contains(child_mermaid_init_js, "__bookshelfMermaidInit");
 
-    assert_text_contains(&root_index_html, "bookshelf-return.js");
-    assert_text_contains(&root_index_html, "bookshelf-search.js");
-    assert_text_contains(&child_index_html, "bookshelf-return.js");
-    assert_text_contains(&child_index_html, "bookshelf-search.js");
-    assert_single_file_named_recursive(&root_output, "bookshelf-return.js");
-    assert_single_file_named_recursive(&root_output, "bookshelf-search.js");
-    assert_single_file_named_recursive(&child_output, "bookshelf-return.js");
-    assert_single_file_named_recursive(&child_output, "bookshelf-search.js");
+    assert_text_contains(&root_index_html, "documentation-return.js");
+    assert_text_contains(&root_index_html, "documentation-search.js");
+    assert_text_contains(&child_index_html, "documentation-return.js");
+    assert_text_contains(&child_index_html, "documentation-search.js");
+    assert_single_file_named_recursive(&root_output, "documentation-return.js");
+    assert_single_file_named_recursive(&root_output, "documentation-search.js");
+    assert_single_file_named_recursive(&child_output, "documentation-return.js");
+    assert_single_file_named_recursive(&child_output, "documentation-search.js");
     assert_no_file_named_recursive(&root_output, "bookshelf-breadcrumb.js");
     assert_no_file_named_recursive(&child_output, "bookshelf-breadcrumb.js");
 
@@ -1571,14 +1586,14 @@ fn build_cli_uses_shared_site_wide_search_index() {
     let root_index_html = assert_read_to_string(output_dir.join("docs/index.html"));
     let parser_grammar_html =
         assert_read_to_string(output_dir.join("modules/parser/docs/grammar.html"));
-    assert_text_contains(&root_index_html, "bookshelf-search.js");
-    assert_text_contains(&parser_grammar_html, "bookshelf-search.js");
+    assert_text_contains(&root_index_html, "documentation-search.js");
+    assert_text_contains(&parser_grammar_html, "documentation-search.js");
 
     let root_search_override =
-        assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-search.js");
+        assert_single_file_named_recursive(&output_dir.join("docs"), "documentation-search.js");
     let parser_search_override = assert_single_file_named_recursive(
         &output_dir.join("modules/parser/docs"),
-        "bookshelf-search.js",
+        "documentation-search.js",
     );
     assert_file_contains(
         root_search_override,
@@ -1681,8 +1696,8 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
         &parser_index_html,
     );
     assert_stock_search_contract(&output_dir.join("modules/hmi/docs"), &hmi_index_html);
-    assert_text_contains(&architecture_html, "bookshelf-search.js");
-    assert_text_contains(&modal_groups_html, "bookshelf-search.js");
+    assert_text_contains(&architecture_html, "documentation-search.js");
+    assert_text_contains(&modal_groups_html, "documentation-search.js");
     assert_text_not_contains(&architecture_html, "bookshelf-breadcrumb");
     assert_text_not_contains(&modal_groups_html, "bookshelf-breadcrumb");
 
@@ -1824,11 +1839,11 @@ fn build_cli_audits_search_cold_load_residual_on_repo_scale_output() {
         "searcher-",
         ".js",
     );
-    assert_script_order(&parser_page_html, &searcher_name, "bookshelf-search.js");
+    assert_script_order(&parser_page_html, &searcher_name, "documentation-search.js");
 
     let search_override = assert_single_file_named_recursive(
         &output_dir.join("modules/gcode-parser/docs"),
-        "bookshelf-search.js",
+        "documentation-search.js",
     );
     assert_file_contains(
         search_override,
@@ -1858,8 +1873,8 @@ fn build_cli_audits_search_cold_load_residual_on_repo_scale_output() {
         audit
             .script_sequence
             .iter()
-            .any(|entry| entry.ends_with("bookshelf-search.js")),
-        "expected emitted page HTML to include the bookshelf search override script"
+            .any(|entry| entry.ends_with("documentation-search.js")),
+        "expected emitted page HTML to include the documentation search override script"
     );
     assert_eq!(
         audit.path_to_root.as_deref(),
