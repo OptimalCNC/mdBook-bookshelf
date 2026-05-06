@@ -1,18 +1,18 @@
 #![allow(dead_code)]
 
 use crate::catalog::{InputBook, InputCatalog};
-use crate::route_paths::path_to_string;
 use anyhow::{Context, Result};
 use mdbook_driver::config::Config;
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 pub(crate) fn write_documentation_index(
     catalog: &InputCatalog,
     projected_config: &Config,
     site_dest_dir: &Path,
 ) -> Result<()> {
+    let html = render_documentation_index_html(catalog, projected_config)?;
     fs::create_dir_all(site_dest_dir).with_context(|| {
         format!(
             "failed to create site output directory {}",
@@ -21,11 +21,7 @@ pub(crate) fn write_documentation_index(
     })?;
     copy_configured_covers(catalog, site_dest_dir)?;
     let index_path: PathBuf = site_dest_dir.join("index.html");
-    fs::write(
-        &index_path,
-        render_documentation_index_html(catalog, projected_config)?,
-    )
-    .with_context(|| {
+    fs::write(&index_path, html).with_context(|| {
         format!(
             "failed to write documentation index at {}",
             index_path.display()
@@ -177,11 +173,53 @@ fn book_initials(book: &InputBook) -> String {
 }
 
 fn book_href(book: &InputBook) -> String {
-    path_to_string(&book.output_rel.join("index.html"))
+    site_relative_url(&book.output_rel.join("index.html"))
 }
 
 fn cover_src(book: &InputBook) -> Option<String> {
-    book.cover.as_deref().map(path_to_string)
+    book.cover.as_deref().map(site_relative_url)
+}
+
+fn site_relative_url(path: &Path) -> String {
+    let components = path
+        .components()
+        .filter_map(|component| match component {
+            Component::Normal(part) => Some(percent_encode_path_component(&part.to_string_lossy())),
+            Component::ParentDir => Some("..".to_string()),
+            Component::CurDir | Component::RootDir | Component::Prefix(_) => None,
+        })
+        .collect::<Vec<_>>();
+
+    if components.is_empty() {
+        ".".to_string()
+    } else {
+        components.join("/")
+    }
+}
+
+fn percent_encode_path_component(component: &str) -> String {
+    let mut encoded = String::new();
+    for byte in component.as_bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'.' | b'_' | b'~' => {
+                encoded.push(char::from(*byte));
+            }
+            _ => {
+                encoded.push('%');
+                encoded.push(hex_digit(byte >> 4));
+                encoded.push(hex_digit(byte & 0x0f));
+            }
+        }
+    }
+    encoded
+}
+
+fn hex_digit(value: u8) -> char {
+    match value {
+        0..=9 => char::from(b'0' + value),
+        10..=15 => char::from(b'A' + value - 10),
+        _ => unreachable!("hex digit nibble must be in range"),
+    }
 }
 
 fn copy_configured_covers(catalog: &InputCatalog, site_dest_dir: &Path) -> Result<()> {
@@ -315,7 +353,8 @@ mod tests {
     use super::*;
     use crate::catalog::{InputBook, InputCatalog, InputCategory};
     use mdbook_driver::config::{BookConfig, Config};
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn renders_category_toc_sections_books_and_cover_fallbacks() {
@@ -350,6 +389,95 @@ mod tests {
         assert!(html.contains("Start &amp; &lt;Here&gt;"));
         assert!(html.contains("Root &quot;Book&quot;"));
         assert!(html.contains("A &lt;trusted&gt; &amp; useful book."));
+    }
+
+    #[test]
+    fn encodes_generated_book_and_cover_urls_per_path_component() {
+        let mut catalog = sample_catalog();
+        catalog.books[0].output_rel = PathBuf::from("root docs")
+            .join("chapter#draft?review%done")
+            .join("javascript:example");
+        catalog.books[0].cover = Some(
+            PathBuf::from("assets with spaces")
+                .join("covers#draft")
+                .join("root?100%.png"),
+        );
+
+        let html = render_documentation_index_html(&catalog, &Config::default())
+            .expect("index should render");
+
+        assert!(html.contains(
+            "href=\"root%20docs/chapter%23draft%3Freview%25done/javascript%3Aexample/index.html\""
+        ));
+        assert!(html.contains("src=\"assets%20with%20spaces/covers%23draft/root%3F100%25.png\""));
+    }
+
+    #[test]
+    fn write_documentation_index_writes_index_and_copies_configured_cover() {
+        let config_root = TempDir::new("documentation-index-config-root");
+        let site_output = TempDir::new("documentation-index-site-output");
+        let cover_path = PathBuf::from("assets")
+            .join("nested covers")
+            .join("root cover.bin");
+        let expected_cover_bytes = b"cover bytes";
+        write_bytes(config_root.path(), &cover_path, expected_cover_bytes);
+        let catalog = sample_catalog_at_config_root(config_root.path(), Some(cover_path.clone()));
+
+        write_documentation_index(&catalog, &Config::default(), site_output.path())
+            .expect("documentation index should be written");
+
+        let index_path = site_output.path().join("index.html");
+        let index_html =
+            fs::read_to_string(&index_path).expect("documentation index should be readable");
+        assert!(index_path.exists());
+        assert!(index_html.contains("<div class=\"documentation-index\">"));
+        assert!(index_html.contains("Root Book"));
+
+        let copied_cover = site_output.path().join(&cover_path);
+        let copied_cover_bytes = fs::read(&copied_cover).unwrap_or_else(|err| {
+            panic!(
+                "failed to read copied cover {}: {err}",
+                copied_cover.display()
+            )
+        });
+        assert_eq!(copied_cover_bytes, expected_cover_bytes);
+    }
+
+    #[test]
+    fn write_documentation_index_reports_missing_configured_cover_with_book_id() {
+        let config_root = TempDir::new("documentation-index-missing-cover-config-root");
+        let site_output = TempDir::new("documentation-index-missing-cover-site-output");
+        let cover_path = PathBuf::from("assets")
+            .join("nested covers")
+            .join("missing cover.png");
+        let catalog = sample_catalog_at_config_root(config_root.path(), Some(cover_path));
+
+        let error = write_documentation_index(&catalog, &Config::default(), site_output.path())
+            .expect_err("missing configured cover should fail");
+        let error = format!("{error:#}");
+
+        assert!(error.contains("failed to copy cover for book"));
+        assert!(error.contains("root"));
+    }
+
+    #[test]
+    fn write_documentation_index_renders_before_copying_configured_covers() {
+        let config_root = TempDir::new("documentation-index-invalid-catalog-config-root");
+        let site_output = TempDir::new("documentation-index-invalid-catalog-site-output");
+        let cover_path = PathBuf::from("assets")
+            .join("nested covers")
+            .join("root cover.bin");
+        write_bytes(config_root.path(), &cover_path, b"cover bytes");
+        let mut catalog =
+            sample_catalog_at_config_root(config_root.path(), Some(cover_path.clone()));
+        catalog.categories[0].book_ids.push("missing".to_string());
+
+        let error = write_documentation_index(&catalog, &Config::default(), site_output.path())
+            .expect_err("invalid catalog should fail before copying covers");
+        let error = format!("{error:#}");
+
+        assert!(error.contains("references unknown book 'missing'"));
+        assert!(!site_output.path().join(&cover_path).exists());
     }
 
     fn sample_catalog() -> InputCatalog {
@@ -387,6 +515,17 @@ mod tests {
         }
     }
 
+    fn sample_catalog_at_config_root(
+        config_root: &Path,
+        root_cover: Option<PathBuf>,
+    ) -> InputCatalog {
+        let mut catalog = sample_catalog();
+        catalog.config_path = config_root.join("bookshelf.toml");
+        catalog.config_dir = config_root.to_path_buf();
+        catalog.books[0].cover = root_cover;
+        catalog
+    }
+
     fn sample_book(
         id: &str,
         src: &str,
@@ -414,5 +553,42 @@ mod tests {
             summary_abs: PathBuf::from("/tmp").join(src).join("SUMMARY.md"),
             is_root_book,
         }
+    }
+
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new(tag: &str) -> Self {
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock should be valid")
+                .as_nanos();
+            let path = std::env::temp_dir()
+                .join("mdbook-bookshelf")
+                .join(format!("{tag}-{nanos}"));
+            fs::create_dir_all(&path).expect("temp directory should be created");
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn write_bytes(root: &Path, rel: &Path, bytes: &[u8]) {
+        let path = root.join(rel);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("parent directory should be created");
+        }
+        fs::write(&path, bytes)
+            .unwrap_or_else(|err| panic!("failed to write fixture {}: {err}", path.display()));
     }
 }
