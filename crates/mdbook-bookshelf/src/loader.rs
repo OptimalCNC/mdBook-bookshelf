@@ -1,6 +1,5 @@
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
 use crate::load_single_book_with_config_and_parsed_summary;
-use crate::root_bookshelf_preprocessor::ensure_reserved_bookshelf_path_is_available;
 use anyhow::{Context, Result};
 use mdbook_driver::MDBook;
 use mdbook_summary::{parse_summary, Summary};
@@ -66,13 +65,6 @@ pub(crate) fn load_books_from_catalog_with_progress(
                 book.id,
                 book.book_root_abs.display(),
                 book.book_src_abs.display()
-            )
-        })?;
-        ensure_reserved_bookshelf_path_is_available(&mdbook.book, &book.id).with_context(|| {
-            format!(
-                "book '{}' uses a reserved bookshelf content path while loading {}",
-                book.id,
-                book.summary_abs.display()
             )
         })?;
 

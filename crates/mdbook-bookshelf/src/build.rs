@@ -1,10 +1,7 @@
 use crate::bookshelf_ui::{BookshelfAssets, BookshelfPageMetadataPreprocessor};
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
+use crate::documentation_index::write_documentation_index;
 use crate::load_single_book_with_config_and_parsed_summary;
-use crate::root_bookshelf_preprocessor::{
-    ensure_reserved_bookshelf_path_is_available, inject_root_bookshelf_page,
-    site_root_bookshelf_entry_path,
-};
 use crate::route_paths::{path_to_string, relative_path};
 use crate::search::{write_site_wide_search_index, LOCAL_SHARED_SEARCH_INDEX_NAME};
 use crate::site_root_link_preprocessor::{SiteRootLinkMap, SiteRootLinkPreprocessor};
@@ -94,12 +91,7 @@ pub(crate) fn build_bookshelf_site_with_options(
     let config_root = catalog.config_dir.clone();
     let site_root_link_map = SiteRootLinkMap::from_catalog_with_progress(&catalog, |_, _, _| {})
         .context("failed to build site-root Markdown link map")?;
-    let root_bookshelf_rel = PathBuf::from(site_root_bookshelf_entry_path(
-        &catalog
-            .root_book()
-            .context("failed to resolve root book for synthetic bookshelf routing")?
-            .output_rel,
-    ));
+    let documentation_index_rel = PathBuf::from("index.html");
     let bookshelf_assets = BookshelfAssets::new(&config_root, &catalog.asset_dir);
 
     let total_books = catalog.books.len();
@@ -107,11 +99,10 @@ pub(crate) fn build_bookshelf_site_with_options(
         let book_started = Instant::now();
         let page_count = build_catalog_book(
             book,
-            &catalog,
             &mdbook_config,
             &config_root,
             &site_dest_dir,
-            &root_bookshelf_rel,
+            &documentation_index_rel,
             &site_root_link_map,
             &bookshelf_assets,
         )
@@ -133,13 +124,16 @@ pub(crate) fn build_bookshelf_site_with_options(
         );
     }
 
+    let index_started = Instant::now();
+    write_documentation_index(&catalog, &mdbook_config, &site_dest_dir)
+        .context("failed to write documentation index")?;
+    progress.documentation_index_written(index_started.elapsed());
+
     let search_started = Instant::now();
     write_site_wide_search_index(&catalog, &site_dest_dir)
         .context("failed to write bookshelf shared search output")?;
     progress.search_index_written(search_started.elapsed());
 
-    write_site_root_index(&catalog, &mdbook_config, &site_dest_dir)
-        .context("failed to write bookshelf site-root redirect")?;
     progress.finish(&site_dest_dir, build_started.elapsed());
 
     Ok(site_dest_dir)
@@ -147,11 +141,10 @@ pub(crate) fn build_bookshelf_site_with_options(
 
 fn build_catalog_book(
     book: &InputBook,
-    catalog: &InputCatalog,
     shared_config: &Config,
     config_root: &Path,
     site_dest_dir: &Path,
-    root_bookshelf_rel: &Path,
+    documentation_index_rel: &Path,
     site_root_link_map: &SiteRootLinkMap,
     bookshelf_assets: &BookshelfAssets,
 ) -> Result<usize> {
@@ -198,22 +191,6 @@ fn build_catalog_book(
             book.book_src_abs.display()
         )
     })?;
-    ensure_reserved_bookshelf_path_is_available(&mdbook.book, &book.id).with_context(|| {
-        format!(
-            "book '{}' uses a reserved bookshelf content path while building {}",
-            book.id,
-            book.summary_abs.display()
-        )
-    })?;
-
-    if book.is_root_book {
-        inject_root_bookshelf_page(&mut mdbook.book, catalog).with_context(|| {
-            format!(
-                "book '{}' failed to inject synthetic root bookshelf page",
-                book.id
-            )
-        })?;
-    }
     let page_count = count_book_pages(&mdbook.book);
 
     mdbook.with_preprocessor(SiteRootLinkPreprocessor::new(
@@ -222,7 +199,7 @@ fn build_catalog_book(
     ));
     mdbook.with_preprocessor(BookshelfPageMetadataPreprocessor::new(
         book.output_rel.clone(),
-        root_bookshelf_rel.to_path_buf(),
+        documentation_index_rel.to_path_buf(),
         book.output_rel.join(LOCAL_SHARED_SEARCH_INDEX_NAME),
     ));
 
@@ -234,85 +211,12 @@ fn build_catalog_book(
             html_build_dir.display()
         )
     })?;
-    if book.is_root_book {
-        patch_root_bookshelf_toc_index_alias(&html_build_dir).with_context(|| {
-            format!(
-                "book '{}' failed to patch root bookshelf sidebar script under {}",
-                book.id,
-                html_build_dir.display()
-            )
-        })?;
-    }
 
     Ok(page_count)
 }
 
 fn count_book_pages(book: &Book) -> usize {
     book.chapters().count()
-}
-
-fn patch_root_bookshelf_toc_index_alias(book_output_dir: &Path) -> Result<()> {
-    let mut patched = 0usize;
-
-    for entry in fs::read_dir(book_output_dir).with_context(|| {
-        format!(
-            "failed to read root book output directory {}",
-            book_output_dir.display()
-        )
-    })? {
-        let entry = entry.with_context(|| {
-            format!(
-                "failed to read an entry in root book output directory {}",
-                book_output_dir.display()
-            )
-        })?;
-        let path = entry.path();
-        let Some(file_name) = path.file_name().and_then(|name| name.to_str()) else {
-            continue;
-        };
-        if !(file_name.starts_with("toc-") && file_name.ends_with(".js")) {
-            continue;
-        }
-
-        let source = fs::read_to_string(&path).with_context(|| {
-            format!("failed to read root book sidebar script {}", path.display())
-        })?;
-        let patched_source = patch_root_bookshelf_toc_index_alias_source(&source)?;
-        fs::write(&path, patched_source).with_context(|| {
-            format!(
-                "failed to write root book sidebar script {}",
-                path.display()
-            )
-        })?;
-        patched += 1;
-    }
-
-    if patched == 0 {
-        anyhow::bail!(
-            "failed to find generated toc-*.js in root book output directory {}",
-            book_output_dir.display()
-        );
-    }
-
-    Ok(())
-}
-
-fn patch_root_bookshelf_toc_index_alias_source(source: &str) -> Result<String> {
-    // mdBook treats the first sidebar link as an index.html alias. Once the
-    // synthetic Bookshelf link is first, that alias must stay with the real
-    // root index page so page headings attach to the authored chapter.
-    let mdbook_index_alias = "|| i === 0\n                && path_to_root === ''\n                && current_page.endsWith('/index.html')";
-    let bookshelf_aware_index_alias = "|| i === 0\n                && href !== \"bookshelf.html\"\n                && path_to_root === ''\n                && current_page.endsWith('/index.html')";
-
-    if source.contains(bookshelf_aware_index_alias) {
-        return Ok(source.to_string());
-    }
-
-    if !source.contains(mdbook_index_alias) {
-        anyhow::bail!("generated toc script is missing mdBook's first-chapter index alias");
-    }
-
-    Ok(source.replacen(mdbook_index_alias, bookshelf_aware_index_alias, 1))
 }
 
 fn resolve_site_dest_dir(
@@ -417,6 +321,18 @@ impl BuildProgress {
         eprintln!(
             "  {} {}",
             self.style.label("search index:"),
+            format_duration(elapsed)
+        );
+    }
+
+    fn documentation_index_written(&self, elapsed: Duration) {
+        if !self.enabled {
+            return;
+        }
+
+        eprintln!(
+            "  {} {}",
+            self.style.label("documentation index:"),
             format_duration(elapsed)
         );
     }
@@ -560,73 +476,4 @@ fn absolutize_book_paths(book: &mut InputBook, cwd: &Path) {
     book.book_root_abs = make_absolute(cwd, book.book_root_abs.clone());
     book.book_src_abs = make_absolute(cwd, book.book_src_abs.clone());
     book.summary_abs = make_absolute(cwd, book.summary_abs.clone());
-}
-
-fn write_site_root_index(
-    catalog: &crate::catalog::InputCatalog,
-    projected_config: &Config,
-    site_dest_dir: &Path,
-) -> Result<()> {
-    fs::create_dir_all(site_dest_dir).with_context(|| {
-        format!(
-            "failed to create site output directory {}",
-            site_dest_dir.display()
-        )
-    })?;
-
-    let index_path = site_dest_dir.join("index.html");
-    fs::write(
-        &index_path,
-        render_site_root_index(catalog, projected_config)?,
-    )
-    .with_context(|| {
-        format!(
-            "failed to write site-root entry file at {}",
-            index_path.display()
-        )
-    })
-}
-
-fn render_site_root_index(
-    catalog: &crate::catalog::InputCatalog,
-    projected_config: &Config,
-) -> Result<String> {
-    let lang = projected_config.book.language.as_deref().unwrap_or("en");
-    let target = site_root_entry_path(catalog)?;
-
-    Ok(format!(
-        "<!DOCTYPE html>\n\
-<html lang=\"{}\">\n\
-<head>\n\
-  <meta charset=\"utf-8\">\n\
-  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
-  <title>Redirecting</title>\n\
-  <meta http-equiv=\"refresh\" content=\"0; url={}\">\n\
-  <script>window.location.replace(\"{}\");</script>\n\
-</head>\n\
-<body>\n\
-  <p><a href=\"{}\">Continue</a></p>\n\
-</body>\n\
-</html>\n",
-        escape_html_attr(lang),
-        escape_html_attr(&target),
-        escape_html_attr(&target),
-        escape_html_attr(&target),
-    ))
-}
-
-fn site_root_entry_path(catalog: &InputCatalog) -> Result<String> {
-    let root_output_rel = &catalog
-        .root_book()
-        .context("failed to resolve root book for site-root redirect")?
-        .output_rel;
-
-    Ok(path_to_string(&root_output_rel.join("index.html")))
-}
-
-fn escape_html_attr(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
 }

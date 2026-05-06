@@ -1,4 +1,3 @@
-use crate::root_bookshelf_preprocessor::ROOT_BOOKSHELF_CHAPTER_PATH;
 use crate::route_paths::{path_to_string, relative_path};
 use anyhow::{Context, Result};
 use mdbook_driver::config::Config;
@@ -119,14 +118,10 @@ impl BookshelfPageMetadataPreprocessor {
         let chapter_output_dir = chapter_output_path
             .parent()
             .unwrap_or_else(|| Path::new(""));
-        let bookshelf_target = if chapter_path == Path::new(ROOT_BOOKSHELF_CHAPTER_PATH) {
-            None
-        } else {
-            Some(path_to_string(&relative_path(
-                chapter_output_dir,
-                &self.root_bookshelf_rel,
-            )))
-        };
+        let bookshelf_target = Some(path_to_string(&relative_path(
+            chapter_output_dir,
+            &self.root_bookshelf_rel,
+        )));
         let search_index_target =
             path_to_string(&relative_path(chapter_output_dir, &self.search_index_rel));
         let metadata = PageMetadata {
@@ -514,7 +509,7 @@ mod tests {
     fn page_metadata_preprocessor_uses_page_relative_targets() {
         let preprocessor = BookshelfPageMetadataPreprocessor::new(
             PathBuf::from("modules/parser/docs"),
-            PathBuf::from("docs/bookshelf.html"),
+            PathBuf::from("index.html"),
             PathBuf::from("modules/parser/docs/bookshelf-searchindex.js"),
         );
         let mut chapter = Chapter::new(
@@ -531,23 +526,23 @@ mod tests {
         assert!(chapter.content.contains(BOOKSHELF_PAGE_METADATA_ID));
         assert!(chapter
             .content
-            .contains("\"bookshelfTarget\":\"../../../../docs/bookshelf.html\""));
+            .contains("\"bookshelfTarget\":\"../../../../index.html\""));
         assert!(chapter
             .content
             .contains("\"searchIndexTarget\":\"../bookshelf-searchindex.js\""));
     }
 
     #[test]
-    fn page_metadata_preprocessor_omits_return_target_on_bookshelf_page() {
+    fn page_metadata_preprocessor_includes_return_target_on_authored_bookshelf_page() {
         let preprocessor = BookshelfPageMetadataPreprocessor::new(
             PathBuf::from("docs"),
-            PathBuf::from("docs/bookshelf.html"),
+            PathBuf::from("index.html"),
             PathBuf::from("docs/bookshelf-searchindex.js"),
         );
         let mut chapter = Chapter::new(
             "Bookshelf",
             "# Bookshelf".to_string(),
-            ROOT_BOOKSHELF_CHAPTER_PATH,
+            "bookshelf.md",
             Vec::new(),
         );
 
@@ -555,7 +550,9 @@ mod tests {
             .inject_chapter_metadata(&mut chapter)
             .expect("metadata should inject");
 
-        assert!(chapter.content.contains("\"bookshelfTarget\":null"));
+        assert!(chapter
+            .content
+            .contains("\"bookshelfTarget\":\"../index.html\""));
         assert!(chapter
             .content
             .contains("\"searchIndexTarget\":\"bookshelf-searchindex.js\""));
