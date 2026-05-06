@@ -99,6 +99,7 @@ fn escape_html_text(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::catalog::InputCategory;
     use mdbook_driver::book::BookItem;
 
     #[test]
@@ -186,6 +187,10 @@ mod tests {
                     false,
                 ),
             ],
+            categories: vec![InputCategory {
+                title: "All Docs".to_string(),
+                book_ids: vec!["docs".to_string(), "modules/parser/docs".to_string()],
+            }],
         }
     }
 
@@ -206,6 +211,7 @@ mod tests {
             book_config,
             title: title.to_string(),
             description: description.map(str::to_string),
+            cover: None,
             book_root_rel: PathBuf::from("."),
             book_root_abs: PathBuf::from("/tmp"),
             book_src_rel: PathBuf::from(id),

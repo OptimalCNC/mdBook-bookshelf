@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
-fn builds_source_derived_catalog_for_root_and_child_books() {
+fn builds_catalog_with_explicit_ids_covers_and_categories() {
     let temp = TempDir::new("chunk-06a-input-catalog-valid");
     write_file(
         temp.path(),
