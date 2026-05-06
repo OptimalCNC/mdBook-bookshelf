@@ -38,15 +38,11 @@ preferred-dark-theme = "ayu"
 root-book-id = "core"
 asset-dir = ".mdbook/bookshelf"
 
-[bookshelf.root-book]
-cover = "assets/covers/core.png"
-
 [[bookshelf.book]]
 id = "parser"
 title = "Parser"
 description = "Parser-specific reference pages."
 src = "modules/parser/docs"
-cover = "assets/covers/parser.png"
 
 [[bookshelf.category]]
 title = "Start Here"
@@ -146,6 +142,17 @@ Covers are optional. Configure the root book cover under
 
 Books without a configured cover render a fallback card in the documentation
 index.
+
+```toml
+[bookshelf.root-book]
+cover = "assets/covers/core.png"
+
+[[bookshelf.book]]
+id = "parser"
+title = "Parser"
+src = "modules/parser/docs"
+cover = "assets/covers/parser.png"
+```
 
 Configured cover paths:
 

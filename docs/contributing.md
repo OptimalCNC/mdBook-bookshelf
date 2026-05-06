@@ -35,7 +35,7 @@ flowchart TD
     Config --> SharedConfig["shared mdBook config"]
     SharedConfig --> Plugins["configured preprocessors"]
     SharedConfig --> Assets["configured HTML assets"]
-    SharedConfig --> RuntimeAssets["bookshelf asset-dir"]
+    SharedConfig --> RuntimeAssets["documentation asset-dir"]
     Catalog --> RootBook["root book"]
     Catalog --> ChildBooks["child books"]
     Catalog --> Categories["categories"]

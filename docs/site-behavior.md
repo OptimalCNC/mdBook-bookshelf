@@ -53,7 +53,8 @@ Current search behavior:
 - each built book still emits its own stock mdBook search assets
 - `mdbook-bookshelf` composes a site-wide shared index at `/searchindex.js`
 - each book also gets a localized `bookshelf-searchindex.js`
-- page runtime switches mdBook's search loader to the localized shared index
+- `documentation-search.js` switches mdBook's search loader to the localized
+  shared index
 - results can open pages in other books
 - result labels use mdBook's normal breadcrumb-style search labels, for example
   `G-code Parser » Grammar » Modal Groups » Modal Groups`
@@ -67,7 +68,8 @@ Search caveats:
   file, because that emitted payload is the merge input
 - those stock payloads must stay compatible with each other so
   `mdbook-bookshelf` can merge and localize the shared search data
-- every book receives its own localized `bookshelf-searchindex.js`
+- every book receives its own localized `bookshelf-searchindex.js` data file;
+  this is separate from the `documentation-search.js` runtime script
 - on a cold load with `?search=`, mdBook may first request the page-local
   per-book `searchindex-*.js`; the documentation runtime then switches future
   search loading to the localized shared index

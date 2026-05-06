@@ -35,8 +35,8 @@ shown relative to the directory where the command was invoked when possible.
 
 The CLI also prints build progress on stderr. It reports catalog loading,
 site-root link metadata preparation, each book as it is loaded for link
-mapping, each book as mdBook starts rendering it, shared search index output,
-and documentation index output. This makes long-running builds show which phase
+mapping, each book as mdBook starts rendering it, documentation index output,
+and shared search index output. This makes long-running builds show which phase
 and book are currently active.
 
 ## Build
