@@ -20,7 +20,6 @@ src = "docs"
 root-book-id = "core"
 
 [[bookshelf.category]]
-id = "guides"
 title = "Guides"
 books = ["core", "parser"]
 
