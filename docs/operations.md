@@ -33,11 +33,10 @@ the number of books before rendering. As each book finishes, the CLI prints
 that book's title, source directory, elapsed time, and page count. Paths are
 shown relative to the directory where the command was invoked when possible.
 
-The CLI also prints build progress on stderr. It reports catalog loading,
-site-root link metadata preparation, each book as it is loaded for link
-mapping, each book as mdBook starts rendering it, documentation index output,
-and shared search index output. This makes long-running builds show which phase
-and book are currently active.
+The CLI also prints build progress on stderr. It reports each book as it
+finishes rendering, documentation index output, shared search index output, and
+the final output directory. This makes long-running builds show which book or
+site-wide phase just completed.
 
 ## Build
 

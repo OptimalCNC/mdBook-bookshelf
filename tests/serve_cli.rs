@@ -376,6 +376,34 @@ fn serve_cli_rebuilds_changed_source_and_serves_live_reload_output() {
     let server_address = wait_for_serving_address(&mut child, &stderr_lines, &mut stderr_log);
 
     let parser_path = "/modules/parser/docs/grammar.html";
+    let root_index_response = wait_for_response(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        "/index.html",
+    );
+    assert_status_ok(&root_index_response);
+    assert_text_contains(response_body(&root_index_response), "__livereload");
+    assert_documentation_index_body(
+        response_body(&root_index_response),
+        &[
+            ExpectedDocumentationCategory {
+                id: "category-core",
+                title: "Core",
+                books: &[("Fixture Core", "docs/index.html")],
+            },
+            ExpectedDocumentationCategory {
+                id: "category-modules",
+                title: "Modules",
+                books: &[
+                    ("Fixture Parser", "modules/parser/docs/index.html"),
+                    ("Fixture UI", "modules/ui/docs/index.html"),
+                ],
+            },
+        ],
+    );
+
     let initial_response = wait_for_response(
         &mut child,
         &stderr_lines,

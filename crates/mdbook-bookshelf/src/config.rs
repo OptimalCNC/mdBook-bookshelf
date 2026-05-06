@@ -135,6 +135,7 @@ fn validate_and_build(
         });
     }
 
+    ensure_asset_dir_available(&asset_dir, &seen_output_roots)?;
     let categories = validate_categories(raw.categories, &all_book_ids)?;
 
     Ok(BookshelfConfig {
@@ -181,6 +182,7 @@ fn parse_mdbook_config(toml_root: toml::Table, config_path: &Path) -> Result<Con
 fn parse_child_book(raw: toml::Table, root_book: &BookConfig) -> Result<ParsedChildBook> {
     let mut id = None;
     let mut cover = None;
+    let mut title_seen = false;
     let mut book = root_book.clone();
 
     for (key, value) in raw {
@@ -192,6 +194,7 @@ fn parse_child_book(raw: toml::Table, root_book: &BookConfig) -> Result<ParsedCh
                 cover = Some(parse_toml_value(value, "bookshelf.book.cover")?);
             }
             "title" => {
+                title_seen = true;
                 book.title = Some(parse_toml_value(value, "bookshelf.book.title")?);
             }
             "authors" => {
@@ -217,6 +220,9 @@ fn parse_child_book(raw: toml::Table, root_book: &BookConfig) -> Result<ParsedCh
     }
 
     let id = id.ok_or_else(|| anyhow::anyhow!("missing required key bookshelf.book.id"))?;
+    if !title_seen {
+        bail!("missing required key bookshelf.book.title");
+    }
     Ok(ParsedChildBook { id, cover, book })
 }
 
@@ -240,6 +246,9 @@ fn validate_book_title(book: &BookConfig, key: &str) -> Result<()> {
 fn validate_book_id(id: &str, key: &str) -> Result<()> {
     if id.is_empty() {
         bail!("{key} must not be empty");
+    }
+    if id == "." || id == ".." {
+        bail!("{key} must not be '.' or '..'");
     }
     if !id
         .chars()
@@ -370,6 +379,24 @@ fn ensure_output_root_available(candidate: &Path, existing_roots: &[PathBuf]) ->
     }
 
     Ok(())
+}
+
+fn ensure_asset_dir_available(asset_dir: &Path, source_roots: &[PathBuf]) -> Result<()> {
+    for source_root in source_roots {
+        if paths_overlap(asset_dir, source_root) {
+            bail!(
+                "[bookshelf].asset-dir '{}' must not overlap book source directory '{}'",
+                asset_dir.display(),
+                source_root.display()
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn paths_overlap(left: &Path, right: &Path) -> bool {
+    left == right || is_ancestor_or_descendant(left, right)
 }
 
 fn is_ancestor_or_descendant(left: &Path, right: &Path) -> bool {

@@ -60,6 +60,7 @@ These rules are enforced when `mdbook-bookshelf` parses `bookshelf.toml`:
 - `[bookshelf]` is required, even when there are no child books
 - `[bookshelf].root-book-id` is required
 - `book.title` is required and must not be empty
+- every book ID must be unique and must not be `.` or `..`
 - every `[[bookshelf.book]]` requires a unique `id`
 - each `bookshelf.book.title` is required and must not be empty
 - every category title must be non-empty
@@ -75,6 +76,7 @@ These rules are enforced when `mdbook-bookshelf` parses `bookshelf.toml`:
 - `bookshelf.asset-dir` must be relative to the config root
 - `bookshelf.asset-dir` must not contain `..`
 - `bookshelf.asset-dir` must name a directory below the config root
+- `bookshelf.asset-dir` must not overlap any book source directory
 - child book output roots must not duplicate the root book or another child
   book output root
 - child book output roots must not overlap the root book or another child book
@@ -116,6 +118,9 @@ relative path.
 Treat this directory as generated state. Do not put human-owned assets under
 it; use normal `output.html.additional-css` and `output.html.additional-js`
 paths for project assets.
+
+The asset directory is rejected if it overlaps any configured book source
+directory, because the build rewrites generated files in that directory.
 
 The build writes a `README.md` explaining that the directory is generated, and
 a `.gitignore` file containing `*`. That keeps generated runtime files, the
@@ -190,10 +195,10 @@ resolved from the config root, the directory containing
 `bookshelf.toml`. They are not resolved from each child book's `src`
 directory.
 
-Every book now uses the config root as its mdBook root, and differs only by
-`book.src`. That means shared relative mdBook output settings can stay relative
-to the config root for every book. There is no
-`bookshelf-config-assets/` staging directory.
+Every book now uses the config root as its mdBook root while keeping its own
+`book.src`, catalog ID, and documentation-index metadata. That means shared
+relative mdBook output settings can stay relative to the config root for every
+book. There is no `bookshelf-config-assets/` staging directory.
 
 `output.html.input-404` remains stock mdBook behavior: a relative value is
 resolved by mdBook for the active book during rendering. Set `input-404 = ""`

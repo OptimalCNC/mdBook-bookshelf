@@ -69,6 +69,9 @@ pub(crate) fn render_documentation_index_html(
     } else {
         format!("Documentation - {}", site_title.trim())
     };
+    let live_reload_endpoint = projected_config
+        .get::<String>("output.html.live-reload-endpoint")
+        .context("failed to read output.html.live-reload-endpoint")?;
 
     let mut html = String::new();
     html.push_str("<!doctype html>\n<html lang=\"");
@@ -80,9 +83,39 @@ pub(crate) fn render_documentation_index_html(
     html.push_str("  </style>\n</head>\n<body>\n<div class=\"documentation-index\">\n");
     render_toc(&mut html, catalog, &category_ids);
     render_categories(&mut html, catalog, &category_ids, &books_by_id)?;
-    html.push_str("</div>\n</body>\n</html>\n");
+    html.push_str("</div>\n");
+    if let Some(endpoint) = live_reload_endpoint.as_deref() {
+        render_live_reload_script(&mut html, endpoint)?;
+    }
+    html.push_str("</body>\n</html>\n");
 
     Ok(html)
+}
+
+fn render_live_reload_script(html: &mut String, endpoint: &str) -> Result<()> {
+    let endpoint_json =
+        serde_json::to_string(endpoint).context("failed to serialize live-reload endpoint")?;
+    html.push_str(
+        "<!-- Livereload script (if served using the cli tool) -->\n<script>\n\
+const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';\n\
+const wsAddress = wsProtocol + \"//\" + location.host + \"/\" + ",
+    );
+    html.push_str(&endpoint_json);
+    html.push_str(
+        ";\n\
+const socket = new WebSocket(wsAddress);\n\
+socket.onmessage = function (event) {\n\
+    if (event.data === \"reload\") {\n\
+        socket.close();\n\
+        location.reload();\n\
+    }\n\
+};\n\
+window.onbeforeunload = function() {\n\
+    socket.close();\n\
+};\n\
+</script>\n",
+    );
+    Ok(())
 }
 
 fn render_toc(html: &mut String, catalog: &InputCatalog, category_ids: &[String]) {

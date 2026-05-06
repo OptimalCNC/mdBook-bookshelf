@@ -166,6 +166,38 @@ books = ["core"]
             "bookshelf.root-book-id must not be empty",
         ),
         (
+            "dot-root-id",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "."
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["."]
+"#,
+            "bookshelf.root-book-id must not be '.' or '..'",
+        ),
+        (
+            "parent-root-id",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = ".."
+
+[[bookshelf.category]]
+title = "All Docs"
+books = [".."]
+"#,
+            "bookshelf.root-book-id must not be '.' or '..'",
+        ),
+        (
             "invalid-root-id",
             r#"
 [book]
@@ -201,6 +233,48 @@ title = "All Docs"
 books = ["core", "parser"]
 "#,
             "bookshelf.book.id must not be empty",
+        ),
+        (
+            "dot-child-id",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+
+[[bookshelf.book]]
+id = "."
+title = "Parser Docs"
+src = "modules/parser/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core", "."]
+"#,
+            "bookshelf.book.id must not be '.' or '..'",
+        ),
+        (
+            "parent-child-id",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+
+[[bookshelf.book]]
+id = ".."
+title = "Parser Docs"
+src = "modules/parser/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core", ".."]
+"#,
+            "bookshelf.book.id must not be '.' or '..'",
         ),
         (
             "invalid-child-id",
@@ -243,6 +317,26 @@ title = "All Docs"
 books = ["core"]
 "#,
             "duplicate bookshelf book id 'core'",
+        ),
+        (
+            "missing-child-title",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+
+[[bookshelf.book]]
+id = "parser"
+src = "modules/parser/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core", "parser"]
+"#,
+            "missing required key bookshelf.book.title",
         ),
         (
             "unknown-category-book",
@@ -766,6 +860,52 @@ asset-dir = "{asset_dir}"
             error.to_string().contains(expected),
             "expected {expected:?}, got {error:#}"
         );
+    }
+}
+
+#[test]
+fn rejects_bookshelf_asset_dirs_that_overlap_book_sources() {
+    for (tag, asset_dir, expected_source) in [
+        ("root-equal", "docs", "docs"),
+        ("root-descendant", "docs/.mdbook/bookshelf", "docs"),
+        ("child-ancestor", "modules", "modules/parser/docs"),
+        (
+            "child-descendant",
+            "modules/parser/docs/.mdbook/bookshelf",
+            "modules/parser/docs",
+        ),
+    ] {
+        let temp = TempDir::new(&format!("chunk-asset-dir-overlap-{tag}"));
+        let config_path = write_temp_bookshelf_toml(
+            temp.path(),
+            &format!(
+                r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+asset-dir = "{asset_dir}"
+
+[[bookshelf.book]]
+id = "parser"
+title = "Parser Docs"
+src = "modules/parser/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core", "parser"]
+"#
+            ),
+        );
+
+        let error = load_bookshelf_config(&config_path)
+            .expect_err("asset-dir overlapping a book source must fail");
+        let expected = format!(
+            "[bookshelf].asset-dir '{asset_dir}' must not overlap book source directory '{expected_source}'"
+        );
+        assert_eq!(expected, error.to_string());
     }
 }
 

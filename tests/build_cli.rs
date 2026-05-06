@@ -732,7 +732,9 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
         "document.querySelector(\"#mdbook-menu-bar .right-buttons\")",
     );
     assert_file_contains(root_return_script, "metadata.documentationIndexTarget");
-    assert_file_contains(root_return_css, ".documentation-return-link");
+    assert_file_contains(root_return_css.clone(), ".documentation-return-link");
+    assert_file_not_contains(root_return_css.clone(), ".bookshelf-list");
+    assert_file_not_contains(root_return_css.clone(), ".bookshelf-book");
     assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.js");
     assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.css");
     assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-search.js");
@@ -2092,6 +2094,17 @@ fn assert_file_contains(path: PathBuf, needle: &str) {
     assert!(
         content.contains(needle),
         "expected {} to contain {:?}",
+        path.display(),
+        needle
+    );
+}
+
+fn assert_file_not_contains(path: PathBuf, needle: &str) {
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+    assert!(
+        !content.contains(needle),
+        "expected {} not to contain {:?}",
         path.display(),
         needle
     );
