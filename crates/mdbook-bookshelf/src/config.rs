@@ -2,7 +2,6 @@ use anyhow::{bail, Context, Result};
 use mdbook_driver::config::{BookConfig, Config};
 use serde::Deserialize;
 use std::fs;
-use std::ops::Deref;
 use std::path::{Component, Path, PathBuf};
 use std::str::FromStr;
 
@@ -30,32 +29,6 @@ pub struct BookshelfBook {
 pub struct BookshelfCategory {
     pub title: String,
     pub book_ids: Vec<String>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BookshelfEntryPage {
-    RootBook,
-    Bookshelf,
-}
-
-// Temporary compile bridge for modules that still read `config.entry_page`.
-// `entry-page` is no longer accepted by the parser or stored in BookshelfConfig.
-#[doc(hidden)]
-#[derive(Debug)]
-pub struct BookshelfConfigEntryPageCompat {
-    pub entry_page: BookshelfEntryPage,
-}
-
-static ENTRY_PAGE_COMPAT: BookshelfConfigEntryPageCompat = BookshelfConfigEntryPageCompat {
-    entry_page: BookshelfEntryPage::RootBook,
-};
-
-impl Deref for BookshelfConfig {
-    type Target = BookshelfConfigEntryPageCompat;
-
-    fn deref(&self) -> &Self::Target {
-        &ENTRY_PAGE_COMPAT
-    }
 }
 
 #[derive(Debug, Deserialize)]

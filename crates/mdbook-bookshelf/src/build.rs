@@ -1,6 +1,5 @@
 use crate::bookshelf_ui::{BookshelfAssets, BookshelfPageMetadataPreprocessor};
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
-use crate::config::BookshelfEntryPage;
 use crate::load_single_book_with_config_and_parsed_summary;
 use crate::root_bookshelf_preprocessor::{
     ensure_reserved_bookshelf_path_is_available, inject_root_bookshelf_page,
@@ -622,10 +621,7 @@ fn site_root_entry_path(catalog: &InputCatalog) -> Result<String> {
         .context("failed to resolve root book for site-root redirect")?
         .output_rel;
 
-    match catalog.entry_page {
-        BookshelfEntryPage::RootBook => Ok(path_to_string(&root_output_rel.join("index.html"))),
-        BookshelfEntryPage::Bookshelf => Ok(site_root_bookshelf_entry_path(root_output_rel)),
-    }
+    Ok(path_to_string(&root_output_rel.join("index.html")))
 }
 
 fn escape_html_attr(text: &str) -> String {

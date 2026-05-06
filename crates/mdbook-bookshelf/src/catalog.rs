@@ -1,4 +1,4 @@
-use crate::config::{load_bookshelf_config, BookshelfConfig, BookshelfEntryPage};
+use crate::config::{load_bookshelf_config, BookshelfConfig};
 use anyhow::{bail, Context, Result};
 use mdbook_driver::config::{BookConfig, Config};
 use std::path::{Path, PathBuf};
@@ -8,7 +8,6 @@ pub struct InputCatalog {
     pub config_path: PathBuf,
     pub config_dir: PathBuf,
     pub mdbook_config: Config,
-    pub entry_page: BookshelfEntryPage,
     pub asset_dir: PathBuf,
     pub books: Vec<InputBook>,
 }
@@ -79,7 +78,6 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
         config_path: config.config_path.clone(),
         config_dir: config.config_dir.clone(),
         mdbook_config: config.mdbook_config.clone(),
-        entry_page: config.entry_page,
         asset_dir: config.asset_dir.clone(),
         books,
     })
