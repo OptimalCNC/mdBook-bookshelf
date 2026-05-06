@@ -38,25 +38,6 @@ pub fn build_navigation_metadata(site_model: &SiteModel) -> Result<NavigationMet
         .map(|page| (page.page_id.as_str(), page))
         .collect();
 
-    let synthetic = pages_by_id
-        .get(site_model.synthetic_bookshelf_page_id.as_str())
-        .ok_or_else(|| {
-            anyhow::anyhow!(
-                "navigation metadata missing synthetic bookshelf page '{}'",
-                site_model.synthetic_bookshelf_page_id
-            )
-        })?;
-    by_page_id.insert(
-        synthetic.page_id.clone(),
-        PageNavigation {
-            page_id: synthetic.page_id.clone(),
-            owning_book_id: synthetic.owning_book_id.clone(),
-            prev_page_id: None,
-            next_page_id: None,
-            active_book_id: site_model.root_book_id.clone(),
-        },
-    );
-
     for book in &site_model.books {
         for (idx, page_id) in book.page_ids_in_order.iter().enumerate() {
             let page = pages_by_id.get(page_id.as_str()).ok_or_else(|| {
@@ -73,9 +54,9 @@ pub fn build_navigation_metadata(site_model: &SiteModel) -> Result<NavigationMet
                     book.book_id
                 );
             }
-            if page.owning_book_id != book.book_id {
+            if page.owning_book_id.as_deref() != Some(book.book_id.as_str()) {
                 bail!(
-                    "navigation metadata ownership mismatch for page '{}': page owns '{}' book owns '{}'",
+                    "navigation metadata ownership mismatch for page '{}': page owns '{:?}' book owns '{}'",
                     page_id,
                     page.owning_book_id,
                     book.book_id
@@ -96,7 +77,7 @@ pub fn build_navigation_metadata(site_model: &SiteModel) -> Result<NavigationMet
                 page.page_id.clone(),
                 PageNavigation {
                     page_id: page.page_id.clone(),
-                    owning_book_id: page.owning_book_id.clone(),
+                    owning_book_id: book.book_id.clone(),
                     prev_page_id,
                     next_page_id,
                     active_book_id: book.book_id.clone(),
