@@ -1,6 +1,6 @@
 use crate::bookshelf_ui::{BookshelfAssets, BookshelfPageMetadataPreprocessor};
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
-use crate::documentation_index::write_documentation_index;
+use crate::documentation_index::{validate_documentation_index_inputs, write_documentation_index};
 use crate::load_single_book_with_config_and_parsed_summary;
 use crate::route_paths::{path_to_string, relative_path};
 use crate::search::{write_site_wide_search_index, LOCAL_SHARED_SEARCH_INDEX_NAME};
@@ -84,6 +84,7 @@ pub(crate) fn build_bookshelf_site_with_options(
     let mut mdbook_config = catalog.mdbook_config.clone();
     options.apply_to_config(&mut mdbook_config)?;
     let site_dest_dir = resolve_site_dest_dir(&catalog.config_dir, &mdbook_config, dest_dir)?;
+    validate_documentation_index_inputs(&catalog).context("invalid documentation index inputs")?;
     if options.log_layout {
         progress.summary(&catalog, &site_dest_dir);
     }

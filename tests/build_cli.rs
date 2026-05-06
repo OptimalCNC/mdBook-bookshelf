@@ -853,6 +853,11 @@ fn build_cli_rejects_html_documentation_index_cover_paths() {
         &stderr,
         "book 'core' documentation index cover 'docs/index.html' must not be an HTML file",
     );
+    let root_output = output_dir.join("docs/index.html");
+    if root_output.exists() {
+        let root_output_html = assert_read_to_string(root_output);
+        assert_text_not_contains(&root_output_html, "cover collision sentinel");
+    }
 
     fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");

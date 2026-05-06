@@ -32,6 +32,10 @@ pub(crate) fn write_documentation_index(
     })
 }
 
+pub(crate) fn validate_documentation_index_inputs(catalog: &InputCatalog) -> Result<()> {
+    validate_configured_covers(catalog)
+}
+
 pub(crate) fn render_documentation_index_html(
     catalog: &InputCatalog,
     projected_config: &Config,
