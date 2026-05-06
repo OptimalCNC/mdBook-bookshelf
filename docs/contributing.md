@@ -90,7 +90,7 @@ Current reserved behavior that matters during implementation:
 The implementation intentionally leans on stock mdBook concepts:
 
 - stock `Config`
-- stock `BookConfig`
+- mdBook book configuration fields for book rendering
 - stock summary parsing
 - stock HTML output per book
 - stock search UI, with a documentation-specific shared index override

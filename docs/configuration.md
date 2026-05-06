@@ -14,11 +14,12 @@ This document explains how to write `bookshelf.toml`.
 - `[[bookshelf.book]]` adds child books
 - `[[bookshelf.category]]` groups every book for the documentation index
 
-The root `[book]` and each `[[bookshelf.book]]` entry use mdBook's own
-`BookConfig` fields such as `title`, `description`, `language`, and `src`.
-Child book entries are applied as overrides on top of the root `[book]`
-configuration, then their `src` is kept as the full config-root-relative
-source path.
+The root `[book]` uses mdBook's own `BookConfig` fields. Each
+`[[bookshelf.book]]` entry uses those same mdBook fields, such as `title`,
+`description`, `language`, and `src`, plus documentation-index metadata such as
+`id` and `cover`. Child book entries are applied as overrides on top of the
+root `[book]` configuration, then their `src` is kept as the full
+config-root-relative source path.
 
 ## Minimal Example
 

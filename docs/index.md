@@ -72,8 +72,10 @@ with one extra table:
 - `[[bookshelf.book]]` adds child books
 - `[[bookshelf.category]]` groups every book for the documentation index
 
-Each `[[bookshelf.book]]` entry is taken directly from mdBook's stock
-[`BookConfig`](https://docs.rs/mdbook-driver/latest/mdbook_driver/config/struct.BookConfig.html).
+Each `[[bookshelf.book]]` entry uses mdBook
+[`BookConfig`](https://docs.rs/mdbook-driver/latest/mdbook_driver/config/struct.BookConfig.html)
+fields such as `title`, `description`, `language`, and `src`, plus
+documentation-index metadata such as `id` and `cover`.
 
 Minimal example:
 
