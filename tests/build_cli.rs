@@ -600,14 +600,21 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
     assert_text_contains(&root_entry_html, "class=\"documentation-index\"");
     assert_text_contains(&root_entry_html, "class=\"documentation-index-toc\"");
     assert_text_contains(&root_entry_html, "class=\"documentation-category\"");
-    assert_documentation_index_category(&root_entry_html, "category-core", "Core");
-    assert_documentation_index_category(&root_entry_html, "category-modules", "Modules");
-    assert_text_contains(&root_entry_html, "Fixture Core");
-    assert_text_contains(&root_entry_html, "Fixture Parser");
-    assert_text_contains(&root_entry_html, "Fixture UI");
-    assert_text_contains(&root_entry_html, "href=\"docs/index.html\"");
-    assert_text_contains(&root_entry_html, "href=\"modules/parser/docs/index.html\"");
-    assert_text_contains(&root_entry_html, "href=\"modules/ui/docs/index.html\"");
+    assert_documentation_index_category(
+        &root_entry_html,
+        "category-core",
+        "Core",
+        &[("Fixture Core", "docs/index.html")],
+    );
+    assert_documentation_index_category(
+        &root_entry_html,
+        "category-modules",
+        "Modules",
+        &[
+            ("Fixture Parser", "modules/parser/docs/index.html"),
+            ("Fixture UI", "modules/ui/docs/index.html"),
+        ],
+    );
     assert_text_not_contains(&root_entry_html, "http-equiv=\"refresh\"");
     assert_text_not_contains(&root_entry_html, "Bookshelf");
     assert!(!output_dir.join("docs/bookshelf.html").exists());
@@ -908,19 +915,20 @@ fn build_cli_smoke_builds_public_self_contained_example_from_default_config_path
     let documentation_index_html = assert_read_to_string(output_dir.join("index.html"));
     assert_text_contains(&documentation_index_html, "Table of Contents");
     assert_text_contains(&documentation_index_html, "class=\"documentation-index\"");
-    assert_documentation_index_category(&documentation_index_html, "category-core", "Core");
-    assert_documentation_index_category(&documentation_index_html, "category-modules", "Modules");
-    assert_text_contains(&documentation_index_html, "Example Core");
-    assert_text_contains(&documentation_index_html, "Example Parser");
-    assert_text_contains(&documentation_index_html, "Example UI");
-    assert_text_contains(&documentation_index_html, "href=\"docs/index.html\"");
-    assert_text_contains(
+    assert_documentation_index_category(
         &documentation_index_html,
-        "href=\"modules/parser/docs/index.html\"",
+        "category-core",
+        "Core",
+        &[("Example Core", "docs/index.html")],
     );
-    assert_text_contains(
+    assert_documentation_index_category(
         &documentation_index_html,
-        "href=\"modules/ui/docs/index.html\"",
+        "category-modules",
+        "Modules",
+        &[
+            ("Example Parser", "modules/parser/docs/index.html"),
+            ("Example UI", "modules/ui/docs/index.html"),
+        ],
     );
     assert!(!output_dir.join("docs/bookshelf.html").exists());
 
@@ -1699,19 +1707,20 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
     let documentation_index_html = assert_read_to_string(output_dir.join("index.html"));
     assert_text_contains(&documentation_index_html, "Table of Contents");
     assert_text_contains(&documentation_index_html, "class=\"documentation-index\"");
-    assert_documentation_index_category(&documentation_index_html, "category-overview", "Overview");
-    assert_documentation_index_category(&documentation_index_html, "category-modules", "Modules");
-    assert_text_contains(&documentation_index_html, "MetaNC");
-    assert_text_contains(&documentation_index_html, "G-code Parser");
-    assert_text_contains(&documentation_index_html, "HMI");
-    assert_text_contains(&documentation_index_html, "href=\"docs/index.html\"");
-    assert_text_contains(
+    assert_documentation_index_category(
         &documentation_index_html,
-        "href=\"modules/gcode-parser/docs/index.html\"",
+        "category-overview",
+        "Overview",
+        &[("MetaNC", "docs/index.html")],
     );
-    assert_text_contains(
+    assert_documentation_index_category(
         &documentation_index_html,
-        "href=\"modules/hmi/docs/index.html\"",
+        "category-modules",
+        "Modules",
+        &[
+            ("G-code Parser", "modules/gcode-parser/docs/index.html"),
+            ("HMI", "modules/hmi/docs/index.html"),
+        ],
     );
     assert!(!output_dir.join("docs/bookshelf.html").exists());
     assert!(!output_dir.join("bookshelf.html").exists());
@@ -2265,13 +2274,46 @@ fn assert_text_not_contains(haystack: &str, needle: &str) {
     );
 }
 
-fn assert_documentation_index_category(html: &str, category_id: &str, title: &str) {
-    assert_text_contains(
-        html,
-        &format!(
-            "<section class=\"documentation-category\" id=\"{category_id}\">\n<h2>{title}</h2>"
-        ),
-    );
+fn assert_documentation_index_category(
+    html: &str,
+    category_id: &str,
+    title: &str,
+    expected_books: &[(&str, &str)],
+) {
+    let section = documentation_index_category_section(html, category_id);
+    assert_text_contains(section, &format!("<h2>{title}</h2>"));
+    assert_documentation_index_books_in_order(section, expected_books);
+}
+
+fn documentation_index_category_section<'a>(html: &'a str, category_id: &str) -> &'a str {
+    let marker = format!("<section class=\"documentation-category\" id=\"{category_id}\"");
+    let start = html
+        .find(&marker)
+        .unwrap_or_else(|| panic!("expected documentation index category {category_id:?}"));
+    let after_start = start + marker.len();
+    let end = html[after_start..]
+        .find("<section class=\"documentation-category\"")
+        .map(|relative| after_start + relative)
+        .unwrap_or(html.len());
+    &html[start..end]
+}
+
+fn assert_documentation_index_books_in_order(section: &str, expected_books: &[(&str, &str)]) {
+    let mut cursor = 0;
+    for (title, href) in expected_books {
+        let href_marker = format!("href=\"{href}\"");
+        let href_offset = section[cursor..]
+            .find(&href_marker)
+            .unwrap_or_else(|| panic!("expected category section to contain {href_marker:?}"));
+        let href_start = cursor + href_offset;
+        let next_card = section[href_start + href_marker.len()..]
+            .find("<a class=\"documentation-book-card\"")
+            .map(|relative| href_start + href_marker.len() + relative)
+            .unwrap_or(section.len());
+        let book_card = &section[href_start..next_card];
+        assert_text_contains(book_card, title);
+        cursor = next_card;
+    }
 }
 
 fn assert_no_authored_root_relative_markdown_links(output_dir: &Path) {
