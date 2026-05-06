@@ -2,6 +2,7 @@ pub(crate) mod bookshelf_ui;
 pub mod build;
 pub mod catalog;
 pub mod config;
+pub(crate) mod documentation_index;
 pub mod loader;
 pub mod navigation;
 pub mod root_bookshelf_preprocessor;
