@@ -17,3 +17,8 @@ additional-js = [".mdbook/mermaid.min.js", ".mdbook/mermaid-init.js"]
 
 [bookshelf]
 asset-dir = ".mdbook/bookshelf"
+root-book-id = "mdbook-bookshelf"
+
+[[bookshelf.category]]
+title = "Project Documentation"
+books = ["mdbook-bookshelf"]

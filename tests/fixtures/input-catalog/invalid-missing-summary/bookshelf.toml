@@ -3,7 +3,13 @@ title = "Root Book"
 src = "docs"
 
 [bookshelf]
+root-book-id = "root"
 
 [[bookshelf.book]]
+id = "child"
 title = "Child Book"
 src = "modules/child-book/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root", "child"]

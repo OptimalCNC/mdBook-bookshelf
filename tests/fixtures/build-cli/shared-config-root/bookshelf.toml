@@ -6,6 +6,14 @@ src = "docs"
 [output.html]
 additional-css = ["shared/site.css"]
 
+[bookshelf]
+root-book-id = "root"
+
 [[bookshelf.book]]
+id = "child"
 title = "Child Book"
 src = "modules/child/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root", "child"]

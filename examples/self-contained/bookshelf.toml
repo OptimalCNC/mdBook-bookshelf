@@ -17,13 +17,24 @@ UiRoot = "/modules/ui/docs"
 
 [bookshelf]
 asset-dir = ".mdbook/bookshelf"
+root-book-id = "core"
 
 [[bookshelf.book]]
+id = "parser"
 title = "Example Parser"
 description = "Parser-specific reference pages with their own reading order."
 src = "modules/parser/docs"
 
 [[bookshelf.book]]
+id = "ui"
 title = "Example UI"
 description = "Interface and runtime guides for the UI book."
 src = "modules/ui/docs"
+
+[[bookshelf.category]]
+title = "Core"
+books = ["core"]
+
+[[bookshelf.category]]
+title = "Modules"
+books = ["parser", "ui"]

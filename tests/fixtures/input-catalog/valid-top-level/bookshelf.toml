@@ -3,3 +3,8 @@ title = "Meta Root"
 src = "docs"
 
 [bookshelf]
+root-book-id = "root"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root"]

@@ -2,6 +2,14 @@
 title = "Root Book"
 src = "root-book/docs"
 
+[bookshelf]
+root-book-id = "root"
+
 [[bookshelf.book]]
+id = "broken"
 title = "Broken Book"
 src = "broken-book/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root", "broken"]

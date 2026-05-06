@@ -9,14 +9,24 @@ default-theme = "light"
 preferred-dark-theme = "ayu"
 
 [bookshelf]
-entry-page = "bookshelf"
+root-book-id = "metanc"
 
 [[bookshelf.book]]
+id = "gcode-parser"
 title = "G-code Parser"
 description = "Grammar, modal semantics, and parser diagnostics."
 src = "modules/gcode-parser/docs"
 
 [[bookshelf.book]]
+id = "hmi"
 title = "HMI"
 description = "Operator workflows and runtime notes for the interface book."
 src = "modules/hmi/docs"
+
+[[bookshelf.category]]
+title = "Overview"
+books = ["metanc"]
+
+[[bookshelf.category]]
+title = "Modules"
+books = ["gcode-parser", "hmi"]

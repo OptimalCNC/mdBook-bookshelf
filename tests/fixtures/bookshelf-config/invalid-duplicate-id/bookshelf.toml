@@ -3,11 +3,18 @@ title = "Core Docs"
 src = "docs"
 
 [bookshelf]
+root-book-id = "core"
 
 [[bookshelf.book]]
+id = "parser"
 title = "Parser Docs"
 src = "modules/parser/docs"
 
 [[bookshelf.book]]
+id = "parser"
 title = "Duplicate"
 src = "modules/parser/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core", "parser"]

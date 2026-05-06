@@ -8,12 +8,25 @@ src = "docs"
 default-theme = "light"
 preferred-dark-theme = "ayu"
 
+[bookshelf]
+root-book-id = "core"
+
 [[bookshelf.book]]
+id = "parser"
 title = "Fixture Parser"
 description = "Parser-specific reference pages with their own reading order."
 src = "modules/parser/docs"
 
 [[bookshelf.book]]
+id = "ui"
 title = "Fixture UI"
 description = "Interface and runtime guides for the UI book."
 src = "modules/ui/docs"
+
+[[bookshelf.category]]
+title = "Core"
+books = ["core"]
+
+[[bookshelf.category]]
+title = "Modules"
+books = ["parser", "ui"]
