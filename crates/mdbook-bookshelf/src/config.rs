@@ -34,7 +34,7 @@ pub struct BookshelfCategory {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 struct RawBookshelf {
-    root_book_id: String,
+    root_book_id: Option<String>,
     #[serde(default)]
     root_book: RawBookshelfRootBook,
     #[serde(default = "default_bookshelf_asset_dir")]
@@ -55,8 +55,8 @@ struct RawBookshelfRootBook {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 struct RawBookshelfCategory {
-    title: String,
-    books: Vec<String>,
+    title: Option<String>,
+    books: Option<Vec<String>>,
 }
 
 #[derive(Debug)]
@@ -93,10 +93,15 @@ fn validate_and_build(
     let root_source_rel = normalize_root_source_rel_path(&mdbook_config.book.src)?;
     validate_canonical_output_root(&root_source_rel, "book.src")?;
     mdbook_config.book.src = root_source_rel.clone();
-    let root_book_id = raw.root_book_id;
+    let root_book_id = raw
+        .root_book_id
+        .ok_or_else(|| anyhow::anyhow!("missing required key bookshelf.root-book-id"))?;
     validate_book_id(&root_book_id, "bookshelf.root-book-id")?;
-    let root_book_cover =
-        normalize_optional_cover_path(raw.root_book.cover, "bookshelf.root-book.cover")?;
+    let root_book_cover = normalize_optional_cover_path(
+        &root_book_id,
+        raw.root_book.cover,
+        "bookshelf.root-book.cover",
+    )?;
     let asset_dir = normalize_bookshelf_asset_dir_path(&raw.asset_dir)?;
 
     let mut seen_book_ids = std::collections::BTreeSet::new();
@@ -119,7 +124,8 @@ fn validate_and_build(
         seen_output_roots.push(source_rel.clone());
 
         parsed.book.src = source_rel.clone();
-        let cover = normalize_optional_cover_path(parsed.cover, "bookshelf.book.cover")?;
+        let cover =
+            normalize_optional_cover_path(&parsed.id, parsed.cover, "bookshelf.book.cover")?;
 
         books.push(BookshelfBook {
             id: parsed.id,
@@ -148,18 +154,12 @@ fn parse_bookshelf_table(toml_root: &mut toml::Table, config_path: &Path) -> Res
         .remove("bookshelf")
         .ok_or_else(|| anyhow::anyhow!("missing required table [bookshelf]"))?;
 
-    match bookshelf.try_into() {
-        Ok(raw) => Ok(raw),
-        Err(error) if error.to_string().contains("missing field `root-book-id`") => {
-            bail!("missing required key bookshelf.root-book-id")
-        }
-        Err(error) => Err(error).with_context(|| {
-            format!(
-                "failed to parse bookshelf config in {}",
-                config_path.display()
-            )
-        }),
-    }
+    bookshelf.try_into().with_context(|| {
+        format!(
+            "failed to parse bookshelf config in {}",
+            config_path.display()
+        )
+    })
 }
 
 fn parse_mdbook_config(toml_root: toml::Table, config_path: &Path) -> Result<Config> {
@@ -250,9 +250,13 @@ fn validate_book_id(id: &str, key: &str) -> Result<()> {
     Ok(())
 }
 
-fn normalize_optional_cover_path(raw_path: Option<PathBuf>, key: &str) -> Result<Option<PathBuf>> {
+fn normalize_optional_cover_path(
+    book_id: &str,
+    raw_path: Option<PathBuf>,
+    key: &str,
+) -> Result<Option<PathBuf>> {
     raw_path
-        .map(|path| normalize_rel_file_path("bookshelf", &path, key))
+        .map(|path| normalize_rel_file_path(book_id, &path, key))
         .transpose()
 }
 
@@ -277,18 +281,29 @@ fn validate_categories(
     let mut output = Vec::with_capacity(categories.len());
 
     for raw_category in categories {
-        let title = raw_category.title.trim().to_string();
+        let title = raw_category
+            .title
+            .ok_or_else(|| anyhow::anyhow!("missing required key bookshelf.category.title"))?
+            .trim()
+            .to_string();
         if title.is_empty() {
             bail!("bookshelf.category.title must not be empty");
         }
-        if raw_category.books.is_empty() {
+        let raw_books = raw_category
+            .books
+            .ok_or_else(|| anyhow::anyhow!("missing required key bookshelf.category.books"))?;
+        if raw_books.is_empty() {
             bail!("bookshelf.category '{title}' must list at least one book");
         }
 
-        let mut book_ids = Vec::with_capacity(raw_category.books.len());
-        for book_id in raw_category.books {
+        let mut category_assigned = std::collections::BTreeSet::new();
+        let mut book_ids = Vec::with_capacity(raw_books.len());
+        for book_id in raw_books {
             if !known.contains(&book_id) {
                 bail!("bookshelf.category '{title}' references unknown book id '{book_id}'");
+            }
+            if !category_assigned.insert(book_id.clone()) {
+                bail!("book id '{book_id}' appears more than once in bookshelf.category '{title}'");
             }
             if !assigned.insert(book_id.clone()) {
                 bail!("book id '{book_id}' appears in more than one bookshelf.category");

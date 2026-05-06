@@ -1,4 +1,4 @@
-use mdbook_bookshelf::load_bookshelf_config;
+use mdbook_bookshelf::{load_bookshelf_config, BookshelfCategory};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -104,10 +104,11 @@ books = ["parser"]
         config.books[0].cover.as_deref()
     );
     assert_eq!(2, config.categories.len());
+    let categories: &[BookshelfCategory] = &config.categories;
     assert_eq!("Start Here", config.categories[0].title);
-    assert_eq!(vec!["core"], config.categories[0].book_ids);
+    assert_eq!(vec!["core"], categories[0].book_ids);
     assert_eq!("Reference", config.categories[1].title);
-    assert_eq!(vec!["parser"], config.categories[1].book_ids);
+    assert_eq!(vec!["parser"], categories[1].book_ids);
 }
 
 #[test]
@@ -147,6 +148,80 @@ title = "All Docs"
 books = ["core", "parser"]
 "#,
             "missing required key bookshelf.book.id",
+        ),
+        (
+            "empty-root-id",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = ""
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core"]
+"#,
+            "bookshelf.root-book-id must not be empty",
+        ),
+        (
+            "invalid-root-id",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "co/re"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["co/re"]
+"#,
+            "bookshelf.root-book-id may only contain ASCII letters, numbers, '-', '_', and '.'",
+        ),
+        (
+            "empty-child-id",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+
+[[bookshelf.book]]
+id = ""
+title = "Parser Docs"
+src = "modules/parser/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core", "parser"]
+"#,
+            "bookshelf.book.id must not be empty",
+        ),
+        (
+            "invalid-child-id",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+
+[[bookshelf.book]]
+id = "par/ser"
+title = "Parser Docs"
+src = "modules/parser/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core", "par/ser"]
+"#,
+            "bookshelf.book.id may only contain ASCII letters, numbers, '-', '_', and '.'",
         ),
         (
             "duplicate-id",
@@ -225,6 +300,154 @@ title = "Again"
 books = ["core"]
 "#,
             "book id 'core' appears in more than one bookshelf.category",
+        ),
+        (
+            "duplicate-book-in-same-category",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core", "core"]
+"#,
+            "book id 'core' appears more than once in bookshelf.category 'All Docs'",
+        ),
+        (
+            "no-categories",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+"#,
+            "bookshelf must define at least one [[bookshelf.category]]",
+        ),
+        (
+            "empty-category-title",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+
+[[bookshelf.category]]
+title = ""
+books = ["core"]
+"#,
+            "bookshelf.category.title must not be empty",
+        ),
+        (
+            "missing-category-title",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+
+[[bookshelf.category]]
+books = ["core"]
+"#,
+            "missing required key bookshelf.category.title",
+        ),
+        (
+            "missing-category-books",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+
+[[bookshelf.category]]
+title = "All Docs"
+"#,
+            "missing required key bookshelf.category.books",
+        ),
+        (
+            "empty-category-books",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = []
+"#,
+            "bookshelf.category 'All Docs' must list at least one book",
+        ),
+        (
+            "invalid-root-cover-parent",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+
+[bookshelf.root-book]
+cover = "../covers/core.png"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core"]
+"#,
+            "book 'core' bookshelf.root-book.cover must not contain '..'",
+        ),
+        (
+            "invalid-child-cover-parent",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+
+[[bookshelf.book]]
+id = "parser"
+title = "Parser Docs"
+src = "modules/parser/docs"
+cover = "../covers/parser.png"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core", "parser"]
+"#,
+            "book 'parser' bookshelf.book.cover must not contain '..'",
+        ),
+        (
+            "entry-page-rejected",
+            r#"
+[book]
+title = "Core Docs"
+src = "docs"
+
+[bookshelf]
+root-book-id = "core"
+entry-page = "bookshelf"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core"]
+"#,
+            "unknown field `entry-page`",
         ),
     ] {
         let temp = TempDir::new(&format!("documentation-index-config-{tag}"));
