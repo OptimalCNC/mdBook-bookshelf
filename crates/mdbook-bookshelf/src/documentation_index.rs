@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::catalog::{InputBook, InputCatalog};
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use mdbook_driver::config::Config;
 use std::collections::BTreeMap;
 use std::fs;
@@ -15,6 +15,7 @@ pub(crate) fn write_documentation_index(
     site_dest_dir: &Path,
 ) -> Result<()> {
     let html = render_documentation_index_html(catalog, projected_config)?;
+    validate_configured_covers(catalog)?;
     fs::create_dir_all(site_dest_dir).with_context(|| {
         format!(
             "failed to create site output directory {}",
@@ -271,6 +272,32 @@ fn copy_configured_covers(catalog: &InputCatalog, site_dest_dir: &Path) -> Resul
     Ok(())
 }
 
+fn validate_configured_covers(catalog: &InputCatalog) -> Result<()> {
+    for book in &catalog.books {
+        let Some(cover) = &book.cover else {
+            continue;
+        };
+
+        if cover_is_html(cover) {
+            bail!(
+                "book '{}' documentation index cover '{}' must not be an HTML file",
+                book.id,
+                cover.display()
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn cover_is_html(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| {
+            extension.eq_ignore_ascii_case("html") || extension.eq_ignore_ascii_case("htm")
+        })
+}
+
 fn category_id(title: &str, used: &mut BTreeMap<String, usize>) -> String {
     let mut slug = String::new();
     for ch in title.chars() {
@@ -484,6 +511,52 @@ mod tests {
 
         assert!(error.contains("failed to copy cover for book"));
         assert!(error.contains("root"));
+    }
+
+    #[test]
+    fn write_documentation_index_rejects_html_root_cover_before_output_side_effects() {
+        let config_root = TempDir::new("documentation-index-html-cover-config-root");
+        let site_output = config_root.path().join("site-output");
+        let cover_path = PathBuf::from("docs").join("index.html");
+        let catalog = sample_catalog_at_config_root(config_root.path(), Some(cover_path));
+
+        let error = write_documentation_index(&catalog, &Config::default(), &site_output)
+            .expect_err("HTML cover should be rejected");
+        let error = format!("{error:#}");
+
+        assert!(
+            error.contains(
+                "book 'root' documentation index cover 'docs/index.html' must not be an HTML file"
+            ),
+            "unexpected error: {error}"
+        );
+        assert!(
+            !site_output.exists(),
+            "validation should fail before creating site output"
+        );
+    }
+
+    #[test]
+    fn write_documentation_index_rejects_htm_child_cover_with_book_id() {
+        let config_root = TempDir::new("documentation-index-htm-cover-config-root");
+        let site_output = config_root.path().join("site-output");
+        let mut catalog = sample_catalog_at_config_root(config_root.path(), None);
+        catalog.books[1].cover = Some(PathBuf::from("covers").join("parser.htm"));
+
+        let error = write_documentation_index(&catalog, &Config::default(), &site_output)
+            .expect_err("HTM cover should be rejected");
+        let error = format!("{error:#}");
+
+        assert!(
+            error.contains(
+                "book 'parser' documentation index cover 'covers/parser.htm' must not be an HTML file"
+            ),
+            "unexpected error: {error}"
+        );
+        assert!(
+            !site_output.exists(),
+            "validation should fail before creating site output"
+        );
     }
 
     #[test]
