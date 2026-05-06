@@ -4,12 +4,14 @@
 mdBook.
 
 It keeps mdBook responsible for loading and rendering each individual book, and
-adds a bookshelf layer for multi-book routing, navigation, and search.
+adds a documentation index layer for multi-book routing, navigation, search,
+and return UI.
 
 ## Start By Role
 
 - Evaluators: read this overview, then [Site Behavior](./site-behavior.md) to
-  see the generated routes, shelf page, scoped navigation, and search behavior.
+  see the generated documentation index, scoped navigation, and search
+  behavior.
 - Site authors: start with [Configuration](./configuration.md) and
   [Authoring](./authoring.md), then use [Linking](./linking.md) for local and
   cross-book links.
@@ -21,10 +23,11 @@ adds a bookshelf layer for multi-book routing, navigation, and search.
 ## What It Does
 
 - uses one human-owned `bookshelf.toml`
-- treats the top-level `[book]` as the root book
+- treats the top-level `[book]` as a normal root book with a configured ID
 - adds child books through `[[bookshelf.book]]`
+- groups the root book and child books through `[[bookshelf.category]]`
 - publishes authored pages at source-derived URLs
-- generates a synthetic root `Bookshelf` page
+- generates a site-root documentation index at `/index.html`
 - keeps sidebars and previous/next navigation scoped to the active book
 - exposes site-wide search across all books
 
@@ -63,9 +66,11 @@ with one extra table:
 
 - top-level mdBook config stays stock
 - `[book]` is the root book
-- `[bookshelf]` enables bookshelf behavior
+- `[bookshelf]` enables documentation portal behavior
 - `[bookshelf].asset-dir` configures tool-owned generated runtime assets
+- `[bookshelf].root-book-id` gives the root book its catalog ID
 - `[[bookshelf.book]]` adds child books
+- `[[bookshelf.category]]` groups every book for the documentation index
 
 Each `[[bookshelf.book]]` entry is taken directly from mdBook's stock
 [`BookConfig`](https://docs.rs/mdbook-driver/latest/mdbook_driver/config/struct.BookConfig.html).
@@ -83,22 +88,34 @@ default-theme = "light"
 
 [bookshelf]
 asset-dir = ".mdbook/bookshelf"
+root-book-id = "core"
 
 [[bookshelf.book]]
+id = "gcode-parser"
 title = "G-code Parser"
 description = "Parser reference."
 src = "modules/gcode-parser/docs"
 
 [[bookshelf.book]]
+id = "hmi"
 title = "HMI"
 description = "Operator-facing docs."
 src = "modules/hmi/docs"
+
+[[bookshelf.category]]
+title = "Overview"
+books = ["core"]
+
+[[bookshelf.category]]
+title = "Modules"
+books = ["gcode-parser", "hmi"]
 ```
 
 Current path contract:
 
 - the directory containing `bookshelf.toml` is the site root
 - every `src` is relative to that directory
+- the generated site-root `index.html` is the documentation index
 - every authored markdown page publishes at the same path with `.md` changed to
   `.html`
 - `/...` authored links resolve from the site root and are rewritten during
@@ -115,8 +132,7 @@ See [Configuration](./configuration.md) for the full config rules.
 - [Configuration](./configuration.md) covers `bookshelf.toml`
 - [Operations](./operations.md) documents current `book build` and `book serve`
   behavior
-- [Authoring](./authoring.md) covers layout, `SUMMARY.md`, and the generated
-  `Bookshelf` page
+- [Authoring](./authoring.md) covers layout, `SUMMARY.md`, and book entry pages
 - [Linking](./linking.md) explains how to write cross-book and local links
 - [Examples](./examples.md) points at the example tree and repo-scale fixture
 - [Internals](./internals.md) documents the shared root and asset model

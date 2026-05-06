@@ -1,6 +1,7 @@
 # Internals
 
-This page records the asset and root model used by `mdbook-bookshelf`.
+This page records the documentation index, asset, and root model used by
+`mdbook-bookshelf`.
 
 ## Shared Root
 
@@ -37,16 +38,28 @@ configured shared assets into child directories. Project-owned assets should
 stay in normal config-root-relative paths and be listed in mdBook's standard
 `additional-css` or `additional-js` settings.
 
-## Bookshelf Assets
+## Documentation Index
 
-Bookshelf-owned runtime files live under `[bookshelf].asset-dir`, which
+After catalog validation and per-book build setup, `mdbook-bookshelf` writes
+the generated documentation index to the site root as `index.html`.
+
+The generated index renders the configured categories and creates one card per
+categorized book. Each card links to that book's source-derived
+`<src>/index.html` route.
+
+The root book is represented in the same catalog as child books and is rendered
+only through the category that references `[bookshelf].root-book-id`.
+
+## Documentation Assets
+
+Documentation runtime files live under `[bookshelf].asset-dir`, which
 defaults to `.mdbook/bookshelf`.
 
 These files are generated source assets, not authored docs. The build writes
-the bookshelf UI CSS, return-button JavaScript, and shared-search override
-there, then appends those paths to mdBook's `additional-css` and
-`additional-js` lists. mdBook copies them into each book output at the same
-relative path.
+`documentation-return.css`, `documentation-return.js`, and
+`documentation-search.js` there, then appends those paths to mdBook's
+`additional-css` and `additional-js` lists. mdBook copies them into each book
+output at the same relative path.
 
 The build also writes a `README.md` file explaining that the directory is
 managed by `mdbook-bookshelf`, plus a `.gitignore` file containing `*`. The
@@ -56,7 +69,7 @@ generated `.gitignore` itself out of version control.
 `mdbook-bookshelf` intentionally does not provide an `install`-style command,
 like `mdbook-mermaid` does, for writing these runtime files ahead of time. The
 files are currently stable, but they remain implementation details of the
-bookshelf renderer integration. Generating them during build keeps that
+documentation renderer integration. Generating them during build keeps that
 boundary clear.
 
 The serve watcher ignores only the configured asset directory and the output
@@ -65,17 +78,17 @@ directory, so unrelated `.mdbook` files remain watchable.
 ## Page Metadata
 
 Some runtime values are page-specific: the current page's relative link back to
-the root `Bookshelf` page and the localized shared search index path.
+the documentation index and the localized shared search index path.
 
 Those values are injected by a small preprocessor as JSON metadata on each
-rendered page. The shared runtime JavaScript reads that metadata. This avoids
-generating per-book JavaScript files with hardcoded paths.
+rendered page. The return link uses the `documentationIndexTarget` metadata
+field. This avoids generating per-book JavaScript files with hardcoded paths.
 
 ## Scope
 
-`mdbook-bookshelf` adds bookshelf behavior around stock mdBook: multiple
-source trees, a synthetic shelf page, source-root link rewriting, and
-site-wide search data.
+`mdbook-bookshelf` adds documentation portal behavior around stock mdBook:
+multiple source trees, a generated documentation index, source-root link
+rewriting, and site-wide search data.
 
 It should not grow unrelated authoring features. Those belong in standalone
 mdBook preprocessors, such as `mdbook-mermaid`, and can be enabled through

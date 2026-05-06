@@ -1,4 +1,4 @@
-# Bookshelf Docs
+# Documentation Source
 
 This directory is the source tree for the project's own `mdbook-bookshelf`
 documentation.
@@ -22,7 +22,7 @@ The built book entry page is [index.md](./index.md).
 - [configuration.md](./configuration.md) explains how to write
   `bookshelf.toml`
 - [authoring.md](./authoring.md) explains source layout, `SUMMARY.md`, and the
-  generated `Bookshelf` page
+  generated documentation index
 - [examples.md](./examples.md) points at the example tree and repo-scale fixture
 - [contributing.md](./contributing.md) explains how the implementation is put
   together and how it stays mdBook-first

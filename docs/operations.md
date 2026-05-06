@@ -28,20 +28,20 @@ If `--dest-dir` is omitted, output uses the mdBook `[build].build-dir` value
 from the loaded config. A relative build directory is resolved from the
 directory containing `BOOKSHELF_TOML`.
 
-Both subcommands print the resolved bookshelf root, the site output directory,
-and each content book's source directory before building. Source directories
-are printed as a mapping from book title to source path. Paths are shown
-relative to the directory where the command was invoked when possible.
+Both subcommands print the resolved config root, the site output directory, and
+the number of books before rendering. As each book finishes, the CLI prints
+that book's title, source directory, elapsed time, and page count. Paths are
+shown relative to the directory where the command was invoked when possible.
 
 The CLI also prints build progress on stderr. It reports catalog loading,
 site-root link metadata preparation, each book as it is loaded for link
 mapping, each book as mdBook starts rendering it, shared search index output,
-and the final site-root redirect. This makes long-running builds show which
-phase and book are currently active.
+and documentation index output. This makes long-running builds show which phase
+and book are currently active.
 
 ## Build
 
-Build a bookshelf site:
+Build a documentation portal:
 
 ```bash
 book build bookshelf.toml
@@ -54,8 +54,9 @@ book build bookshelf.toml --dest-dir .tmp/site
 ```
 
 The build loads the root `[book]` and each `[[bookshelf.book]]`, lets mdBook
-load and render each book from the bookshelf config root, then writes the
-bookshelf routing, search, and generated runtime assets into the site output.
+load and render each book from the config root, then writes the documentation
+index, routing metadata, search, and generated runtime assets into the site
+output.
 Runtime source assets are generated under `[bookshelf].asset-dir`, which
 defaults to `.mdbook/bookshelf`.
 
@@ -67,8 +68,8 @@ cargo install mdbook-mermaid
 cargo run --bin book -- build bookshelf.toml --dest-dir .tmp/project-docs-site
 ```
 
-That requirement comes from this documentation site's config. Other bookshelf
-sites only need the preprocessors they configure.
+That requirement comes from this documentation site's config. Other portals
+only need the preprocessors they configure.
 
 
 ## Serve
@@ -112,7 +113,7 @@ includes the affected book id, source path, and file path such as
 
 Watched inputs currently include:
 
-- the bookshelf config file
+- the `bookshelf.toml` config file
 - every configured book source directory
 - the configured shared HTML theme, or each book's default `theme` directory
 - `[build].extra-watch-dirs`

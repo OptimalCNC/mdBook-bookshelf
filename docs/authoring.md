@@ -1,6 +1,6 @@
 # Authoring
 
-This document explains how to lay out a bookshelf site in source form.
+This document explains how to lay out a documentation portal in source form.
 
 ## Required Structure
 
@@ -14,8 +14,7 @@ Minimum catalog-build requirements per book:
 Also author `<src>/index.md` as each book's stable entry page. The catalog
 builder validates the canonical `<src>/SUMMARY.md`; it does not currently
 validate `index.md`. Runtime navigation still assumes `index.html` for
-synthetic shelf links, book entry pages, and the default root-book site-root
-redirect.
+documentation index cards and book entry pages.
 
 Example:
 
@@ -43,12 +42,13 @@ my-repo/
 
 The root book is just the top-level `[book]` entry from `bookshelf.toml`.
 
-It behaves like a normal book with one extra generated page:
+It behaves like a normal book:
 
 - the root book still has its own `SUMMARY.md`
 - the root book still has its own `index.md`
-- `Bookshelf` is generated into that book at `bookshelf.html`
-- `Bookshelf` must not be authored as a normal summary chapter
+- the root book is listed in exactly one `[[bookshelf.category]]`
+- the root book appears on the generated documentation index like any other
+  categorized book
 
 ## Child Books
 
@@ -61,17 +61,19 @@ Do not:
 - duplicate child-book reading order under the root book
 - invent separate output aliases for child books
 
-## Reserved Path
+## Documentation Index
 
-`bookshelf.md` is reserved for the synthetic shelf page.
+The documentation index is generated at the site root as `index.html`.
+It is not authored inside any book, and it does not reserve a markdown page
+inside root or child books.
 
-Current implementation rejects any authored chapter whose file name is
-`bookshelf.md`, including nested paths such as `guide/bookshelf.md`.
+Authored `bookshelf.md` is not reserved by the documentation index.
 
 ## Recommended Authoring Style
 
 - keep `index.md` as the stable entry page for each book
-- use `description` fields so the shelf page has useful copy
+- put every book ID in exactly one configured category
+- use `description` fields so documentation index cards have useful copy
 - use `/...` markdown links for cross-book references
 - use `./...` and `../...` links for nearby local pages
 - keep each book's reading order authoritative in its own `SUMMARY.md`
@@ -105,18 +107,28 @@ title = "Root Book"
 src = "root-book/docs"
 
 [bookshelf]
+root-book-id = "root"
 
 [[bookshelf.book]]
+id = "parser"
 title = "Parser"
 src = "modules/parser/docs"
+
+[[bookshelf.category]]
+title = "Overview"
+books = ["root"]
+
+[[bookshelf.category]]
+title = "Reference"
+books = ["parser"]
 ```
 
 ## Generated Output To Expect
 
 Given the layout above:
 
+- the documentation index publishes at `/index.html`
 - the root book entry page publishes at `/root-book/docs/index.html`
-- the synthetic shelf page publishes at `/root-book/docs/bookshelf.html`
 - the parser entry page publishes at `/modules/parser/docs/index.html`
 
 The published URL layout stays aligned with the source tree.

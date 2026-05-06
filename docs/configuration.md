@@ -8,10 +8,11 @@ This document explains how to write `bookshelf.toml`.
 
 - top-level mdBook config stays stock
 - `[book]` is the root book
-- `[bookshelf]` is required and enables bookshelf behavior
-- `[bookshelf].entry-page` selects where `/` redirects
+- `[bookshelf]` is required and enables documentation portal behavior
+- `[bookshelf].root-book-id` gives the root book its catalog ID
 - `[bookshelf].asset-dir` selects the tool-owned generated asset directory
 - `[[bookshelf.book]]` adds child books
+- `[[bookshelf.category]]` groups every book for the documentation index
 
 The root `[book]` and each `[[bookshelf.book]]` entry use mdBook's own
 `BookConfig` fields such as `title`, `description`, `language`, and `src`.
@@ -33,17 +34,26 @@ default-theme = "light"
 preferred-dark-theme = "ayu"
 
 [bookshelf]
+root-book-id = "core"
 asset-dir = ".mdbook/bookshelf"
 
-[[bookshelf.book]]
-title = "Example Parser"
-description = "Parser-specific reference pages with their own reading order."
-src = "modules/parser/docs"
+[bookshelf.root-book]
+cover = "assets/covers/core.png"
 
 [[bookshelf.book]]
-title = "Example UI"
-description = "Interface and runtime guides for the UI book."
-src = "modules/ui/docs"
+id = "parser"
+title = "Parser"
+description = "Parser-specific reference pages."
+src = "modules/parser/docs"
+cover = "assets/covers/parser.png"
+
+[[bookshelf.category]]
+title = "Start Here"
+books = ["core"]
+
+[[bookshelf.category]]
+title = "Reference"
+books = ["parser"]
 ```
 
 ## Validation Rules
@@ -51,8 +61,14 @@ src = "modules/ui/docs"
 These rules are enforced when `mdbook-bookshelf` parses `bookshelf.toml`:
 
 - `[bookshelf]` is required, even when there are no child books
+- `[bookshelf].root-book-id` is required
 - `book.title` is required and must not be empty
+- every `[[bookshelf.book]]` requires a unique `id`
 - each `bookshelf.book.title` is required and must not be empty
+- every category title must be non-empty
+- every category must list at least one book
+- category book references must point at known book IDs
+- every book must appear in exactly one category
 - `book.src` and `bookshelf.book.src` must not be empty
 - `book.src` and `bookshelf.book.src` must be relative paths
 - `book.src` and `bookshelf.book.src` must not contain `..`
@@ -66,6 +82,9 @@ These rules are enforced when `mdbook-bookshelf` parses `bookshelf.toml`:
   book output root
 - child book output roots must not overlap the root book or another child book
   output root by nesting one output root inside another
+- configured cover paths must be relative to the config root and must not
+  contain `..`
+- configured cover paths must name files below the config root
 - legacy `bookshelf.root-id` is rejected
 
 `./` prefixes are allowed and normalized away, so `./modules/parser/docs` is
@@ -78,19 +97,6 @@ stored as `modules/parser/docs`.
 - every `src` must point to a docs directory
 - the canonical summary for a book is `<src>/SUMMARY.md`
 - the stable entry page for a book is `<src>/index.md`
-
-## Entry Page
-
-The site-root entry page is configurable with `[bookshelf].entry-page`.
-
-Valid values:
-
-- `root-book` redirects `/` and `/index.html` to the root book's
-  `<src>/index.html`
-- `bookshelf` redirects `/` and `/index.html` to the generated
-  `<src>/bookshelf.html`
-
-When omitted, `entry-page` defaults to `root-book`.
 
 ## Asset Directory
 
@@ -131,6 +137,28 @@ Examples of invalid layouts:
 - child book at `modules/parser/docs/reference` when another child already uses
   `modules/parser/docs`
 
+## Documentation Index Covers
+
+Covers are optional. Configure the root book cover under
+`[bookshelf.root-book]`, and configure child book covers directly on
+`[[bookshelf.book]]`.
+
+Books without a configured cover render a fallback card in the documentation
+index.
+
+Configured cover paths:
+
+- are relative to the directory containing `bookshelf.toml`
+- must not contain `..`
+- must name a file below the config root
+- must not end in `.html` or `.htm`
+
+HTML cover paths are rejected because covers render as images and HTML cover
+paths can collide with generated pages.
+
+During build, configured covers are copied to generated output under
+`.mdbook/bookshelf/covers/<book-id>/...`.
+
 ## Shared mdBook Output Settings
 
 Top-level mdBook output settings remain shared site configuration.
@@ -147,16 +175,16 @@ That includes settings such as:
 
 Configured `[preprocessor.*]` command plugins run for each book. Entries in
 `output.html.additional-js` are also included in each book, so plugins such as
-Mermaid can be configured once at the bookshelf root.
+Mermaid can be configured once at the config root.
 
 Relative `output.html.additional-css` and `output.html.additional-js` paths are
-resolved from the bookshelf config root, the directory containing
+resolved from the config root, the directory containing
 `bookshelf.toml`. They are not resolved from each child book's `src`
 directory.
 
-Every book now uses the bookshelf config root as its mdBook root, and differs
-only by `book.src`. That means shared relative mdBook output settings can stay
-relative to the config root for every book. There is no
+Every book now uses the config root as its mdBook root, and differs only by
+`book.src`. That means shared relative mdBook output settings can stay relative
+to the config root for every book. There is no
 `bookshelf-config-assets/` staging directory.
 
 `output.html.input-404` remains stock mdBook behavior: a relative value is
@@ -165,8 +193,8 @@ to disable custom 404 generation.
 
 ## Descriptions
 
-Descriptions are optional, but they are the text shown on the generated
-`Bookshelf` page. In practice they are worth filling in for every book.
+Descriptions are optional, but they are the text shown on documentation index
+book cards. In practice they are worth filling in for every book.
 
 ## What Not To Configure
 

@@ -1,6 +1,6 @@
 # Examples
 
-This repository keeps two primary bookshelf examples.
+This repository keeps two primary documentation portal examples.
 
 ## Self-Contained Example
 
@@ -19,7 +19,8 @@ Use it for:
 
 - quick local build checks
 - simple authoring examples
-- verifying root redirect, shelf generation, scoped sidebars, and shared search
+- verifying the documentation index, category cards, scoped sidebars, and
+  shared search
 
 ## Repo-Scale Fixture
 
@@ -32,6 +33,7 @@ What it shows:
 
 - a repository-wide root book
 - multiple peer books with deeper chapter trees
+- category-driven documentation index configuration
 - nested page routing such as `reference/modal-groups.md`
 - direct-link activation and site-wide search behavior at larger scale
 
