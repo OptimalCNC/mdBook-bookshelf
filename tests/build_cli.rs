@@ -823,6 +823,45 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
 }
 
 #[test]
+fn build_cli_copies_documentation_index_covers_without_overwriting_book_pages() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let fixture_root = copy_bookshelf_ui_site_fixture(&repo_root, "build-cli-cover-collision");
+    let config_path = fixture_root.join("bookshelf.toml");
+    write_documentation_index_bookshelf_ui_site_config(&config_path);
+    let output_dir = make_temp_dir("build-cli-cover-collision-output", &repo_root);
+
+    run_build_cli(&bin, &config_path, &output_dir);
+    let rendered_root_book_html = assert_read_to_string(output_dir.join("docs/index.html"));
+
+    write_minimal_root_book(&fixture_root.join("root/docs"), "Alternate Core");
+    fs::write(
+        fixture_root.join("docs/index.html"),
+        "cover collision sentinel\n",
+    )
+    .expect("collision cover source should be written");
+    write_documentation_index_cover_collision_config(&config_path);
+    run_build_cli(&bin, &config_path, &output_dir);
+
+    let root_book_html = assert_read_to_string(output_dir.join("docs/index.html"));
+    assert_eq!(root_book_html, rendered_root_book_html);
+    assert_text_not_contains(&root_book_html, "cover collision sentinel");
+
+    let documentation_index_html = assert_read_to_string(output_dir.join("index.html"));
+    assert_text_contains(
+        &documentation_index_html,
+        "src=\".mdbook/bookshelf/covers/core/docs/index.html\"",
+    );
+    assert_file_contains(
+        output_dir.join(".mdbook/bookshelf/covers/core/docs/index.html"),
+        "cover collision sentinel",
+    );
+
+    fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+}
+
+#[test]
 fn build_cli_smoke_builds_public_self_contained_example_from_default_config_path() {
     require_mdbook_variables();
 
@@ -2515,6 +2554,60 @@ books = ["parser", "ui"]
 "#,
     )
     .expect("temporary bookshelf config should be rewritten");
+}
+
+fn write_documentation_index_cover_collision_config(config_path: &Path) {
+    fs::write(
+        config_path,
+        r#"[book]
+title = "Alternate Core"
+description = "Alternate root book for cover collision regression."
+language = "en"
+src = "root/docs"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "ayu"
+
+[bookshelf]
+root-book-id = "core"
+
+[bookshelf.root-book]
+cover = "docs/index.html"
+
+[[bookshelf.book]]
+id = "parser"
+title = "Fixture Parser"
+description = "Parser-specific reference pages with their own reading order."
+src = "modules/parser/docs"
+
+[[bookshelf.book]]
+id = "ui"
+title = "Fixture UI"
+description = "Interface and runtime guides for the UI book."
+src = "modules/ui/docs"
+
+[[bookshelf.category]]
+title = "Core"
+books = ["core"]
+
+[[bookshelf.category]]
+title = "Modules"
+books = ["parser", "ui"]
+"#,
+    )
+    .expect("cover collision bookshelf config should be written");
+}
+
+fn write_minimal_root_book(root: &Path, title: &str) {
+    fs::create_dir_all(root).expect("alternate root book directory should be created");
+    fs::write(
+        root.join("SUMMARY.md"),
+        format!("# Summary\n\n- [{title}](index.md)\n"),
+    )
+    .expect("alternate root summary should be written");
+    fs::write(root.join("index.md"), format!("# {title}\n"))
+        .expect("alternate root index should be written");
 }
 
 fn copy_public_self_contained_example_fixture(repo_root: &Path, tag: &str) -> PathBuf {

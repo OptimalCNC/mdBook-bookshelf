@@ -86,19 +86,19 @@ impl BookshelfAssets {
 #[derive(Debug, Clone)]
 pub(crate) struct BookshelfPageMetadataPreprocessor {
     book_output_rel: PathBuf,
-    root_bookshelf_rel: PathBuf,
+    documentation_index_rel: PathBuf,
     search_index_rel: PathBuf,
 }
 
 impl BookshelfPageMetadataPreprocessor {
     pub(crate) fn new(
         book_output_rel: PathBuf,
-        root_bookshelf_rel: PathBuf,
+        documentation_index_rel: PathBuf,
         search_index_rel: PathBuf,
     ) -> Self {
         Self {
             book_output_rel,
-            root_bookshelf_rel,
+            documentation_index_rel,
             search_index_rel,
         }
     }
@@ -120,7 +120,7 @@ impl BookshelfPageMetadataPreprocessor {
             .unwrap_or_else(|| Path::new(""));
         let bookshelf_target = Some(path_to_string(&relative_path(
             chapter_output_dir,
-            &self.root_bookshelf_rel,
+            &self.documentation_index_rel,
         )));
         let search_index_target =
             path_to_string(&relative_path(chapter_output_dir, &self.search_index_rel));

@@ -189,6 +189,67 @@ books = ["root", "missing"]
     );
 }
 
+#[test]
+fn loads_authored_bookshelf_markdown_pages() {
+    let temp = TempDir::new("authored-bookshelf-page");
+    write_file(
+        temp.path(),
+        "docs/SUMMARY.md",
+        "# Summary\n\n- [Root](index.md)\n",
+    );
+    write_file(temp.path(), "docs/index.md", "# Root\n");
+    write_file(
+        temp.path(),
+        "modules/child/docs/SUMMARY.md",
+        "# Summary\n\n- [Child](index.md)\n- [Guide Bookshelf](guide/bookshelf.md)\n",
+    );
+    write_file(temp.path(), "modules/child/docs/index.md", "# Child\n");
+    write_file(
+        temp.path(),
+        "modules/child/docs/guide/bookshelf.md",
+        "# Authored Bookshelf\n",
+    );
+    let config_path = write_file(
+        temp.path(),
+        "bookshelf.toml",
+        r#"[book]
+title = "Root"
+src = "docs"
+
+[bookshelf]
+root-book-id = "root"
+
+[[bookshelf.book]]
+id = "child"
+title = "Child"
+src = "modules/child/docs"
+
+[[bookshelf.category]]
+title = "Main"
+books = ["root", "child"]
+"#,
+    );
+
+    let catalog = build_input_catalog(&config_path).expect("catalog should build");
+    let loaded = load_books_from_catalog(&catalog).expect("authored bookshelf.md should load");
+    let child = loaded
+        .books
+        .iter()
+        .find(|book| book.book_id == "child")
+        .expect("child book should be loaded");
+
+    assert!(
+        child.mdbook.iter().any(|item| {
+            matches!(
+                item,
+                BookItem::Chapter(chapter)
+                    if chapter.path.as_deref() == Some(Path::new("guide/bookshelf.md"))
+            )
+        }),
+        "child book should include authored guide/bookshelf.md chapter"
+    );
+}
+
 struct TempDir {
     path: PathBuf,
 }

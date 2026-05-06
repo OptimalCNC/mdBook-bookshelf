@@ -7,6 +7,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
+const GENERATED_COVER_ROOT: &str = ".mdbook/bookshelf/covers";
+
 pub(crate) fn write_documentation_index(
     catalog: &InputCatalog,
     projected_config: &Config,
@@ -177,7 +179,23 @@ fn book_href(book: &InputBook) -> String {
 }
 
 fn cover_src(book: &InputBook) -> Option<String> {
-    book.cover.as_deref().map(site_relative_url)
+    book.cover
+        .as_ref()
+        .map(|_| site_relative_url(&generated_cover_output_rel(book)))
+}
+
+fn generated_cover_output_rel(book: &InputBook) -> PathBuf {
+    let mut output = PathBuf::from(GENERATED_COVER_ROOT).join(&book.id);
+
+    if let Some(cover) = &book.cover {
+        for component in cover.components() {
+            if let Component::Normal(part) = component {
+                output.push(part);
+            }
+        }
+    }
+
+    output
 }
 
 fn site_relative_url(path: &Path) -> String {
@@ -228,7 +246,7 @@ fn copy_configured_covers(catalog: &InputCatalog, site_dest_dir: &Path) -> Resul
             continue;
         };
         let source = catalog.config_dir.join(cover);
-        let destination = site_dest_dir.join(cover);
+        let destination = site_dest_dir.join(generated_cover_output_rel(book));
         let parent = destination.parent().with_context(|| {
             format!(
                 "cover output path {} is missing a parent",
@@ -371,7 +389,7 @@ mod tests {
         assert!(html.contains("Root Book"));
         assert!(html.contains("Repository-wide docs."));
         assert!(html.contains("href=\"root-book/docs/index.html\""));
-        assert!(html.contains("src=\"assets/covers/root.png\""));
+        assert!(html.contains("src=\".mdbook/bookshelf/covers/root/assets/covers/root.png\""));
         assert!(html.contains("Parser Book"));
         assert!(html.contains("href=\"modules/parser/docs/index.html\""));
         assert!(html.contains("documentation-book-cover-fallback"));
@@ -409,7 +427,9 @@ mod tests {
         assert!(html.contains(
             "href=\"root%20docs/chapter%23draft%3Freview%25done/javascript%3Aexample/index.html\""
         ));
-        assert!(html.contains("src=\"assets%20with%20spaces/covers%23draft/root%3F100%25.png\""));
+        assert!(html.contains(
+            "src=\".mdbook/bookshelf/covers/root/assets%20with%20spaces/covers%23draft/root%3F100%25.png\""
+        ));
     }
 
     #[test]
@@ -432,8 +452,14 @@ mod tests {
         assert!(index_path.exists());
         assert!(index_html.contains("<div class=\"documentation-index\">"));
         assert!(index_html.contains("Root Book"));
+        assert!(index_html.contains(
+            "src=\".mdbook/bookshelf/covers/root/assets/nested%20covers/root%20cover.bin\""
+        ));
 
-        let copied_cover = site_output.path().join(&cover_path);
+        let copied_cover = site_output
+            .path()
+            .join(".mdbook/bookshelf/covers/root")
+            .join(&cover_path);
         let copied_cover_bytes = fs::read(&copied_cover).unwrap_or_else(|err| {
             panic!(
                 "failed to read copied cover {}: {err}",
@@ -477,7 +503,11 @@ mod tests {
         let error = format!("{error:#}");
 
         assert!(error.contains("references unknown book 'missing'"));
-        assert!(!site_output.path().join(&cover_path).exists());
+        assert!(!site_output
+            .path()
+            .join(".mdbook/bookshelf/covers/root")
+            .join(&cover_path)
+            .exists());
     }
 
     fn sample_catalog() -> InputCatalog {
