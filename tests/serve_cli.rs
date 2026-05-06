@@ -67,25 +67,33 @@ fn serve_cli_serves_bookshelf_ui_fixture_site() {
         "/",
     );
     assert_status_ok(&root_response);
-    assert_text_contains(
+    assert_documentation_index_body(
         response_body(&root_response),
-        "http-equiv=\"refresh\" content=\"0; url=docs/index.html\"",
-    );
-    assert_text_contains(
-        response_body(&root_response),
-        "window.location.replace(\"docs/index.html\")",
+        &["Fixture Core", "Fixture Parser", "Fixture UI"],
+        &[
+            "href=\"docs/index.html\"",
+            "href=\"modules/parser/docs/index.html\"",
+            "href=\"modules/ui/docs/index.html\"",
+        ],
     );
 
-    let shelf_response = wait_for_response(
+    let index_response = wait_for_response(
         &mut child,
         &stderr_lines,
         &mut stderr_log,
         &server_address,
-        "/docs/bookshelf.html",
+        "/index.html",
     );
-    assert_status_ok(&shelf_response);
-    assert_text_contains(response_body(&shelf_response), "<h1 id=\"bookshelf\">");
-    assert_text_contains(response_body(&shelf_response), "class=\"bookshelf-list\"");
+    assert_status_ok(&index_response);
+    assert_documentation_index_body(
+        response_body(&index_response),
+        &["Fixture Core", "Fixture Parser", "Fixture UI"],
+        &[
+            "href=\"docs/index.html\"",
+            "href=\"modules/parser/docs/index.html\"",
+            "href=\"modules/ui/docs/index.html\"",
+        ],
+    );
 
     let parser_response = wait_for_response(
         &mut child,
@@ -135,16 +143,41 @@ fn serve_cli_smoke_serves_public_self_contained_example_from_default_config_path
     let mut stderr_log = String::new();
     let server_address = wait_for_serving_address(&mut child, &stderr_lines, &mut stderr_log);
 
-    let shelf_response = wait_for_response(
+    let root_response = wait_for_response(
         &mut child,
         &stderr_lines,
         &mut stderr_log,
         &server_address,
-        "/docs/bookshelf.html",
+        "/",
     );
-    assert_status_ok(&shelf_response);
-    assert_text_contains(response_body(&shelf_response), "<h1 id=\"bookshelf\">");
-    assert_text_contains(response_body(&shelf_response), "Example Core");
+    assert_status_ok(&root_response);
+    assert_documentation_index_body(
+        response_body(&root_response),
+        &["Example Core", "Example Parser", "Example UI"],
+        &[
+            "href=\"docs/index.html\"",
+            "href=\"modules/parser/docs/index.html\"",
+            "href=\"modules/ui/docs/index.html\"",
+        ],
+    );
+
+    let index_response = wait_for_response(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        "/index.html",
+    );
+    assert_status_ok(&index_response);
+    assert_documentation_index_body(
+        response_body(&index_response),
+        &["Example Core", "Example Parser", "Example UI"],
+        &[
+            "href=\"docs/index.html\"",
+            "href=\"modules/parser/docs/index.html\"",
+            "href=\"modules/ui/docs/index.html\"",
+        ],
+    );
 
     shutdown_child(&mut child);
     fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
@@ -710,6 +743,19 @@ fn assert_text_not_contains(text: &str, unexpected: &str) {
         unexpected,
         text
     );
+}
+
+fn assert_documentation_index_body(body: &str, titles: &[&str], hrefs: &[&str]) {
+    assert_text_contains(body, "Table of Contents");
+    assert_text_contains(body, "class=\"documentation-index\"");
+    for title in titles {
+        assert_text_contains(body, title);
+    }
+    for href in hrefs {
+        assert_text_contains(body, href);
+    }
+    assert_text_not_contains(body, "http-equiv=\"refresh\"");
+    assert_text_not_contains(body, "bookshelf.html");
 }
 
 fn shutdown_child(child: &mut Child) {
