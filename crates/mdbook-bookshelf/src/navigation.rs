@@ -56,9 +56,9 @@ pub fn build_navigation_metadata(site_model: &SiteModel) -> Result<NavigationMet
             }
             if page.owning_book_id.as_deref() != Some(book.book_id.as_str()) {
                 bail!(
-                    "navigation metadata ownership mismatch for page '{}': page owns '{:?}' book owns '{}'",
+                    "navigation metadata ownership mismatch for page '{}': page owns {}; book owns '{}'",
                     page_id,
-                    page.owning_book_id,
+                    format_optional_book_id(page.owning_book_id.as_deref()),
                     book.book_id
                 );
             }
@@ -90,4 +90,11 @@ pub fn build_navigation_metadata(site_model: &SiteModel) -> Result<NavigationMet
         root_book_id: site_model.root_book_id.clone(),
         by_page_id,
     })
+}
+
+fn format_optional_book_id(book_id: Option<&str>) -> String {
+    match book_id {
+        Some(book_id) => format!("'{book_id}'"),
+        None => "no owning book".to_string(),
+    }
 }

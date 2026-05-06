@@ -23,27 +23,26 @@ fn site_model_build() {
     assert!(model.books[0].is_root_book);
     assert!(!model.books[1].is_root_book);
 
-    let synthetic_pages: Vec<_> = model
+    let documentation_index_pages: Vec<_> = model
         .pages
         .iter()
-        .filter(|p| p.kind == SitePageKind::SyntheticDocumentationIndex)
+        .filter(|p| p.kind == SitePageKind::DocumentationIndex)
         .collect();
     assert_eq!(
         1,
-        synthetic_pages.len(),
+        documentation_index_pages.len(),
         "must contain exactly one documentation index page"
     );
-    let synthetic = synthetic_pages[0];
-    assert_eq!("documentation:index", synthetic.page_id);
-    assert_eq!("Documentation", synthetic.title);
-    assert_eq!(None, synthetic.owning_book_id);
-    assert_eq!(None, synthetic.order_in_book);
+    let documentation_index = documentation_index_pages[0];
+    assert_eq!("documentation:index", documentation_index.page_id);
+    assert_eq!("Documentation", documentation_index.title);
+    assert_eq!(None, documentation_index.owning_book_id);
+    assert_eq!(None, documentation_index.order_in_book);
     assert!(
-        model
-            .books
-            .iter()
-            .all(|book| !book.page_ids_in_order.contains(&synthetic.page_id)),
-        "synthetic page must not be represented as a content-book entry"
+        model.books.iter().all(|book| !book
+            .page_ids_in_order
+            .contains(&documentation_index.page_id)),
+        "documentation index page must not be represented as a content-book entry"
     );
 
     let content_pages: Vec<_> = model

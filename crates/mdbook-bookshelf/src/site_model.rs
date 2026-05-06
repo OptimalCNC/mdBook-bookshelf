@@ -32,7 +32,7 @@ pub struct SitePage {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SitePageKind {
-    SyntheticDocumentationIndex,
+    DocumentationIndex,
     Content,
 }
 
@@ -60,7 +60,7 @@ pub fn build_site_model(catalog: &InputCatalog, loaded: &LoadedBooks) -> Result<
     let documentation_index_page_id = "documentation:index".to_string();
     pages.push(SitePage {
         page_id: documentation_index_page_id.clone(),
-        kind: SitePageKind::SyntheticDocumentationIndex,
+        kind: SitePageKind::DocumentationIndex,
         owning_book_id: None,
         title: "Documentation".to_string(),
         source_path: None,

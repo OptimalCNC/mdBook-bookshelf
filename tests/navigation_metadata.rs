@@ -1,5 +1,6 @@
 use mdbook_bookshelf::{
     build_input_catalog, build_navigation_metadata, build_site_model, load_books_from_catalog,
+    SiteBook, SiteModel, SitePage, SitePageKind,
 };
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -39,9 +40,53 @@ fn navigation_metadata() {
     assert_ne!(Some("child:0000".to_string()), root_last.next_page_id);
     assert_ne!(Some("root:0001".to_string()), child_first.prev_page_id);
 
+    assert!(nav.for_page("documentation:index").is_none());
     assert_eq!(None, nav.resolve_active_book_id("documentation:index"));
     assert_eq!(Some("root"), nav.resolve_active_book_id("root:0000"));
     assert_eq!(Some("child"), nav.resolve_active_book_id("child:0001"));
+}
+
+#[test]
+fn navigation_metadata_ownership_mismatch_formats_missing_owner() {
+    let model = SiteModel {
+        root_book_id: "root".to_string(),
+        documentation_index_page_id: "documentation:index".to_string(),
+        books: vec![SiteBook {
+            book_id: "root".to_string(),
+            title: "Root Book".to_string(),
+            is_root_book: true,
+            page_ids_in_order: vec!["root:0000".to_string()],
+        }],
+        pages: vec![
+            SitePage {
+                page_id: "documentation:index".to_string(),
+                kind: SitePageKind::DocumentationIndex,
+                owning_book_id: None,
+                title: "Documentation".to_string(),
+                source_path: None,
+                order_in_book: None,
+            },
+            SitePage {
+                page_id: "root:0000".to_string(),
+                kind: SitePageKind::Content,
+                owning_book_id: None,
+                title: "Root Intro".to_string(),
+                source_path: Some(PathBuf::from("index.md")),
+                order_in_book: Some(0),
+            },
+        ],
+    };
+
+    let error = build_navigation_metadata(&model)
+        .expect_err("ownership mismatch should reject content page without owning book")
+        .to_string();
+
+    assert_eq!(
+        "navigation metadata ownership mismatch for page 'root:0000': page owns no owning book; book owns 'root'",
+        error
+    );
+    assert!(!error.contains("None"));
+    assert!(!error.contains("Some("));
 }
 
 struct TempDir {
