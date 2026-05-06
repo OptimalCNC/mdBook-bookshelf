@@ -15,14 +15,24 @@ For example:
 title = "Core"
 src = "docs"
 
+[bookshelf]
+root-book-id = "core"
+
+[[bookshelf.category]]
+id = "guides"
+title = "Guides"
+books = ["core", "parser"]
+
 [[bookshelf.book]]
+id = "parser"
 title = "Parser"
 src = "modules/parser/docs"
 ```
 
-Both books are loaded from the config root. The second book's mdBook config
-keeps `book.src = "modules/parser/docs"` instead of rebasing to
-`src = "docs"` under `modules/parser`.
+Both books are loaded from the config root and shown through explicit
+documentation index categories. The second book's mdBook config keeps
+`book.src = "modules/parser/docs"` instead of rebasing to `src = "docs"` under
+`modules/parser`.
 
 This keeps stock mdBook path resolution consistent for shared settings such as
 themes, extra watch directories, and `output.html.additional-js`.
