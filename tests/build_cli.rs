@@ -600,6 +600,8 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
     assert_text_contains(&root_entry_html, "class=\"documentation-index\"");
     assert_text_contains(&root_entry_html, "class=\"documentation-index-toc\"");
     assert_text_contains(&root_entry_html, "class=\"documentation-category\"");
+    assert_documentation_index_category(&root_entry_html, "category-core", "Core");
+    assert_documentation_index_category(&root_entry_html, "category-modules", "Modules");
     assert_text_contains(&root_entry_html, "Fixture Core");
     assert_text_contains(&root_entry_html, "Fixture Parser");
     assert_text_contains(&root_entry_html, "Fixture UI");
@@ -906,6 +908,8 @@ fn build_cli_smoke_builds_public_self_contained_example_from_default_config_path
     let documentation_index_html = assert_read_to_string(output_dir.join("index.html"));
     assert_text_contains(&documentation_index_html, "Table of Contents");
     assert_text_contains(&documentation_index_html, "class=\"documentation-index\"");
+    assert_documentation_index_category(&documentation_index_html, "category-core", "Core");
+    assert_documentation_index_category(&documentation_index_html, "category-modules", "Modules");
     assert_text_contains(&documentation_index_html, "Example Core");
     assert_text_contains(&documentation_index_html, "Example Parser");
     assert_text_contains(&documentation_index_html, "Example UI");
@@ -1695,6 +1699,8 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
     let documentation_index_html = assert_read_to_string(output_dir.join("index.html"));
     assert_text_contains(&documentation_index_html, "Table of Contents");
     assert_text_contains(&documentation_index_html, "class=\"documentation-index\"");
+    assert_documentation_index_category(&documentation_index_html, "category-overview", "Overview");
+    assert_documentation_index_category(&documentation_index_html, "category-modules", "Modules");
     assert_text_contains(&documentation_index_html, "MetaNC");
     assert_text_contains(&documentation_index_html, "G-code Parser");
     assert_text_contains(&documentation_index_html, "HMI");
@@ -2256,6 +2262,15 @@ fn assert_text_not_contains(haystack: &str, needle: &str) {
         !haystack.contains(needle),
         "expected text not to contain {:?}",
         needle
+    );
+}
+
+fn assert_documentation_index_category(html: &str, category_id: &str, title: &str) {
+    assert_text_contains(
+        html,
+        &format!(
+            "<section class=\"documentation-category\" id=\"{category_id}\">\n<h2>{title}</h2>"
+        ),
     );
 }
 

@@ -69,6 +69,7 @@ fn serve_cli_serves_bookshelf_ui_fixture_site() {
     assert_status_ok(&root_response);
     assert_documentation_index_body(
         response_body(&root_response),
+        &[("category-core", "Core"), ("category-modules", "Modules")],
         &["Fixture Core", "Fixture Parser", "Fixture UI"],
         &[
             "href=\"docs/index.html\"",
@@ -87,6 +88,7 @@ fn serve_cli_serves_bookshelf_ui_fixture_site() {
     assert_status_ok(&index_response);
     assert_documentation_index_body(
         response_body(&index_response),
+        &[("category-core", "Core"), ("category-modules", "Modules")],
         &["Fixture Core", "Fixture Parser", "Fixture UI"],
         &[
             "href=\"docs/index.html\"",
@@ -153,6 +155,7 @@ fn serve_cli_smoke_serves_public_self_contained_example_from_default_config_path
     assert_status_ok(&root_response);
     assert_documentation_index_body(
         response_body(&root_response),
+        &[("category-core", "Core"), ("category-modules", "Modules")],
         &["Example Core", "Example Parser", "Example UI"],
         &[
             "href=\"docs/index.html\"",
@@ -171,6 +174,7 @@ fn serve_cli_smoke_serves_public_self_contained_example_from_default_config_path
     assert_status_ok(&index_response);
     assert_documentation_index_body(
         response_body(&index_response),
+        &[("category-core", "Core"), ("category-modules", "Modules")],
         &["Example Core", "Example Parser", "Example UI"],
         &[
             "href=\"docs/index.html\"",
@@ -745,9 +749,17 @@ fn assert_text_not_contains(text: &str, unexpected: &str) {
     );
 }
 
-fn assert_documentation_index_body(body: &str, titles: &[&str], hrefs: &[&str]) {
+fn assert_documentation_index_body(
+    body: &str,
+    categories: &[(&str, &str)],
+    titles: &[&str],
+    hrefs: &[&str],
+) {
     assert_text_contains(body, "Table of Contents");
     assert_text_contains(body, "class=\"documentation-index\"");
+    for (category_id, title) in categories {
+        assert_documentation_index_category(body, category_id, title);
+    }
     for title in titles {
         assert_text_contains(body, title);
     }
@@ -756,6 +768,15 @@ fn assert_documentation_index_body(body: &str, titles: &[&str], hrefs: &[&str]) 
     }
     assert_text_not_contains(body, "http-equiv=\"refresh\"");
     assert_text_not_contains(body, "bookshelf.html");
+}
+
+fn assert_documentation_index_category(html: &str, category_id: &str, title: &str) {
+    assert_text_contains(
+        html,
+        &format!(
+            "<section class=\"documentation-category\" id=\"{category_id}\">\n<h2>{title}</h2>"
+        ),
+    );
 }
 
 fn shutdown_child(child: &mut Child) {
