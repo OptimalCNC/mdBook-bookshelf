@@ -25,10 +25,20 @@ title = "Root Book"
 src = "root-book/docs"
 
 [bookshelf]
+root-book-id = "root"
+
+[bookshelf.root-book]
+cover = "assets/root.png"
 
 [[bookshelf.book]]
+id = "child"
 title = "Child Book"
 src = "modules/child-book/docs"
+cover = "assets/child.png"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root", "child"]
 "#,
     );
 
@@ -37,8 +47,9 @@ src = "modules/child-book/docs"
     assert_eq!(Path::new(".mdbook/bookshelf"), catalog.asset_dir.as_path());
 
     let root = catalog.root_book().expect("root book should exist");
-    assert_eq!("root-book/docs", root.id);
+    assert_eq!("root", root.id);
     assert!(root.is_root_book);
+    assert_eq!(Some(Path::new("assets/root.png")), root.cover.as_deref());
     assert_eq!(Path::new("root-book/docs"), root.output_rel.as_path());
     assert_eq!(Path::new("."), root.book_root_rel.as_path());
     assert_eq!(Path::new("root-book/docs"), root.book_src_rel.as_path());
@@ -52,7 +63,8 @@ src = "modules/child-book/docs"
         .iter()
         .find(|book| !book.is_root_book)
         .expect("child book should exist");
-    assert_eq!("modules/child-book/docs", child.id);
+    assert_eq!("child", child.id);
+    assert_eq!(Some(Path::new("assets/child.png")), child.cover.as_deref());
     assert_eq!(
         Path::new("modules/child-book/docs"),
         child.output_rel.as_path()
@@ -71,6 +83,9 @@ src = "modules/child-book/docs"
         temp.path().join("modules/child-book/docs/SUMMARY.md"),
         child.summary_abs
     );
+    assert_eq!(1, catalog.categories.len());
+    assert_eq!("All Docs", catalog.categories[0].title);
+    assert_eq!(vec!["root", "child"], catalog.categories[0].book_ids);
 }
 
 #[test]
@@ -90,6 +105,11 @@ title = "Meta Root"
 src = "docs"
 
 [bookshelf]
+root-book-id = "root"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root"]
 "#,
     );
 
@@ -97,7 +117,7 @@ src = "docs"
     assert_eq!(1, catalog.books.len());
 
     let root = catalog.root_book().expect("root book should exist");
-    assert_eq!("docs", root.id);
+    assert_eq!("root", root.id);
     assert!(root.is_root_book);
     assert_eq!(Path::new("."), root.book_root_rel.as_path());
     assert_eq!(temp.path(), root.book_root_abs);
@@ -118,13 +138,18 @@ title = "Root Book"
 src = "docs"
 
 [bookshelf]
+root-book-id = "root"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root"]
 "#,
     );
 
     let error = build_input_catalog(&config_path).expect_err("missing summary must fail");
     assert_eq!(
         format!(
-            "book 'docs' missing canonical summary 'docs/SUMMARY.md' derived from src 'docs' at {}",
+            "book 'root' missing canonical summary 'docs/SUMMARY.md' derived from src 'docs' at {}",
             temp.path().join("docs/SUMMARY.md").display()
         ),
         error.to_string()
@@ -148,13 +173,18 @@ title = "Root Book"
 src = "docs"
 
 [bookshelf]
+root-book-id = "root"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root"]
 "#,
     );
 
     let error = build_input_catalog(&config_path).expect_err("wrong-location summary must fail");
     assert_eq!(
         format!(
-            "book 'docs' missing canonical summary 'docs/SUMMARY.md' derived from src 'docs' at {}",
+            "book 'root' missing canonical summary 'docs/SUMMARY.md' derived from src 'docs' at {}",
             temp.path().join("docs/SUMMARY.md").display()
         ),
         error.to_string()

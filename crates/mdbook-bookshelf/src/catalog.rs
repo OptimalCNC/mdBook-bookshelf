@@ -10,6 +10,13 @@ pub struct InputCatalog {
     pub mdbook_config: Config,
     pub asset_dir: PathBuf,
     pub books: Vec<InputBook>,
+    pub categories: Vec<InputCategory>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InputCategory {
+    pub title: String,
+    pub book_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -19,6 +26,7 @@ pub struct InputBook {
     pub book_config: BookConfig,
     pub title: String,
     pub description: Option<String>,
+    pub cover: Option<PathBuf>,
     pub book_root_rel: PathBuf,
     pub book_root_abs: PathBuf,
     pub book_src_rel: PathBuf,
@@ -53,18 +61,20 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
 
     books.push(build_catalog_book(
         &config.config_dir,
-        &path_to_book_key(&root_output_rel),
+        &config.root_book_id,
         root_output_rel,
         &config.mdbook_config.book,
+        config.root_book_cover.clone(),
         true,
     )?);
 
     for book in &config.books {
         books.push(build_catalog_book(
             &config.config_dir,
-            &path_to_book_key(&book.source_rel),
+            &book.id,
             book.source_rel.clone(),
             &book.book,
+            book.cover.clone(),
             false,
         )?);
     }
@@ -74,12 +84,22 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
         bail!("input catalog must contain exactly one root book, found {root_book_count}");
     }
 
+    let categories = config
+        .categories
+        .iter()
+        .map(|category| InputCategory {
+            title: category.title.clone(),
+            book_ids: category.book_ids.clone(),
+        })
+        .collect();
+
     Ok(InputCatalog {
         config_path: config.config_path.clone(),
         config_dir: config.config_dir.clone(),
         mdbook_config: config.mdbook_config.clone(),
         asset_dir: config.asset_dir.clone(),
         books,
+        categories,
     })
 }
 
@@ -88,6 +108,7 @@ fn build_catalog_book(
     id: &str,
     output_rel: PathBuf,
     book_config: &BookConfig,
+    cover: Option<PathBuf>,
     is_root_book: bool,
 ) -> Result<InputBook> {
     let book_src_rel = book_config.src.clone();
@@ -123,6 +144,7 @@ fn build_catalog_book(
             .clone()
             .expect("config validation requires every catalog book to have a title"),
         description: book_config.description.clone(),
+        cover,
         book_root_rel,
         book_root_abs,
         book_src_rel,
@@ -130,8 +152,4 @@ fn build_catalog_book(
         summary_abs,
         is_root_book,
     })
-}
-
-fn path_to_book_key(path: &Path) -> String {
-    path.to_string_lossy().replace('\\', "/")
 }
