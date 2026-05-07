@@ -19,7 +19,7 @@ That means:
 At a high level the build works like this:
 
 1. load `bookshelf.toml`
-2. build an input catalog from the root book, child books, and categories
+2. build an input catalog from explicit books and categories
 3. load each book's canonical `SUMMARY.md`
 4. generate stable documentation runtime assets under `[bookshelf].asset-dir`
 5. inject per-page documentation runtime metadata with an mdBook preprocessor
@@ -36,11 +36,9 @@ flowchart TD
     SharedConfig --> Plugins["configured preprocessors"]
     SharedConfig --> Assets["configured HTML assets"]
     SharedConfig --> RuntimeAssets["documentation asset-dir"]
-    Catalog --> RootBook["root book"]
-    Catalog --> ChildBooks["child books"]
+    Catalog --> Books["explicit books"]
     Catalog --> Categories["categories"]
-    RootBook --> MdBook["mdBook load and build"]
-    ChildBooks --> MdBook
+    Books --> MdBook["mdBook load and build"]
     Plugins --> MdBook
     Assets --> MdBook
     RuntimeAssets --> MdBook
@@ -69,8 +67,7 @@ flowchart TD
 Changes should preserve these properties:
 
 - `bookshelf.toml` stays the single human-owned site config
-- the root `[book]` remains the root book
-- each child book keeps its own canonical `SUMMARY.md`
+- each explicit book keeps its own canonical `SUMMARY.md`
 - every book appears in exactly one configured category
 - the site-root documentation index stays generated
 - authored page routes stay source-derived

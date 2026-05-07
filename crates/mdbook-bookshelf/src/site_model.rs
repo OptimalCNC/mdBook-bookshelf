@@ -6,7 +6,6 @@ use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SiteModel {
-    pub root_book_id: String,
     pub documentation_index_page_id: String,
     pub books: Vec<SiteBook>,
     pub pages: Vec<SitePage>,
@@ -16,7 +15,6 @@ pub struct SiteModel {
 pub struct SiteBook {
     pub book_id: String,
     pub title: String,
-    pub is_root_book: bool,
     pub page_ids_in_order: Vec<String>,
 }
 
@@ -37,15 +35,6 @@ pub enum SitePageKind {
 }
 
 pub fn build_site_model(catalog: &InputCatalog, loaded: &LoadedBooks) -> Result<SiteModel> {
-    let root_book_id = catalog.root_book()?.id.clone();
-
-    if root_book_id != loaded.root_book_id {
-        bail!(
-            "site model root book mismatch: catalog='{}' loaded='{}'",
-            root_book_id,
-            loaded.root_book_id
-        );
-    }
     if catalog.books.len() != loaded.books.len() {
         bail!(
             "site model book count mismatch: catalog={} loaded={}",
@@ -103,13 +92,11 @@ pub fn build_site_model(catalog: &InputCatalog, loaded: &LoadedBooks) -> Result<
         books.push(SiteBook {
             book_id: catalog_book.id.clone(),
             title: catalog_book.title.clone(),
-            is_root_book: catalog_book.is_root_book,
             page_ids_in_order,
         });
     }
 
     Ok(SiteModel {
-        root_book_id,
         documentation_index_page_id,
         books,
         pages,

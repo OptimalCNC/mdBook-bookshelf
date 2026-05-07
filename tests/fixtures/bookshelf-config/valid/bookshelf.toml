@@ -9,7 +9,12 @@ default-theme = "light"
 no-section-label = true # standard mdBook boolean field
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+description = "Root \"book\"."
+src = "docs"
 
 [[bookshelf.book]]
 id = "parser"

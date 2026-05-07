@@ -537,9 +537,8 @@ theme = "shared/theme"
 additional-css = ["assets/site.css"]
 additional-js = ["scripts/site.js", "{}"]
 
-[bookshelf]
-root-book-id = "root"
-"#,
+	[bookshelf]
+	"#,
                 toml_path(&absolute_script)
             ),
         );
@@ -587,9 +586,8 @@ root-book-id = "root"
         write_minimal_bookshelf_fixture(
             &fixture_root,
             r#"
-[bookshelf]
-root-book-id = "root"
-"#,
+	[bookshelf]
+	"#,
         );
         fs::create_dir_all(fixture_root.join("theme")).expect("root theme should be created");
         fs::create_dir_all(fixture_root.join("modules/child/theme"))
@@ -623,10 +621,9 @@ root-book-id = "root"
 [build]
 extra-watch-dirs = ["."]
 
-[bookshelf]
-root-book-id = "root"
-asset-dir = ".generated/bookshelf"
-"#,
+	[bookshelf]
+	asset-dir = ".generated/bookshelf"
+	"#,
         );
         let output_dir = fixture_root.join("book");
         fs::create_dir_all(&output_dir).expect("output dir should be created");
@@ -719,14 +716,18 @@ asset-dir = ".generated/bookshelf"
             fixture_root.join("bookshelf.toml"),
             format!(
                 r#"[book]
-title = "Root"
-src = "docs"
-language = "en"
+	title = "Documentation"
+	language = "en"
 
-{extra_config}
-[[bookshelf.book]]
-id = "child"
-title = "Child Book"
+	{extra_config}
+	[[bookshelf.book]]
+	id = "root"
+	title = "Root"
+	src = "docs"
+
+	[[bookshelf.book]]
+	id = "child"
+	title = "Child Book"
 src = "modules/child/docs"
 
 [[bookshelf.category]]

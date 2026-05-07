@@ -31,7 +31,6 @@ pub struct InputBook {
     pub book_src_rel: PathBuf,
     pub book_src_abs: PathBuf,
     pub summary_abs: PathBuf,
-    pub is_root_book: bool,
 }
 
 pub fn build_input_catalog(config_path: impl AsRef<Path>) -> Result<InputCatalog> {
@@ -39,46 +38,15 @@ pub fn build_input_catalog(config_path: impl AsRef<Path>) -> Result<InputCatalog
     build_input_catalog_from_config(&config)
 }
 
-impl InputCatalog {
-    pub fn root_book(&self) -> Result<&InputBook> {
-        let mut root_books = self.books.iter().filter(|book| book.is_root_book);
-        let Some(root_book) = root_books.next() else {
-            bail!("input catalog must contain exactly one root book, found 0");
-        };
-
-        if root_books.next().is_some() {
-            bail!("input catalog must contain exactly one root book, found multiple");
-        }
-
-        Ok(root_book)
-    }
-}
-
 fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCatalog> {
-    let mut books = Vec::with_capacity(config.books.len() + 1);
-    let root_output_rel = config.mdbook_config.book.src.clone();
-
-    books.push(build_catalog_book(
-        &config.config_dir,
-        &config.root_book_id,
-        root_output_rel,
-        &config.mdbook_config.book,
-        true,
-    )?);
-
+    let mut books = Vec::with_capacity(config.books.len());
     for book in &config.books {
         books.push(build_catalog_book(
             &config.config_dir,
             &book.id,
             book.source_rel.clone(),
             &book.book,
-            false,
         )?);
-    }
-
-    let root_book_count = books.iter().filter(|book| book.is_root_book).count();
-    if root_book_count != 1 {
-        bail!("input catalog must contain exactly one root book, found {root_book_count}");
     }
 
     let categories = config
@@ -105,7 +73,6 @@ fn build_catalog_book(
     id: &str,
     output_rel: PathBuf,
     book_config: &BookConfig,
-    is_root_book: bool,
 ) -> Result<InputBook> {
     let book_src_rel = book_config.src.clone();
     let book_root_rel = PathBuf::from(".");
@@ -145,6 +112,5 @@ fn build_catalog_book(
         book_src_rel,
         book_src_abs,
         summary_abs,
-        is_root_book,
     })
 }

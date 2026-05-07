@@ -31,8 +31,8 @@ It contains:
 - one card per categorized book
 - links from each card to that book's `<src>/index.html`
 
-The root book is a normal categorized book. It is not the generated landing
-page owner in the reader-facing model.
+Every configured book is a normal categorized book. The generated landing page
+is separate from the authored books in the reader-facing model.
 
 ## Reading Inside A Book
 

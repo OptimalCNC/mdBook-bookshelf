@@ -31,7 +31,7 @@ Path:
 
 What it shows:
 
-- a repository-wide root book
+- a repository-wide book declared like any other book
 - multiple peer books with deeper chapter trees
 - category-driven documentation index configuration
 - nested page routing such as `reference/modal-groups.md`

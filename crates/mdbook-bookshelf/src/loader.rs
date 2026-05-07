@@ -7,7 +7,6 @@ use std::fs;
 use std::path::Path;
 
 pub struct LoadedBooks {
-    pub root_book_id: String,
     pub books: Vec<LoadedBook>,
 }
 
@@ -31,7 +30,6 @@ pub(crate) fn load_books_from_catalog_with_progress(
     mut before_book: impl FnMut(usize, usize, &InputBook),
 ) -> Result<LoadedBooks> {
     let mut books = Vec::with_capacity(catalog.books.len());
-    let root_book_id = catalog.root_book()?.id.clone();
     let total_books = catalog.books.len();
 
     for (index, book) in catalog.books.iter().enumerate() {
@@ -75,8 +73,5 @@ pub(crate) fn load_books_from_catalog_with_progress(
         });
     }
 
-    Ok(LoadedBooks {
-        root_book_id,
-        books,
-    })
+    Ok(LoadedBooks { books })
 }

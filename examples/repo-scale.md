@@ -23,8 +23,8 @@ It checks:
 
 - generated site-root documentation index
 - configured category sections and book cards
-- root book treated as a normal categorized book
-- child-book sidebars that stay scoped to the active book
+- repository-wide book treated as a normal categorized book
+- book sidebars that stay scoped to the active book
 - direct links into nested parser pages such as `reference/modal-groups.md`
 - site-wide search results that can open pages in other books
 

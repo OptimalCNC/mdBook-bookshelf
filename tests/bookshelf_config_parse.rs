@@ -1,73 +1,26 @@
-use mdbook_bookshelf::{load_bookshelf_config, BookshelfCategory};
+use mdbook_bookshelf::load_bookshelf_config;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
-fn parses_source_derived_root_and_child_routes() {
-    let temp = TempDir::new("chunk-06a-config-parse-valid");
+fn parses_explicit_books_without_root_book_id() {
+    let temp = TempDir::new("explicit-books-config-parse-valid");
     let config_path = write_temp_bookshelf_toml(
         temp.path(),
         r#"
 [book]
-title = "Core Docs"
-description = "Root book."
-src = "docs"
+title = "Documentation"
+description = "Site-level metadata."
+src = "site-default"
 
 [bookshelf]
-root-book-id = "core"
 
 [[bookshelf.book]]
-id = "parser"
-title = "Parser Docs"
-src = "modules/parser/docs"
-
-[[bookshelf.category]]
-title = "All Docs"
-books = ["core", "parser"]
-"#,
-    );
-
-    let config = load_bookshelf_config(&config_path).expect("fixture should parse");
-    assert_eq!("core", config.root_book_id);
-    assert_eq!(
-        "Core Docs",
-        config.mdbook_config.book.title.as_deref().unwrap()
-    );
-    assert_eq!(
-        "Root book.",
-        config.mdbook_config.book.description.as_deref().unwrap()
-    );
-    assert_eq!(Path::new("docs"), config.mdbook_config.book.src.as_path());
-    assert_eq!(1, config.books.len());
-    assert_eq!("parser", config.books[0].id);
-    assert_eq!(
-        Path::new("modules/parser/docs"),
-        config.books[0].source_rel.as_path()
-    );
-    assert_eq!(
-        Path::new("modules/parser/docs"),
-        config.books[0].book.src.as_path()
-    );
-    assert_eq!(Path::new(".mdbook/bookshelf"), config.asset_dir.as_path());
-    assert_eq!(1, config.categories.len());
-    assert_eq!("All Docs", config.categories[0].title);
-    assert_eq!(vec!["core", "parser"], config.categories[0].book_ids);
-}
-
-#[test]
-fn parses_documentation_index_categories_and_book_metadata() {
-    let temp = TempDir::new("documentation-index-config-parse-valid");
-    let config_path = write_temp_bookshelf_toml(
-        temp.path(),
-        r#"
-[book]
+id = "core"
 title = "Core Docs"
-description = "Root book."
+description = "Core book."
 src = "docs"
-
-[bookshelf]
-root-book-id = "core"
 
 [[bookshelf.book]]
 id = "parser"
@@ -85,47 +38,102 @@ books = ["parser"]
 "#,
     );
 
-    let config = load_bookshelf_config(&config_path).expect("fixture should parse");
+    let config = load_bookshelf_config(&config_path).expect("explicit books should parse");
 
-    assert_eq!("core", config.root_book_id);
-    assert_eq!(Path::new("docs"), config.mdbook_config.book.src.as_path());
-    assert_eq!(1, config.books.len());
-    assert_eq!("parser", config.books[0].id);
+    assert_eq!(
+        "Documentation",
+        config.mdbook_config.book.title.as_deref().unwrap()
+    );
+    assert_eq!(
+        Path::new("site-default"),
+        config.mdbook_config.book.src.as_path()
+    );
+    assert_eq!(2, config.books.len());
+    assert_eq!("core", config.books[0].id);
+    assert_eq!(Path::new("docs"), config.books[0].source_rel.as_path());
+    assert_eq!("Core Docs", config.books[0].book.title.as_deref().unwrap());
+    assert_eq!(
+        "Core book.",
+        config.books[0].book.description.as_deref().unwrap()
+    );
+    assert_eq!("parser", config.books[1].id);
+    assert_eq!(
+        Path::new("modules/parser/docs"),
+        config.books[1].source_rel.as_path()
+    );
     assert_eq!(2, config.categories.len());
-    let categories: &[BookshelfCategory] = &config.categories;
     assert_eq!("Start Here", config.categories[0].title);
-    assert_eq!(vec!["core"], categories[0].book_ids);
+    assert_eq!(vec!["core"], config.categories[0].book_ids);
     assert_eq!("Reference", config.categories[1].title);
-    assert_eq!(vec!["parser"], categories[1].book_ids);
+    assert_eq!(vec!["parser"], config.categories[1].book_ids);
+}
+
+#[test]
+fn explicit_book_config_inherits_site_book_config_defaults() {
+    let temp = TempDir::new("explicit-book-inherits-site-book-defaults");
+    let config_path = write_temp_bookshelf_toml(
+        temp.path(),
+        r#"
+[book]
+title = "Documentation"
+authors = ["Docs Team"]
+language = "zh"
+src = "site-default"
+
+[bookshelf]
+
+[[bookshelf.book]]
+id = "parser"
+title = "Parser Docs"
+src = "modules/parser/docs"
+
+[[bookshelf.category]]
+title = "Reference"
+books = ["parser"]
+"#,
+    );
+
+    let config = load_bookshelf_config(&config_path).expect("fixture should parse");
+    assert_eq!(vec!["Docs Team"], config.books[0].book.authors);
+    assert_eq!("zh", config.books[0].book.language.as_deref().unwrap());
+}
+
+#[test]
+fn rejects_root_book_id_as_unknown_bookshelf_field() {
+    let temp = TempDir::new("explicit-books-config-root-book-id-rejected");
+    let config_path = write_temp_bookshelf_toml(
+        temp.path(),
+        r#"
+[book]
+title = "Documentation"
+
+[bookshelf]
+root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
+
+[[bookshelf.category]]
+title = "Start Here"
+books = ["core"]
+"#,
+    );
+
+    expect_error_contains(&config_path, "unknown field `root-book-id`");
 }
 
 #[test]
 fn rejects_invalid_documentation_index_category_config() {
     for (tag, toml_fragment, expected) in [
         (
-            "missing-root-id",
+            "missing-book-id",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-
-[[bookshelf.category]]
-title = "Start Here"
-books = ["core"]
-"#,
-            "missing required key bookshelf.root-book-id",
-        ),
-        (
-            "missing-child-id",
-            r#"
-[book]
-title = "Core Docs"
-src = "docs"
-
-[bookshelf]
-root-book-id = "core"
 
 [[bookshelf.book]]
 title = "Parser Docs"
@@ -133,83 +141,17 @@ src = "modules/parser/docs"
 
 [[bookshelf.category]]
 title = "All Docs"
-books = ["core", "parser"]
+books = ["parser"]
 "#,
             "missing required key bookshelf.book.id",
         ),
         (
-            "empty-root-id",
+            "empty-book-id",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = ""
-
-[[bookshelf.category]]
-title = "All Docs"
-books = ["core"]
-"#,
-            "bookshelf.root-book-id must not be empty",
-        ),
-        (
-            "dot-root-id",
-            r#"
-[book]
-title = "Core Docs"
-src = "docs"
-
-[bookshelf]
-root-book-id = "."
-
-[[bookshelf.category]]
-title = "All Docs"
-books = ["."]
-"#,
-            "bookshelf.root-book-id must not be '.' or '..'",
-        ),
-        (
-            "parent-root-id",
-            r#"
-[book]
-title = "Core Docs"
-src = "docs"
-
-[bookshelf]
-root-book-id = ".."
-
-[[bookshelf.category]]
-title = "All Docs"
-books = [".."]
-"#,
-            "bookshelf.root-book-id must not be '.' or '..'",
-        ),
-        (
-            "invalid-root-id",
-            r#"
-[book]
-title = "Core Docs"
-src = "docs"
-
-[bookshelf]
-root-book-id = "co/re"
-
-[[bookshelf.category]]
-title = "All Docs"
-books = ["co/re"]
-"#,
-            "bookshelf.root-book-id may only contain ASCII letters, numbers, '-', '_', and '.'",
-        ),
-        (
-            "empty-child-id",
-            r#"
-[book]
-title = "Core Docs"
-src = "docs"
-
-[bookshelf]
-root-book-id = "core"
 
 [[bookshelf.book]]
 id = ""
@@ -218,19 +160,17 @@ src = "modules/parser/docs"
 
 [[bookshelf.category]]
 title = "All Docs"
-books = ["core", "parser"]
+books = ["parser"]
 "#,
             "bookshelf.book.id must not be empty",
         ),
         (
-            "dot-child-id",
+            "dot-book-id",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
 
 [[bookshelf.book]]
 id = "."
@@ -239,19 +179,17 @@ src = "modules/parser/docs"
 
 [[bookshelf.category]]
 title = "All Docs"
-books = ["core", "."]
+books = ["."]
 "#,
             "bookshelf.book.id must not be '.' or '..'",
         ),
         (
-            "parent-child-id",
+            "parent-book-id",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
 
 [[bookshelf.book]]
 id = ".."
@@ -260,19 +198,17 @@ src = "modules/parser/docs"
 
 [[bookshelf.category]]
 title = "All Docs"
-books = ["core", ".."]
+books = [".."]
 "#,
             "bookshelf.book.id must not be '.' or '..'",
         ),
         (
-            "invalid-child-id",
+            "invalid-book-id",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
 
 [[bookshelf.book]]
 id = "par/ser"
@@ -281,7 +217,7 @@ src = "modules/parser/docs"
 
 [[bookshelf.category]]
 title = "All Docs"
-books = ["core", "par/ser"]
+books = ["par/ser"]
 "#,
             "bookshelf.book.id may only contain ASCII letters, numbers, '-', '_', and '.'",
         ),
@@ -289,11 +225,14 @@ books = ["core", "par/ser"]
             "duplicate-id",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.book]]
 id = "core"
@@ -307,14 +246,12 @@ books = ["core"]
             "duplicate bookshelf book id 'core'",
         ),
         (
-            "missing-child-title",
+            "missing-book-title",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
 
 [[bookshelf.book]]
 id = "parser"
@@ -322,19 +259,41 @@ src = "modules/parser/docs"
 
 [[bookshelf.category]]
 title = "All Docs"
-books = ["core", "parser"]
+books = ["parser"]
 "#,
             "missing required key bookshelf.book.title",
+        ),
+        (
+            "missing-book-src",
+            r#"
+[book]
+title = "Documentation"
+src = "site-default"
+
+[bookshelf]
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+
+[[bookshelf.category]]
+title = "Start Here"
+books = ["core"]
+"#,
+            "missing required key bookshelf.book.src",
         ),
         (
             "unknown-category-book",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.category]]
 title = "All Docs"
@@ -346,11 +305,14 @@ books = ["core", "missing"]
             "uncategorized-book",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.book]]
 id = "parser"
@@ -367,11 +329,14 @@ books = ["core"]
             "duplicate-category-assignment",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.category]]
 title = "Start Here"
@@ -387,11 +352,14 @@ books = ["core"]
             "duplicate-book-in-same-category",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.category]]
 title = "All Docs"
@@ -403,11 +371,14 @@ books = ["core", "core"]
             "no-categories",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 "#,
             "bookshelf must define at least one [[bookshelf.category]]",
         ),
@@ -415,11 +386,14 @@ root-book-id = "core"
             "empty-category-title",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.category]]
 title = ""
@@ -431,11 +405,14 @@ books = ["core"]
             "missing-category-title",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.category]]
 books = ["core"]
@@ -446,11 +423,14 @@ books = ["core"]
             "missing-category-books",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.category]]
 title = "All Docs"
@@ -461,11 +441,14 @@ title = "All Docs"
             "empty-category-books",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.category]]
 title = "All Docs"
@@ -474,17 +457,20 @@ books = []
             "bookshelf.category 'All Docs' must list at least one book",
         ),
         (
-            "root-cover-rejected",
+            "root-book-table-rejected",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
 
 [bookshelf.root-book]
 cover = "assets/covers/core.png"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.category]]
 title = "All Docs"
@@ -493,14 +479,12 @@ books = ["core"]
             "unknown field `root-book`",
         ),
         (
-            "child-cover-rejected",
+            "book-cover-rejected",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
 
 [[bookshelf.book]]
 id = "parser"
@@ -510,7 +494,7 @@ cover = "assets/covers/parser.png"
 
 [[bookshelf.category]]
 title = "All Docs"
-books = ["core", "parser"]
+books = ["parser"]
 "#,
             "unknown field `cover` in bookshelf.book",
         ),
@@ -518,12 +502,15 @@ books = ["core", "parser"]
             "entry-page-rejected",
             r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
 entry-page = "bookshelf"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.category]]
 title = "All Docs"
@@ -534,43 +521,8 @@ books = ["core"]
     ] {
         let temp = TempDir::new(&format!("documentation-index-config-{tag}"));
         let config_path = write_temp_bookshelf_toml(temp.path(), toml_fragment);
-        let error = load_bookshelf_config(&config_path).expect_err("invalid config must fail");
-        assert!(
-            format!("{error:#}").contains(expected),
-            "expected {expected:?}, got {error:#}"
-        );
+        expect_error_contains(&config_path, expected);
     }
-}
-
-#[test]
-fn child_book_config_inherits_root_book_config_defaults() {
-    let temp = TempDir::new("chunk-asset-dir-child-inherits-root-book");
-    let config_path = write_temp_bookshelf_toml(
-        temp.path(),
-        r#"
-[book]
-title = "Core Docs"
-authors = ["Docs Team"]
-language = "zh"
-src = "docs"
-
-[bookshelf]
-root-book-id = "core"
-
-[[bookshelf.book]]
-id = "parser"
-title = "Parser Docs"
-src = "modules/parser/docs"
-
-[[bookshelf.category]]
-title = "All Docs"
-books = ["core", "parser"]
-"#,
-    );
-
-    let config = load_bookshelf_config(&config_path).expect("fixture should parse");
-    assert_eq!(vec!["Docs Team"], config.books[0].book.authors);
-    assert_eq!("zh", config.books[0].book.language.as_deref().unwrap());
 }
 
 #[test]
@@ -580,16 +532,23 @@ fn rejects_legacy_root_id_as_unknown_field() {
         temp.path(),
         r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
 root-id = "meta"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core"]
 "#,
     );
 
-    let error = load_bookshelf_config(&config_path).expect_err("legacy root-id must fail");
-    assert!(format!("{error:#}").contains("unknown field `root-id`"));
+    expect_error_contains(&config_path, "unknown field `root-id`");
 }
 
 #[test]
@@ -599,11 +558,14 @@ fn rejects_duplicate_canonical_output_roots() {
         temp.path(),
         r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.book]]
 id = "parser"
@@ -625,20 +587,23 @@ books = ["core", "parser"]
 
 #[test]
 fn rejects_overlapping_canonical_output_roots() {
-    let root_child_temp = TempDir::new("chunk-06a-config-parse-overlap-root-child");
-    let root_child_config_path = write_temp_bookshelf_toml(
-        root_child_temp.path(),
+    let parent_child_temp = TempDir::new("chunk-06a-config-parse-overlap-parent-child");
+    let parent_child_config_path = write_temp_bookshelf_toml(
+        parent_child_temp.path(),
         r#"
 [book]
+title = "Documentation"
+
+[bookshelf]
+
+[[bookshelf.book]]
+id = "core"
 title = "Core Docs"
 src = "docs"
 
-[bookshelf]
-root-book-id = "core"
-
 [[bookshelf.book]]
 id = "nested"
-title = "Nested Child"
+title = "Nested Book"
 src = "docs/api"
 
 [[bookshelf.category]]
@@ -647,23 +612,21 @@ books = ["core", "nested"]
 "#,
     );
 
-    let root_child_error =
-        load_bookshelf_config(&root_child_config_path).expect_err("overlap must fail");
+    let parent_child_error =
+        load_bookshelf_config(&parent_child_config_path).expect_err("overlap must fail");
     assert_eq!(
         "bookshelf.book.src 'docs/api' resolves to overlapping canonical output root 'docs'",
-        root_child_error.to_string()
+        parent_child_error.to_string()
     );
 
-    let child_child_temp = TempDir::new("chunk-06a-config-parse-overlap-child-child");
-    let child_child_config_path = write_temp_bookshelf_toml(
-        child_child_temp.path(),
+    let sibling_child_temp = TempDir::new("chunk-06a-config-parse-overlap-sibling-child");
+    let sibling_child_config_path = write_temp_bookshelf_toml(
+        sibling_child_temp.path(),
         r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
 
 [[bookshelf.book]]
 id = "parser"
@@ -677,82 +640,58 @@ src = "modules/parser/docs/reference"
 
 [[bookshelf.category]]
 title = "All Docs"
-books = ["core", "parser", "parser-api"]
+books = ["parser", "parser-api"]
 "#,
     );
 
-    let child_child_error = load_bookshelf_config(&child_child_config_path)
-        .expect_err("nested child overlap must fail");
+    let sibling_child_error = load_bookshelf_config(&sibling_child_config_path)
+        .expect_err("nested book overlap must fail");
     assert_eq!(
         "bookshelf.book.src 'modules/parser/docs/reference' resolves to overlapping canonical output root 'modules/parser/docs'",
-        child_child_error.to_string()
+        sibling_child_error.to_string()
     );
 }
 
 #[test]
-fn rejects_site_root_output_roots() {
-    let root_temp = TempDir::new("chunk-06a-config-parse-root-site-root");
-    let root_config_path = write_temp_bookshelf_toml(
-        root_temp.path(),
-        r#"
-[book]
-title = "Core Docs"
-src = "."
-
-[bookshelf]
-root-book-id = "core"
-"#,
-    );
-
-    let root_error =
-        load_bookshelf_config(&root_config_path).expect_err("site root book.src must fail");
-    assert_eq!(
-        "book.src must not resolve to the site root canonical output root: '.'",
-        root_error.to_string()
-    );
-
-    let child_temp = TempDir::new("chunk-06a-config-parse-child-site-root");
-    let child_config_path = write_temp_bookshelf_toml(
-        child_temp.path(),
-        r#"
-[book]
-title = "Core Docs"
-src = "docs"
-
-[bookshelf]
-root-book-id = "core"
-
-[[bookshelf.book]]
-id = "parser"
-title = "Parser Docs"
-src = "."
-
-[[bookshelf.category]]
-title = "All Docs"
-books = ["core", "parser"]
-"#,
-    );
-
-    let child_error =
-        load_bookshelf_config(&child_config_path).expect_err("site root child src must fail");
-    assert_eq!(
-        "bookshelf.book.src must not resolve to the site root canonical output root: '.'",
-        child_error.to_string()
-    );
-}
-
-#[test]
-fn preserves_site_root_relative_book_src_for_nested_child_source() {
-    let temp = TempDir::new("chunk-06a-config-parse-dotted-child-src");
+fn rejects_site_root_output_roots_for_explicit_books() {
+    let temp = TempDir::new("chunk-06a-config-parse-book-site-root");
     let config_path = write_temp_bookshelf_toml(
         temp.path(),
         r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
+src = "."
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "."
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core"]
+"#,
+    );
+
+    let error = load_bookshelf_config(&config_path).expect_err("site root book src must fail");
+    assert_eq!(
+        "bookshelf.book.src must not resolve to the site root canonical output root: '.'",
+        error.to_string()
+    );
+}
+
+#[test]
+fn preserves_site_root_relative_book_src_for_nested_source() {
+    let temp = TempDir::new("chunk-06a-config-parse-dotted-book-src");
+    let config_path = write_temp_bookshelf_toml(
+        temp.path(),
+        r#"
+[book]
+title = "Documentation"
+
+[bookshelf]
 
 [[bookshelf.book]]
 id = "parser"
@@ -761,11 +700,11 @@ src = "./modules/parser/docs"
 
 [[bookshelf.category]]
 title = "All Docs"
-books = ["core", "parser"]
+books = ["parser"]
 "#,
     );
 
-    let config = load_bookshelf_config(&config_path).expect("dotted child src should parse");
+    let config = load_bookshelf_config(&config_path).expect("dotted book src should parse");
     assert_eq!(
         Path::new("modules/parser/docs"),
         config.books[0].source_rel.as_path()
@@ -783,12 +722,15 @@ fn parses_custom_bookshelf_asset_dir() {
         temp.path(),
         r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
 asset-dir = ".generated/bookshelf"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.category]]
 title = "All Docs"
@@ -833,32 +775,26 @@ fn rejects_invalid_bookshelf_asset_dirs() {
             &format!(
                 r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
 asset-dir = "{asset_dir}"
 "#
             ),
         );
 
-        let error = load_bookshelf_config(&config_path).expect_err("invalid asset-dir must fail");
-        assert!(
-            error.to_string().contains(expected),
-            "expected {expected:?}, got {error:#}"
-        );
+        expect_error_contains(&config_path, expected);
     }
 }
 
 #[test]
 fn rejects_bookshelf_asset_dirs_that_overlap_book_sources() {
     for (tag, asset_dir, expected_source) in [
-        ("root-equal", "docs", "docs"),
-        ("root-descendant", "docs/.mdbook/bookshelf", "docs"),
-        ("child-ancestor", "modules", "modules/parser/docs"),
+        ("core-equal", "docs", "docs"),
+        ("core-descendant", "docs/.mdbook/bookshelf", "docs"),
+        ("parser-ancestor", "modules", "modules/parser/docs"),
         (
-            "child-descendant",
+            "parser-descendant",
             "modules/parser/docs/.mdbook/bookshelf",
             "modules/parser/docs",
         ),
@@ -869,12 +805,15 @@ fn rejects_bookshelf_asset_dirs_that_overlap_book_sources() {
             &format!(
                 r#"
 [book]
-title = "Core Docs"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "core"
 asset-dir = "{asset_dir}"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.book]]
 id = "parser"
@@ -931,4 +870,12 @@ fn write_temp_bookshelf_toml(dir: &Path, content: &str) -> PathBuf {
     let file = dir.join("bookshelf.toml");
     fs::write(&file, content).expect("temp fixture file should be written");
     file
+}
+
+fn expect_error_contains(config_path: &Path, expected: &str) {
+    let error = load_bookshelf_config(config_path).expect_err("invalid config must fail");
+    assert!(
+        format!("{error:#}").contains(expected),
+        "expected {expected:?}, got {error:#}"
+    );
 }

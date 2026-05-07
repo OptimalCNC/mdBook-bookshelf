@@ -1,5 +1,5 @@
 [book]
-title = "Root Book"
+title = "Documentation"
 language = "en"
 src = "docs"
 
@@ -7,7 +7,11 @@ src = "docs"
 additional-css = ["shared/site.css"]
 
 [bookshelf]
-root-book-id = "root"
+
+[[bookshelf.book]]
+id = "root"
+title = "Root Book"
+src = "docs"
 
 [[bookshelf.book]]
 id = "child"

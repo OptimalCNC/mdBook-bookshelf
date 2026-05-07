@@ -306,7 +306,7 @@ impl BuildProgress {
 
         eprintln!(
             "  [{index}/{total}] {}: {} ({}, {})",
-            self.style.source_title(&book.title, book.is_root_book),
+            self.style.source_title(&book.title),
             self.format_path(&book.book_src_abs),
             format_duration(elapsed),
             format_page_count(page_count)
@@ -398,12 +398,8 @@ impl LogStyle {
         self.paint("36", text)
     }
 
-    fn source_title(&self, title: &str, is_root_book: bool) -> String {
-        if is_root_book {
-            self.paint("1;32", title)
-        } else {
-            self.paint("36", title)
-        }
+    fn source_title(&self, title: &str) -> String {
+        self.paint("36", title)
     }
 
     fn success(&self, text: &str) -> String {

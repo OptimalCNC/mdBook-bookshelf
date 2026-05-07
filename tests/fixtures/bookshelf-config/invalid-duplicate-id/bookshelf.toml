@@ -3,7 +3,11 @@ title = "Core Docs"
 src = "docs"
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "parser"
+title = "Core Docs"
+src = "docs"
 
 [[bookshelf.book]]
 id = "parser"

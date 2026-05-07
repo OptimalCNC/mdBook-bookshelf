@@ -23,9 +23,9 @@ and return UI.
 ## What It Does
 
 - uses one human-owned `bookshelf.toml`
-- treats the top-level `[book]` as a normal root book with a configured ID
-- adds child books through `[[bookshelf.book]]`
-- groups the root book and child books through `[[bookshelf.category]]`
+- keeps top-level mdBook settings as shared site defaults
+- declares every visible book through `[[bookshelf.book]]`
+- groups books through `[[bookshelf.category]]`
 - publishes authored pages at source-derived URLs
 - generates a site-root documentation index at `/index.html`
 - keeps sidebars and previous/next navigation scoped to the active book
@@ -65,11 +65,10 @@ directories, and serve rebuild behavior.
 with one extra table:
 
 - top-level mdBook config stays stock
-- `[book]` is the root book
+- `[book]` provides shared site-level mdBook metadata and defaults
 - `[bookshelf]` enables documentation portal behavior
 - `[bookshelf].asset-dir` configures tool-owned generated runtime assets
-- `[bookshelf].root-book-id` gives the root book its catalog ID
-- `[[bookshelf.book]]` adds child books
+- `[[bookshelf.book]]` declares each visible book
 - `[[bookshelf.category]]` groups every book for the documentation index
 
 Each `[[bookshelf.book]]` entry uses mdBook
@@ -81,16 +80,20 @@ Minimal example:
 
 ```toml
 [book]
-title = "MetaNC"
-description = "Repository-wide docs."
-src = "docs"
+title = "MetaNC Documentation"
+description = "Site-level docs metadata."
 
 [output.html]
 default-theme = "light"
 
 [bookshelf]
 asset-dir = ".mdbook/bookshelf"
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "MetaNC"
+description = "Repository-wide docs."
+src = "docs"
 
 [[bookshelf.book]]
 id = "gcode-parser"

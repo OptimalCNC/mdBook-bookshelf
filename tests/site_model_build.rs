@@ -15,13 +15,10 @@ fn site_model_build() {
     let loaded = load_books_from_catalog(&catalog).expect("books should load");
     let model = build_site_model(&catalog, &loaded).expect("site model should build");
 
-    assert_eq!("root", model.root_book_id);
     assert_eq!("documentation:index", model.documentation_index_page_id);
     assert_eq!(2, model.books.len());
     assert_eq!("root", model.books[0].book_id);
     assert_eq!("child", model.books[1].book_id);
-    assert!(model.books[0].is_root_book);
-    assert!(!model.books[1].is_root_book);
 
     let documentation_index_pages: Vec<_> = model
         .pages
@@ -125,11 +122,14 @@ fn write_explicit_id_fixture(dir: &Path) -> PathBuf {
         "bookshelf.toml",
         r#"
 [book]
-title = "Root Book"
-src = "root-book/docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "root"
+
+[[bookshelf.book]]
+id = "root"
+title = "Root Book"
+src = "root-book/docs"
 
 [[bookshelf.book]]
 id = "child"

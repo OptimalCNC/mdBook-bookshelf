@@ -4,7 +4,6 @@ use std::collections::BTreeMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NavigationMetadata {
-    pub root_book_id: String,
     pub by_page_id: BTreeMap<String, PageNavigation>,
 }
 
@@ -86,10 +85,7 @@ pub fn build_navigation_metadata(site_model: &SiteModel) -> Result<NavigationMet
         }
     }
 
-    Ok(NavigationMetadata {
-        root_book_id: site_model.root_book_id.clone(),
-        by_page_id,
-    })
+    Ok(NavigationMetadata { by_page_id })
 }
 
 fn format_optional_book_id(book_id: Option<&str>) -> String {

@@ -49,12 +49,10 @@ fn navigation_metadata() {
 #[test]
 fn navigation_metadata_ownership_mismatch_formats_missing_owner() {
     let model = SiteModel {
-        root_book_id: "root".to_string(),
         documentation_index_page_id: "documentation:index".to_string(),
         books: vec![SiteBook {
             book_id: "root".to_string(),
             title: "Root Book".to_string(),
-            is_root_book: true,
             page_ids_in_order: vec!["root:0000".to_string()],
         }],
         pages: vec![
@@ -139,11 +137,14 @@ fn write_explicit_id_fixture(dir: &Path) -> PathBuf {
         "bookshelf.toml",
         r#"
 [book]
-title = "Root Book"
-src = "root-book/docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "root"
+
+[[bookshelf.book]]
+id = "root"
+title = "Root Book"
+src = "root-book/docs"
 
 [[bookshelf.book]]
 id = "child"

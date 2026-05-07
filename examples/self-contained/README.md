@@ -5,17 +5,16 @@ documenting and testing the current behavior of `mdbook-bookshelf`.
 
 Layout:
 
-- root book under `docs/`
+- core book under `docs/`
 - parser book under `modules/parser/docs/`
 - UI book under `modules/ui/docs/`
-- config in `bookshelf.toml` with root-book mdBook `[book]` metadata plus
-  `[bookshelf]`
-- `root-book-id = "core"` assigns the root book's catalog ID
+- config in `bookshelf.toml` with site-level mdBook `[book]` metadata plus
+  explicit `[[bookshelf.book]]` entries
 - category sections group `core`, `parser`, and `ui` for the documentation
   index
-- child books use config-root-relative mdBook-native `src` values
-- root-book content uses `docs/index.md`, like the other module books use
-  their own `docs/index.md`
+- books use config-root-relative mdBook-native `src` values
+- core content uses `docs/index.md`, like the other module books use their own
+  `docs/index.md`
 - the documentation index is generated at site-root `index.html`, not authored
   in `docs/SUMMARY.md`
 

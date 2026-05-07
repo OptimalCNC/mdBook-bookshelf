@@ -1,23 +1,26 @@
 # Internals
 
-This page records the documentation index, asset, and root model used by
+This page records the documentation index, asset, and shared-root model used by
 `mdbook-bookshelf`.
 
 ## Shared Root
 
 The directory containing `bookshelf.toml` is the mdBook root for every book.
-The root book and each `[[bookshelf.book]]` share the same config root while
-using distinct catalog IDs and source directories.
+Every `[[bookshelf.book]]` shares the same config root while using distinct
+catalog IDs and source directories.
 
 For example:
 
 ```toml
 [book]
-title = "Core"
-src = "docs"
+title = "Example Documentation"
 
 [bookshelf]
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core"
+src = "docs"
 
 [[bookshelf.category]]
 title = "Guides"
@@ -30,7 +33,7 @@ src = "modules/parser/docs"
 ```
 
 Both books are loaded from the config root and shown through explicit
-documentation index categories. The second book's mdBook config keeps
+documentation index categories. The parser book's mdBook config keeps
 `book.src = "modules/parser/docs"` instead of rebasing to `src = "docs"` under
 `modules/parser`.
 
@@ -57,8 +60,8 @@ The generated index renders the configured categories and creates one card per
 categorized book. Each card links to that book's source-derived
 `<src>/index.html` route.
 
-The root book is represented in the same catalog as child books and is rendered
-only through the category that references `[bookshelf].root-book-id`.
+Each explicit book is represented in the same catalog and is rendered only
+through the category that references its book ID.
 
 ## Documentation Assets
 

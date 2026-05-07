@@ -10,7 +10,6 @@ pub struct BookshelfConfig {
     pub config_path: PathBuf,
     pub config_dir: PathBuf,
     pub mdbook_config: Config,
-    pub root_book_id: String,
     pub asset_dir: PathBuf,
     pub books: Vec<BookshelfBook>,
     pub categories: Vec<BookshelfCategory>,
@@ -32,7 +31,6 @@ pub struct BookshelfCategory {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 struct RawBookshelf {
-    root_book_id: Option<String>,
     #[serde(default = "default_bookshelf_asset_dir")]
     asset_dir: PathBuf,
     #[serde(default, rename = "book")]
@@ -49,7 +47,7 @@ struct RawBookshelfCategory {
 }
 
 #[derive(Debug)]
-struct ParsedChildBook {
+struct ParsedBookshelfBook {
     id: String,
     book: BookConfig,
 }
@@ -78,22 +76,20 @@ fn validate_and_build(
     config_dir: PathBuf,
 ) -> Result<BookshelfConfig> {
     validate_book_title(&mdbook_config.book, "book.title")?;
-    let root_source_rel = normalize_root_source_rel_path(&mdbook_config.book.src)?;
-    validate_canonical_output_root(&root_source_rel, "book.src")?;
-    mdbook_config.book.src = root_source_rel.clone();
-    let root_book_id = raw
-        .root_book_id
-        .ok_or_else(|| anyhow::anyhow!("missing required key bookshelf.root-book-id"))?;
-    validate_book_id(&root_book_id, "bookshelf.root-book-id")?;
+    mdbook_config.book.src = normalize_rel_dir_path(
+        "site book defaults",
+        &mdbook_config.book.src,
+        "src path",
+        true,
+    )?;
     let asset_dir = normalize_bookshelf_asset_dir_path(&raw.asset_dir)?;
 
     let mut seen_book_ids = std::collections::BTreeSet::new();
-    seen_book_ids.insert(root_book_id.clone());
-    let mut all_book_ids = vec![root_book_id.clone()];
-    let mut seen_output_roots = vec![root_source_rel.clone()];
+    let mut all_book_ids = Vec::with_capacity(raw.books.len());
+    let mut seen_output_roots = Vec::with_capacity(raw.books.len());
     let mut books = Vec::with_capacity(raw.books.len());
     for raw_book in raw.books {
-        let mut parsed = parse_child_book(raw_book, &mdbook_config.book)?;
+        let mut parsed = parse_bookshelf_book(raw_book, &mdbook_config.book)?;
         validate_book_id(&parsed.id, "bookshelf.book.id")?;
         if !seen_book_ids.insert(parsed.id.clone()) {
             bail!("duplicate bookshelf book id '{}'", parsed.id);
@@ -122,7 +118,6 @@ fn validate_and_build(
         config_path,
         config_dir,
         mdbook_config,
-        root_book_id,
         asset_dir,
         books,
         categories,
@@ -158,10 +153,14 @@ fn parse_mdbook_config(toml_root: toml::Table, config_path: &Path) -> Result<Con
     })
 }
 
-fn parse_child_book(raw: toml::Table, root_book: &BookConfig) -> Result<ParsedChildBook> {
+fn parse_bookshelf_book(
+    raw: toml::Table,
+    default_book: &BookConfig,
+) -> Result<ParsedBookshelfBook> {
     let mut id = None;
     let mut title_seen = false;
-    let mut book = root_book.clone();
+    let mut src_seen = false;
+    let mut book = default_book.clone();
 
     for (key, value) in raw {
         match key.as_str() {
@@ -179,6 +178,7 @@ fn parse_child_book(raw: toml::Table, root_book: &BookConfig) -> Result<ParsedCh
                 book.description = Some(parse_toml_value(value, "bookshelf.book.description")?);
             }
             "src" => {
+                src_seen = true;
                 book.src = parse_toml_value(value, "bookshelf.book.src")?;
             }
             "language" => {
@@ -198,7 +198,10 @@ fn parse_child_book(raw: toml::Table, root_book: &BookConfig) -> Result<ParsedCh
     if !title_seen {
         bail!("missing required key bookshelf.book.title");
     }
-    Ok(ParsedChildBook { id, book })
+    if !src_seen {
+        bail!("missing required key bookshelf.book.src");
+    }
+    Ok(ParsedBookshelfBook { id, book })
 }
 
 fn parse_toml_value<T>(value: toml::Value, key: &str) -> Result<T>
@@ -286,10 +289,6 @@ fn validate_categories(
     }
 
     Ok(output)
-}
-
-fn normalize_root_source_rel_path(raw_path: &Path) -> Result<PathBuf> {
-    normalize_rel_dir_path("root book", raw_path, "src path", true)
 }
 
 fn normalize_child_source_rel_path(raw_path: &Path) -> Result<PathBuf> {

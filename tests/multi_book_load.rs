@@ -33,14 +33,17 @@ fn multi_book_load() {
         temp.path(),
         "valid/bookshelf.toml",
         r#"[book]
-title = "Root Book"
-src = "root-book/docs"
+	title = "Documentation"
 
-[bookshelf]
-root-book-id = "root"
+	[bookshelf]
 
-[[bookshelf.book]]
-id = "child"
+	[[bookshelf.book]]
+	id = "root"
+	title = "Root Book"
+	src = "root-book/docs"
+
+	[[bookshelf.book]]
+	id = "child"
 title = "Child Book"
 src = "modules/child/docs"
 
@@ -54,7 +57,6 @@ books = ["root", "child"]
         build_input_catalog(&valid_config).expect("valid fixture should build input catalog");
     let loaded = load_books_from_catalog(&valid_catalog).expect("valid fixture should load books");
 
-    assert_eq!("root", loaded.root_book_id);
     assert_eq!(2, loaded.books.len());
     assert_eq!("root", loaded.books[0].book_id);
     assert_eq!("child", loaded.books[1].book_id);
@@ -104,14 +106,17 @@ books = ["root", "child"]
         temp.path(),
         "invalid-summary-parse/bookshelf.toml",
         r#"[book]
-title = "Root Book"
-src = "root-book/docs"
+	title = "Documentation"
 
-[bookshelf]
-root-book-id = "root"
+	[bookshelf]
 
-[[bookshelf.book]]
-id = "broken"
+	[[bookshelf.book]]
+	id = "root"
+	title = "Root Book"
+	src = "root-book/docs"
+
+	[[bookshelf.book]]
+	id = "broken"
 title = "Broken Book"
 src = "broken-book/docs"
 
@@ -155,14 +160,17 @@ books = ["root", "broken"]
         temp.path(),
         "invalid-mdbook-load/bookshelf.toml",
         r#"[book]
-title = "Root Book"
-src = "root-book/docs"
+	title = "Documentation"
 
-[bookshelf]
-root-book-id = "root"
+	[bookshelf]
 
-[[bookshelf.book]]
-id = "missing"
+	[[bookshelf.book]]
+	id = "root"
+	title = "Root Book"
+	src = "root-book/docs"
+
+	[[bookshelf.book]]
+	id = "missing"
 title = "Missing Chapter Book"
 src = "missing-book/docs"
 
@@ -213,14 +221,17 @@ fn loads_authored_bookshelf_markdown_pages() {
         temp.path(),
         "bookshelf.toml",
         r#"[book]
-title = "Root"
-src = "docs"
+	title = "Documentation"
 
-[bookshelf]
-root-book-id = "root"
+	[bookshelf]
 
-[[bookshelf.book]]
-id = "child"
+	[[bookshelf.book]]
+	id = "root"
+	title = "Root"
+	src = "docs"
+
+	[[bookshelf.book]]
+	id = "child"
 title = "Child"
 src = "modules/child/docs"
 

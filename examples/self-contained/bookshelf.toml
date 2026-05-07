@@ -1,8 +1,7 @@
 [book]
-title = "Example Core"
-description = "Repository-wide onboarding and architecture notes."
+title = "Example Documentation"
+description = "Example documentation portal."
 language = "en"
-src = "docs"
 
 [build]
 build-dir = ".site"
@@ -17,7 +16,12 @@ UiRoot = "/modules/ui/docs"
 
 [bookshelf]
 asset-dir = ".mdbook/bookshelf"
-root-book-id = "core"
+
+[[bookshelf.book]]
+id = "core"
+title = "Example Core"
+description = "Repository-wide onboarding and architecture notes."
+src = "docs"
 
 [[bookshelf.book]]
 id = "parser"

@@ -1,15 +1,19 @@
 [book]
-title = "MetaNC"
-description = "Repository-wide architecture, onboarding, and integration notes."
+title = "MetaNC Documentation"
+description = "Repository documentation portal."
 language = "en"
-src = "docs"
 
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "ayu"
 
 [bookshelf]
-root-book-id = "metanc"
+
+[[bookshelf.book]]
+id = "metanc"
+title = "MetaNC"
+description = "Repository-wide architecture, onboarding, and integration notes."
+src = "docs"
 
 [[bookshelf.book]]
 id = "gcode-parser"

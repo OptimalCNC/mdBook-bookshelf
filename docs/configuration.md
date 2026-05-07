@@ -7,36 +7,38 @@ This document explains how to write `bookshelf.toml`.
 `bookshelf.toml` is a stock mdBook `Config` with one extra table:
 
 - top-level mdBook config stays stock
-- `[book]` is the root book
+- `[book]` provides shared site-level mdBook metadata and defaults
 - `[bookshelf]` is required and enables documentation portal behavior
-- `[bookshelf].root-book-id` gives the root book its catalog ID
 - `[bookshelf].asset-dir` selects the tool-owned generated asset directory
-- `[[bookshelf.book]]` adds child books
+- `[[bookshelf.book]]` declares each visible book
 - `[[bookshelf.category]]` groups every book for the documentation index
 
-The root `[book]` uses mdBook's own `BookConfig` fields. Each
+The top-level `[book]` uses mdBook's own `BookConfig` fields. Each
 `[[bookshelf.book]]` entry uses those same mdBook fields, such as `title`,
-`description`, `language`, and `src`, plus the documentation-index `id`.
-Child book entries are applied as overrides on top of the root `[book]`
-configuration, then their `src` is kept as the full config-root-relative
-source path.
+`description`, `language`, and `src`, plus the documentation-index `id`. Book
+entries are applied as overrides on top of the shared `[book]` defaults, then
+their `src` is kept as the full config-root-relative source path.
 
 ## Minimal Example
 
 ```toml
 [book]
-title = "Example Core"
-description = "Repository-wide onboarding and architecture notes."
+title = "Example Documentation"
+description = "Site-level documentation metadata."
 language = "en"
-src = "docs"
 
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "ayu"
 
 [bookshelf]
-root-book-id = "core"
 asset-dir = ".mdbook/bookshelf"
+
+[[bookshelf.book]]
+id = "core"
+title = "Example Core"
+description = "Repository-wide onboarding and architecture notes."
+src = "docs"
 
 [[bookshelf.book]]
 id = "parser"
@@ -57,31 +59,31 @@ books = ["parser"]
 
 These rules are enforced when `mdbook-bookshelf` parses `bookshelf.toml`:
 
-- `[bookshelf]` is required, even when there are no child books
-- `[bookshelf].root-book-id` is required
+- `[bookshelf]` is required
 - `book.title` is required and must not be empty
 - every book ID must be unique and must not be `.` or `..`
 - every `[[bookshelf.book]]` requires a unique `id`
 - each `bookshelf.book.title` is required and must not be empty
+- each `bookshelf.book.src` is required
 - every category title must be non-empty
 - every category must list at least one book
 - category book references must point at known book IDs
 - every book must appear in exactly one category
-- `book.src` and `bookshelf.book.src` must not be empty
-- `book.src` and `bookshelf.book.src` must be relative paths
-- `book.src` and `bookshelf.book.src` must not contain `..`
-- `book.src` and `bookshelf.book.src` must not resolve to `.`
-- `book.src` and `bookshelf.book.src` must not name `SUMMARY.md`
+- `book.src` and `bookshelf.book.src` must be relative paths when configured
+- `book.src` and `bookshelf.book.src` must not contain `..` when configured
+- `bookshelf.book.src` must not be empty
+- `bookshelf.book.src` must not resolve to `.`
+- `bookshelf.book.src` must not name `SUMMARY.md`
 - `bookshelf.asset-dir` must not be empty
 - `bookshelf.asset-dir` must be relative to the config root
 - `bookshelf.asset-dir` must not contain `..`
 - `bookshelf.asset-dir` must name a directory below the config root
 - `bookshelf.asset-dir` must not overlap any book source directory
-- child book output roots must not duplicate the root book or another child
-  book output root
-- child book output roots must not overlap the root book or another child book
-  output root by nesting one output root inside another
+- book output roots must not duplicate another book output root
+- book output roots must not overlap another book output root by nesting one
+  output root inside another
 - legacy `bookshelf.root-id` is rejected
+- legacy `bookshelf.root-book-id` is rejected
 
 `./` prefixes are allowed and normalized away, so `./modules/parser/docs` is
 stored as `modules/parser/docs`.
@@ -130,10 +132,10 @@ Output root conflict terms:
 
 Examples of invalid layouts:
 
-- root book at `.`
-- child book at `docs` when the root book already uses `docs`
-- child book at `docs/api` when the root book already uses `docs`
-- child book at `modules/parser/docs/reference` when another child already uses
+- book at `.`
+- two books at `docs`
+- book at `docs/api` when another book already uses `docs`
+- book at `modules/parser/docs/reference` when another book already uses
   `modules/parser/docs`
 
 ## Shared mdBook Output Settings
@@ -156,7 +158,7 @@ Mermaid can be configured once at the config root.
 
 Relative `output.html.additional-css` and `output.html.additional-js` paths are
 resolved from the config root, the directory containing
-`bookshelf.toml`. They are not resolved from each child book's `src`
+`bookshelf.toml`. They are not resolved from each book's `src`
 directory.
 
 Every book now uses the config root as its mdBook root while keeping its own
@@ -177,10 +179,10 @@ book cards. In practice they are worth filling in for every book.
 
 `mdbook-bookshelf` does not use author-facing fields for:
 
-- root-book route slugs
+- separate route slugs outside each book's `src`
 - separate site roots
 - temporary build staging directories
 - breadcrumb UI
-- duplicated child-book summaries inside the root book
+- duplicated summaries across books
 
 Keep the config human-owned and close to stock mdBook.

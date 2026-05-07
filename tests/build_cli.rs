@@ -1176,22 +1176,25 @@ fn build_cli_supports_configured_mdbook_mermaid_preprocessor_and_additional_js()
     fs::write(
         &config_path,
         r#"
-[book]
-title = "Mermaid Root"
-language = "en"
-src = "docs"
+	[book]
+	title = "Documentation"
+	language = "en"
 
-[preprocessor.mermaid]
-command = "mdbook-mermaid"
+	[preprocessor.mermaid]
+	command = "mdbook-mermaid"
 
 [output.html]
-additional-js = ["mermaid.min.js", "mermaid-init.js"]
+	additional-js = ["mermaid.min.js", "mermaid-init.js"]
 
-[bookshelf]
-root-book-id = "root"
+	[bookshelf]
 
-[[bookshelf.book]]
-id = "child"
+	[[bookshelf.book]]
+	id = "root"
+	title = "Mermaid Root"
+	src = "docs"
+
+	[[bookshelf.book]]
+	id = "child"
 title = "Mermaid Child"
 src = "modules/child/docs"
 
@@ -1331,20 +1334,23 @@ fn build_cli_supports_mdbook_variables_before_site_root_link_rewrites() {
     fs::write(
         &config_path,
         r#"
-[book]
-title = "Variables Root"
-language = "en"
-src = "docs"
+	[book]
+	title = "Documentation"
+	language = "en"
 
-[preprocessor.variables.variables]
-ParserRoot = "/modules/parser/docs"
+	[preprocessor.variables.variables]
+	ParserRoot = "/modules/parser/docs"
 UiRoot = "/modules/ui/docs"
 
-[bookshelf]
-root-book-id = "root"
+	[bookshelf]
 
-[[bookshelf.book]]
-id = "parser"
+	[[bookshelf.book]]
+	id = "root"
+	title = "Variables Root"
+	src = "docs"
+
+	[[bookshelf.book]]
+	id = "parser"
 title = "Variables Parser"
 src = "modules/parser/docs"
 
@@ -1444,18 +1450,21 @@ fn build_cli_allows_relative_input_404_from_shared_root_model() {
     fs::write(
         &config_path,
         r#"
-[book]
-title = "Root Book"
-src = "docs"
+	[book]
+	title = "Documentation"
 
-[output.html]
-input-404 = "missing.md"
+	[output.html]
+	input-404 = "missing.md"
 
-[bookshelf]
-root-book-id = "root"
+	[bookshelf]
 
-[[bookshelf.book]]
-id = "child"
+	[[bookshelf.book]]
+	id = "root"
+	title = "Root Book"
+	src = "docs"
+
+	[[bookshelf.book]]
+	id = "child"
 title = "Child Book"
 src = "modules/child/docs"
 
@@ -1530,18 +1539,21 @@ fn build_cli_allows_disabled_input_404_for_child_roots() {
     fs::write(
         &config_path,
         r#"
-[book]
-title = "Root Book"
-src = "docs"
+	[book]
+	title = "Documentation"
 
-[output.html]
-input-404 = ""
+	[output.html]
+	input-404 = ""
 
-[bookshelf]
-root-book-id = "root"
+	[bookshelf]
 
-[[bookshelf.book]]
-id = "child"
+	[[bookshelf.book]]
+	id = "root"
+	title = "Root Book"
+	src = "docs"
+
+	[[bookshelf.book]]
+	id = "child"
 title = "Child Book"
 src = "modules/child/docs"
 
@@ -2600,20 +2612,25 @@ fn write_documentation_index_bookshelf_ui_site_config(config_path: &Path) {
     fs::write(
         config_path,
         r#"[book]
-title = "Fixture Core"
-description = "Repository-wide onboarding and architecture notes."
-language = "en"
-src = "docs"
+	title = "Documentation"
+	description = "Fixture site metadata."
+	language = "en"
+	src = "docs"
 
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "ayu"
 
-[bookshelf]
-root-book-id = "core"
+	[bookshelf]
 
-[[bookshelf.book]]
-id = "parser"
+	[[bookshelf.book]]
+	id = "core"
+	title = "Fixture Core"
+	description = "Repository-wide onboarding and architecture notes."
+	src = "docs"
+
+	[[bookshelf.book]]
+	id = "parser"
 title = "Fixture Parser"
 description = "Parser-specific reference pages with their own reading order."
 src = "modules/parser/docs"
@@ -2640,20 +2657,19 @@ fn write_documentation_index_cover_config(config_path: &Path) {
     fs::write(
         config_path,
         r#"[book]
-title = "Fixture Core"
-description = "Repository-wide onboarding and architecture notes."
-language = "en"
-src = "docs"
+	title = "Documentation"
+	description = "Fixture site metadata."
+	language = "en"
+	src = "docs"
 
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "ayu"
 
-[bookshelf]
-root-book-id = "core"
+	[bookshelf]
 
-[bookshelf.root-book]
-cover = "assets/covers/core.png"
+	[bookshelf.root-book]
+	cover = "assets/covers/core.png"
 
 [[bookshelf.book]]
 id = "parser"

@@ -415,9 +415,8 @@ mod tests {
                     "root-book/docs",
                     "Root Book",
                     Some("Repository-wide docs."),
-                    true,
                 ),
-                sample_book("parser", "modules/parser/docs", "Parser Book", None, false),
+                sample_book("parser", "modules/parser/docs", "Parser Book", None),
             ],
             categories: vec![InputCategory {
                 title: "Start Here".to_string(),
@@ -433,13 +432,7 @@ mod tests {
         catalog
     }
 
-    fn sample_book(
-        id: &str,
-        src: &str,
-        title: &str,
-        description: Option<&str>,
-        is_root_book: bool,
-    ) -> InputBook {
+    fn sample_book(id: &str, src: &str, title: &str, description: Option<&str>) -> InputBook {
         let mut book_config = BookConfig::default();
         book_config.title = Some(title.to_string());
         book_config.description = description.map(str::to_string);
@@ -456,7 +449,6 @@ mod tests {
             book_src_rel: PathBuf::from(src),
             book_src_abs: PathBuf::from("/tmp").join(src),
             summary_abs: PathBuf::from("/tmp").join(src).join("SUMMARY.md"),
-            is_root_book,
         }
     }
 

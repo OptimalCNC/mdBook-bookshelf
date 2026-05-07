@@ -1,9 +1,12 @@
 [book]
-title = "Meta Root"
-src = "docs"
+title = "Documentation"
 
 [bookshelf]
-root-book-id = "root"
+
+[[bookshelf.book]]
+id = "root"
+title = "Meta Root"
+src = "docs"
 
 [[bookshelf.category]]
 title = "All Docs"

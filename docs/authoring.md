@@ -38,34 +38,26 @@ my-repo/
         navigation.md
 ```
 
-## Root Book
+## Books
 
-The root book is just the top-level `[book]` entry from `bookshelf.toml`.
+Every visible book is declared once in `[[bookshelf.book]]`, including a
+small repository-wide book such as `Example Core`.
 
-It behaves like a normal book:
-
-- the root book still has its own `SUMMARY.md`
-- the root book still has its own `index.md`
-- the root book is listed in exactly one `[[bookshelf.category]]`
-- the root book appears on the generated documentation index like any other
-  categorized book
-
-## Child Books
-
-Each child book is declared once in `[[bookshelf.book]]` and keeps its own
-independent `SUMMARY.md`.
+Each book keeps its own independent `SUMMARY.md`, has its own `index.md`, is
+listed in exactly one `[[bookshelf.category]]`, and appears on the generated
+documentation index like any other categorized book.
 
 Do not:
 
-- merge child chapters into the root summary
-- duplicate child-book reading order under the root book
-- invent separate output aliases for child books
+- merge chapters from one book into another book's summary
+- duplicate another book's reading order
+- invent separate output aliases for books
 
 ## Documentation Index
 
 The documentation index is generated at the site root as `index.html`.
 It is not authored inside any book, and it does not reserve a markdown page
-inside root or child books.
+inside any book.
 
 Authored `bookshelf.md` is not reserved by the documentation index.
 
@@ -80,15 +72,15 @@ Authored `bookshelf.md` is not reserved by the documentation index.
 
 ## Layout Variants
 
-The root book does not have to live at `docs/`, but it does need its own docs
-directory just like every other book.
+A repository-wide book does not have to live at `docs/`, but it does need its
+own docs directory just like every other book.
 
 This is also valid:
 
 ```text
 my-repo/
   bookshelf.toml
-  root-book/
+  core/
     docs/
       SUMMARY.md
       index.md
@@ -103,11 +95,14 @@ With config:
 
 ```toml
 [book]
-title = "Root Book"
-src = "root-book/docs"
+title = "Example Documentation"
 
 [bookshelf]
-root-book-id = "root"
+
+[[bookshelf.book]]
+id = "core"
+title = "Core"
+src = "core/docs"
 
 [[bookshelf.book]]
 id = "parser"
@@ -116,7 +111,7 @@ src = "modules/parser/docs"
 
 [[bookshelf.category]]
 title = "Overview"
-books = ["root"]
+books = ["core"]
 
 [[bookshelf.category]]
 title = "Reference"
@@ -128,7 +123,7 @@ books = ["parser"]
 Given the layout above:
 
 - the documentation index publishes at `/index.html`
-- the root book entry page publishes at `/root-book/docs/index.html`
+- the core book entry page publishes at `/core/docs/index.html`
 - the parser entry page publishes at `/modules/parser/docs/index.html`
 
 The published URL layout stays aligned with the source tree.
