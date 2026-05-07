@@ -495,7 +495,6 @@ mod tests {
             book_config: mdbook_preprocessor::config::BookConfig::default(),
             title: output_rel.to_string(),
             description: None,
-            cover: None,
             book_root_rel: PathBuf::from("."),
             book_root_abs: PathBuf::from("/tmp"),
             book_src_rel: PathBuf::from(output_rel),

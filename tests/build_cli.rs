@@ -600,6 +600,8 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
     assert_text_contains(&root_entry_html, "class=\"documentation-index\"");
     assert_text_contains(&root_entry_html, "class=\"documentation-index-toc\"");
     assert_text_contains(&root_entry_html, "class=\"documentation-category\"");
+    assert_text_not_contains(&root_entry_html, "documentation-book-cover");
+    assert_text_not_contains(&root_entry_html, ".mdbook/bookshelf/covers");
     assert_documentation_index_category(
         &root_entry_html,
         "category-core",
@@ -848,18 +850,14 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
 }
 
 #[test]
-fn build_cli_rejects_html_documentation_index_cover_paths() {
+fn build_cli_rejects_documentation_index_cover_config() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
-    let fixture_root = copy_bookshelf_ui_site_fixture(&repo_root, "build-cli-cover-collision");
+    let fixture_root =
+        copy_bookshelf_ui_site_fixture(&repo_root, "build-cli-cover-config-rejected");
     let config_path = fixture_root.join("bookshelf.toml");
-    write_documentation_index_html_cover_config(&config_path);
-    fs::write(
-        fixture_root.join("docs/index.html"),
-        "cover collision sentinel\n",
-    )
-    .expect("collision cover source should be written");
-    let output_dir = make_temp_dir("build-cli-cover-collision-output", &repo_root);
+    write_documentation_index_cover_config(&config_path);
+    let output_dir = make_temp_dir("build-cli-cover-config-rejected-output", &repo_root);
 
     let output = Command::new(&bin)
         .arg("build")
@@ -871,18 +869,10 @@ fn build_cli_rejects_html_documentation_index_cover_paths() {
 
     assert!(
         !output.status.success(),
-        "build should reject HTML documentation index cover paths"
+        "build should reject documentation index cover config"
     );
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert_text_contains(
-        &stderr,
-        "book 'core' documentation index cover 'docs/index.html' must not be an HTML file",
-    );
-    let root_output = output_dir.join("docs/index.html");
-    if root_output.exists() {
-        let root_output_html = assert_read_to_string(root_output);
-        assert_text_not_contains(&root_output_html, "cover collision sentinel");
-    }
+    assert_text_contains(&stderr, "unknown field `root-book`");
 
     fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
@@ -2646,7 +2636,7 @@ books = ["parser", "ui"]
     .expect("temporary bookshelf config should be rewritten");
 }
 
-fn write_documentation_index_html_cover_config(config_path: &Path) {
+fn write_documentation_index_cover_config(config_path: &Path) {
     fs::write(
         config_path,
         r#"[book]
@@ -2663,7 +2653,7 @@ preferred-dark-theme = "ayu"
 root-book-id = "core"
 
 [bookshelf.root-book]
-cover = "docs/index.html"
+cover = "assets/covers/core.png"
 
 [[bookshelf.book]]
 id = "parser"
@@ -2686,7 +2676,7 @@ title = "Modules"
 books = ["parser", "ui"]
 "#,
     )
-    .expect("HTML cover bookshelf config should be written");
+    .expect("cover bookshelf config should be written");
 }
 
 fn copy_public_self_contained_example_fixture(repo_root: &Path, tag: &str) -> PathBuf {

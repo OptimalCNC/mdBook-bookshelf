@@ -7,7 +7,7 @@ This page records the documentation index, asset, and root model used by
 
 The directory containing `bookshelf.toml` is the mdBook root for every book.
 The root book and each `[[bookshelf.book]]` share the same config root while
-using distinct catalog IDs, source directories, and optional covers.
+using distinct catalog IDs and source directories.
 
 For example:
 

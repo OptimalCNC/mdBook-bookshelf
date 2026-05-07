@@ -69,15 +69,11 @@ src = "docs"
 [bookshelf]
 root-book-id = "core"
 
-[bookshelf.root-book]
-cover = "assets/covers/core.png"
-
 [[bookshelf.book]]
 id = "parser"
 title = "Parser Docs"
 description = "Parser book."
 src = "modules/parser/docs"
-cover = "assets/covers/parser.png"
 
 [[bookshelf.category]]
 title = "Start Here"
@@ -92,17 +88,9 @@ books = ["parser"]
     let config = load_bookshelf_config(&config_path).expect("fixture should parse");
 
     assert_eq!("core", config.root_book_id);
-    assert_eq!(
-        Some(Path::new("assets/covers/core.png")),
-        config.root_book_cover.as_deref()
-    );
     assert_eq!(Path::new("docs"), config.mdbook_config.book.src.as_path());
     assert_eq!(1, config.books.len());
     assert_eq!("parser", config.books[0].id);
-    assert_eq!(
-        Some(Path::new("assets/covers/parser.png")),
-        config.books[0].cover.as_deref()
-    );
     assert_eq!(2, config.categories.len());
     let categories: &[BookshelfCategory] = &config.categories;
     assert_eq!("Start Here", config.categories[0].title);
@@ -486,7 +474,7 @@ books = []
             "bookshelf.category 'All Docs' must list at least one book",
         ),
         (
-            "invalid-root-cover-parent",
+            "root-cover-rejected",
             r#"
 [book]
 title = "Core Docs"
@@ -496,16 +484,16 @@ src = "docs"
 root-book-id = "core"
 
 [bookshelf.root-book]
-cover = "../covers/core.png"
+cover = "assets/covers/core.png"
 
 [[bookshelf.category]]
 title = "All Docs"
 books = ["core"]
 "#,
-            "book 'core' bookshelf.root-book.cover must not contain '..'",
+            "unknown field `root-book`",
         ),
         (
-            "invalid-child-cover-parent",
+            "child-cover-rejected",
             r#"
 [book]
 title = "Core Docs"
@@ -518,13 +506,13 @@ root-book-id = "core"
 id = "parser"
 title = "Parser Docs"
 src = "modules/parser/docs"
-cover = "../covers/parser.png"
+cover = "assets/covers/parser.png"
 
 [[bookshelf.category]]
 title = "All Docs"
 books = ["core", "parser"]
 "#,
-            "book 'parser' bookshelf.book.cover must not contain '..'",
+            "unknown field `cover` in bookshelf.book",
         ),
         (
             "entry-page-rejected",

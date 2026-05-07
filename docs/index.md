@@ -74,8 +74,8 @@ with one extra table:
 
 Each `[[bookshelf.book]]` entry uses mdBook
 [`BookConfig`](https://docs.rs/mdbook-driver/latest/mdbook_driver/config/struct.BookConfig.html)
-fields such as `title`, `description`, `language`, and `src`, plus
-documentation-index metadata such as `id` and `cover`.
+fields such as `title`, `description`, `language`, and `src`, plus the
+documentation-index `id`.
 
 Minimal example:
 

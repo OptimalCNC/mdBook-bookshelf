@@ -11,7 +11,6 @@ pub struct BookshelfConfig {
     pub config_dir: PathBuf,
     pub mdbook_config: Config,
     pub root_book_id: String,
-    pub root_book_cover: Option<PathBuf>,
     pub asset_dir: PathBuf,
     pub books: Vec<BookshelfBook>,
     pub categories: Vec<BookshelfCategory>,
@@ -22,7 +21,6 @@ pub struct BookshelfBook {
     pub id: String,
     pub source_rel: PathBuf,
     pub book: BookConfig,
-    pub cover: Option<PathBuf>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,21 +33,12 @@ pub struct BookshelfCategory {
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 struct RawBookshelf {
     root_book_id: Option<String>,
-    #[serde(default)]
-    root_book: RawBookshelfRootBook,
     #[serde(default = "default_bookshelf_asset_dir")]
     asset_dir: PathBuf,
     #[serde(default, rename = "book")]
     books: Vec<toml::Table>,
     #[serde(default, rename = "category")]
     categories: Vec<RawBookshelfCategory>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(rename_all = "kebab-case", deny_unknown_fields)]
-struct RawBookshelfRootBook {
-    #[serde(default)]
-    cover: Option<PathBuf>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,7 +51,6 @@ struct RawBookshelfCategory {
 #[derive(Debug)]
 struct ParsedChildBook {
     id: String,
-    cover: Option<PathBuf>,
     book: BookConfig,
 }
 
@@ -97,11 +85,6 @@ fn validate_and_build(
         .root_book_id
         .ok_or_else(|| anyhow::anyhow!("missing required key bookshelf.root-book-id"))?;
     validate_book_id(&root_book_id, "bookshelf.root-book-id")?;
-    let root_book_cover = normalize_optional_cover_path(
-        &root_book_id,
-        raw.root_book.cover,
-        "bookshelf.root-book.cover",
-    )?;
     let asset_dir = normalize_bookshelf_asset_dir_path(&raw.asset_dir)?;
 
     let mut seen_book_ids = std::collections::BTreeSet::new();
@@ -124,14 +107,11 @@ fn validate_and_build(
         seen_output_roots.push(source_rel.clone());
 
         parsed.book.src = source_rel.clone();
-        let cover =
-            normalize_optional_cover_path(&parsed.id, parsed.cover, "bookshelf.book.cover")?;
 
         books.push(BookshelfBook {
             id: parsed.id,
             source_rel,
             book: parsed.book,
-            cover,
         });
     }
 
@@ -143,7 +123,6 @@ fn validate_and_build(
         config_dir,
         mdbook_config,
         root_book_id,
-        root_book_cover,
         asset_dir,
         books,
         categories,
@@ -181,7 +160,6 @@ fn parse_mdbook_config(toml_root: toml::Table, config_path: &Path) -> Result<Con
 
 fn parse_child_book(raw: toml::Table, root_book: &BookConfig) -> Result<ParsedChildBook> {
     let mut id = None;
-    let mut cover = None;
     let mut title_seen = false;
     let mut book = root_book.clone();
 
@@ -189,9 +167,6 @@ fn parse_child_book(raw: toml::Table, root_book: &BookConfig) -> Result<ParsedCh
         match key.as_str() {
             "id" => {
                 id = Some(parse_toml_value(value, "bookshelf.book.id")?);
-            }
-            "cover" => {
-                cover = Some(parse_toml_value(value, "bookshelf.book.cover")?);
             }
             "title" => {
                 title_seen = true;
@@ -223,7 +198,7 @@ fn parse_child_book(raw: toml::Table, root_book: &BookConfig) -> Result<ParsedCh
     if !title_seen {
         bail!("missing required key bookshelf.book.title");
     }
-    Ok(ParsedChildBook { id, cover, book })
+    Ok(ParsedChildBook { id, book })
 }
 
 fn parse_toml_value<T>(value: toml::Value, key: &str) -> Result<T>
@@ -257,24 +232,6 @@ fn validate_book_id(id: &str, key: &str) -> Result<()> {
         bail!("{key} may only contain ASCII letters, numbers, '-', '_', and '.'");
     }
     Ok(())
-}
-
-fn normalize_optional_cover_path(
-    book_id: &str,
-    raw_path: Option<PathBuf>,
-    key: &str,
-) -> Result<Option<PathBuf>> {
-    raw_path
-        .map(|path| normalize_rel_file_path(book_id, &path, key))
-        .transpose()
-}
-
-fn normalize_rel_file_path(book_id: &str, raw_path: &Path, noun: &str) -> Result<PathBuf> {
-    let normalized = normalize_rel_dir_path(book_id, raw_path, noun, false)?;
-    if normalized == Path::new(".") {
-        bail!("book '{book_id}' {noun} must name a file below the bookshelf config root");
-    }
-    Ok(normalized)
 }
 
 fn validate_categories(

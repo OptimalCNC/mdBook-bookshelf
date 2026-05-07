@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
-fn builds_catalog_with_explicit_ids_covers_and_categories() {
+fn builds_catalog_with_explicit_ids_and_categories() {
     let temp = TempDir::new("chunk-06a-input-catalog-valid");
     write_file(
         temp.path(),
@@ -27,14 +27,10 @@ src = "root-book/docs"
 [bookshelf]
 root-book-id = "root"
 
-[bookshelf.root-book]
-cover = "assets/root.png"
-
 [[bookshelf.book]]
 id = "child"
 title = "Child Book"
 src = "modules/child-book/docs"
-cover = "assets/child.png"
 
 [[bookshelf.category]]
 title = "All Docs"
@@ -49,7 +45,6 @@ books = ["root", "child"]
     let root = catalog.root_book().expect("root book should exist");
     assert_eq!("root", root.id);
     assert!(root.is_root_book);
-    assert_eq!(Some(Path::new("assets/root.png")), root.cover.as_deref());
     assert_eq!(Path::new("root-book/docs"), root.output_rel.as_path());
     assert_eq!(Path::new("."), root.book_root_rel.as_path());
     assert_eq!(Path::new("root-book/docs"), root.book_src_rel.as_path());
@@ -64,7 +59,6 @@ books = ["root", "child"]
         .find(|book| !book.is_root_book)
         .expect("child book should exist");
     assert_eq!("child", child.id);
-    assert_eq!(Some(Path::new("assets/child.png")), child.cover.as_deref());
     assert_eq!(
         Path::new("modules/child-book/docs"),
         child.output_rel.as_path()

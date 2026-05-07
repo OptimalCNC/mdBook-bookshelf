@@ -26,7 +26,6 @@ pub struct InputBook {
     pub book_config: BookConfig,
     pub title: String,
     pub description: Option<String>,
-    pub cover: Option<PathBuf>,
     pub book_root_rel: PathBuf,
     pub book_root_abs: PathBuf,
     pub book_src_rel: PathBuf,
@@ -64,7 +63,6 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
         &config.root_book_id,
         root_output_rel,
         &config.mdbook_config.book,
-        config.root_book_cover.clone(),
         true,
     )?);
 
@@ -74,7 +72,6 @@ fn build_input_catalog_from_config(config: &BookshelfConfig) -> Result<InputCata
             &book.id,
             book.source_rel.clone(),
             &book.book,
-            book.cover.clone(),
             false,
         )?);
     }
@@ -108,7 +105,6 @@ fn build_catalog_book(
     id: &str,
     output_rel: PathBuf,
     book_config: &BookConfig,
-    cover: Option<PathBuf>,
     is_root_book: bool,
 ) -> Result<InputBook> {
     let book_src_rel = book_config.src.clone();
@@ -144,7 +140,6 @@ fn build_catalog_book(
             .clone()
             .expect("config validation requires every catalog book to have a title"),
         description: book_config.description.clone(),
-        cover,
         book_root_rel,
         book_root_abs,
         book_src_rel,

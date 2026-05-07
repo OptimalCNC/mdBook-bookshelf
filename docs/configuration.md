@@ -16,10 +16,10 @@ This document explains how to write `bookshelf.toml`.
 
 The root `[book]` uses mdBook's own `BookConfig` fields. Each
 `[[bookshelf.book]]` entry uses those same mdBook fields, such as `title`,
-`description`, `language`, and `src`, plus documentation-index metadata such as
-`id` and `cover`. Child book entries are applied as overrides on top of the
-root `[book]` configuration, then their `src` is kept as the full
-config-root-relative source path.
+`description`, `language`, and `src`, plus the documentation-index `id`.
+Child book entries are applied as overrides on top of the root `[book]`
+configuration, then their `src` is kept as the full config-root-relative
+source path.
 
 ## Minimal Example
 
@@ -81,9 +81,6 @@ These rules are enforced when `mdbook-bookshelf` parses `bookshelf.toml`:
   book output root
 - child book output roots must not overlap the root book or another child book
   output root by nesting one output root inside another
-- configured cover paths must be relative to the config root and must not
-  contain `..`
-- configured cover paths must name files below the config root
 - legacy `bookshelf.root-id` is rejected
 
 `./` prefixes are allowed and normalized away, so `./modules/parser/docs` is
@@ -138,39 +135,6 @@ Examples of invalid layouts:
 - child book at `docs/api` when the root book already uses `docs`
 - child book at `modules/parser/docs/reference` when another child already uses
   `modules/parser/docs`
-
-## Documentation Index Covers
-
-Covers are optional. Configure the root book cover under
-`[bookshelf.root-book]`, and configure child book covers directly on
-`[[bookshelf.book]]`.
-
-Books without a configured cover render a fallback card in the documentation
-index.
-
-```toml
-[bookshelf.root-book]
-cover = "assets/covers/core.png"
-
-[[bookshelf.book]]
-id = "parser"
-title = "Parser"
-src = "modules/parser/docs"
-cover = "assets/covers/parser.png"
-```
-
-Configured cover paths:
-
-- are relative to the directory containing `bookshelf.toml`
-- must not contain `..`
-- must name a file below the config root
-- must not end in `.html` or `.htm`
-
-HTML cover paths are rejected because covers render as images and HTML cover
-paths can collide with generated pages.
-
-During build, configured covers are copied to generated output under
-`.mdbook/bookshelf/covers/<book-id>/...`.
 
 ## Shared mdBook Output Settings
 

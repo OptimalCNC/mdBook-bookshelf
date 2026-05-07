@@ -58,7 +58,6 @@ flowchart TD
 - `catalog.rs` builds the canonical book catalog and output roots
 - `build.rs` orchestrates the full site build
 - `documentation_index.rs` writes the generated site-root documentation index
-  and copies configured covers
 - `documentation_ui.rs` writes the runtime assets for the return button and
   search override, and injects page metadata
 - `search.rs` composes the shared search index and localized wrappers
