@@ -5,10 +5,10 @@ of `mdbook-bookshelf`.
 
 Layout:
 
-- root book under `docs/`
+- core book under `docs/`
 - parser book under `modules/parser/docs/`
 - UI book under `modules/ui/docs/`
-- config in `bookshelf.toml` with root-book mdBook `[book]` metadata plus `[bookshelf]`
-- child books use config-root-relative mdBook-native `src` values
-- root-book content uses `docs/index.md`, like the other module books use their own `docs/index.md`
+- config in `bookshelf.toml` with site-level mdBook `[book]` metadata plus explicit `[[bookshelf.book]]` entries
+- books use config-root-relative mdBook-native `src` values
+- core content uses `docs/index.md`, like the other module books use their own `docs/index.md`
 - the `Bookshelf` page is generated in memory, not authored in `docs/SUMMARY.md`

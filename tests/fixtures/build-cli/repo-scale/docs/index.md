@@ -2,4 +2,4 @@
 
 MetaNC coordinates the repository bookshelf for parser and HMI documentation.
 
-This root book keeps the cross-book build contract visible from one entry point.
+This repository-wide book keeps the cross-book build contract visible from one entry point.

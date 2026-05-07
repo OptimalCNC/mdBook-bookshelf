@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
-fn builds_source_derived_catalog_for_root_and_child_books() {
+fn builds_catalog_with_explicit_ids_and_categories() {
     let temp = TempDir::new("chunk-06a-input-catalog-valid");
     write_file(
         temp.path(),
@@ -21,14 +21,24 @@ fn builds_source_derived_catalog_for_root_and_child_books() {
         "bookshelf.toml",
         r#"
 [book]
-title = "Root Book"
-src = "root-book/docs"
+title = "Documentation"
+src = "site-default"
 
 [bookshelf]
 
 [[bookshelf.book]]
+id = "root"
+title = "Root Book"
+src = "root-book/docs"
+
+[[bookshelf.book]]
+id = "child"
 title = "Child Book"
 src = "modules/child-book/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root", "child"]
 "#,
     );
 
@@ -36,9 +46,8 @@ src = "modules/child-book/docs"
     assert_eq!(2, catalog.books.len());
     assert_eq!(Path::new(".mdbook/bookshelf"), catalog.asset_dir.as_path());
 
-    let root = catalog.root_book().expect("root book should exist");
-    assert_eq!("root-book/docs", root.id);
-    assert!(root.is_root_book);
+    let root = &catalog.books[0];
+    assert_eq!("root", root.id);
     assert_eq!(Path::new("root-book/docs"), root.output_rel.as_path());
     assert_eq!(Path::new("."), root.book_root_rel.as_path());
     assert_eq!(Path::new("root-book/docs"), root.book_src_rel.as_path());
@@ -47,12 +56,8 @@ src = "modules/child-book/docs"
         root.summary_abs
     );
 
-    let child = catalog
-        .books
-        .iter()
-        .find(|book| !book.is_root_book)
-        .expect("child book should exist");
-    assert_eq!("modules/child-book/docs", child.id);
+    let child = &catalog.books[1];
+    assert_eq!("child", child.id);
     assert_eq!(
         Path::new("modules/child-book/docs"),
         child.output_rel.as_path()
@@ -71,10 +76,13 @@ src = "modules/child-book/docs"
         temp.path().join("modules/child-book/docs/SUMMARY.md"),
         child.summary_abs
     );
+    assert_eq!(1, catalog.categories.len());
+    assert_eq!("All Docs", catalog.categories[0].title);
+    assert_eq!(vec!["root", "child"], catalog.categories[0].book_ids);
 }
 
 #[test]
-fn builds_top_level_root_catalog_from_book_src() {
+fn builds_single_explicit_book_catalog_from_book_src() {
     let temp = TempDir::new("chunk-06a-input-catalog-top-level");
     write_file(
         temp.path(),
@@ -86,19 +94,26 @@ fn builds_top_level_root_catalog_from_book_src() {
         "bookshelf.toml",
         r#"
 [book]
+title = "Documentation"
+
+[bookshelf]
+
+[[bookshelf.book]]
+id = "root"
 title = "Meta Root"
 src = "docs"
 
-[bookshelf]
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root"]
 "#,
     );
 
     let catalog = build_input_catalog(&config_path).expect("top-level docs fixture should build");
     assert_eq!(1, catalog.books.len());
 
-    let root = catalog.root_book().expect("root book should exist");
-    assert_eq!("docs", root.id);
-    assert!(root.is_root_book);
+    let root = &catalog.books[0];
+    assert_eq!("root", root.id);
     assert_eq!(Path::new("."), root.book_root_rel.as_path());
     assert_eq!(temp.path(), root.book_root_abs);
     assert_eq!(Path::new("docs"), root.book_src_rel.as_path());
@@ -114,17 +129,25 @@ fn rejects_missing_canonical_summary_under_source_derived_root() {
         "bookshelf.toml",
         r#"
 [book]
+title = "Documentation"
+
+[bookshelf]
+
+[[bookshelf.book]]
+id = "root"
 title = "Root Book"
 src = "docs"
 
-[bookshelf]
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root"]
 "#,
     );
 
     let error = build_input_catalog(&config_path).expect_err("missing summary must fail");
     assert_eq!(
         format!(
-            "book 'docs' missing canonical summary 'docs/SUMMARY.md' derived from src 'docs' at {}",
+            "book 'root' missing canonical summary 'docs/SUMMARY.md' derived from src 'docs' at {}",
             temp.path().join("docs/SUMMARY.md").display()
         ),
         error.to_string()
@@ -144,17 +167,25 @@ fn rejects_summary_in_wrong_location() {
         "bookshelf.toml",
         r#"
 [book]
+title = "Documentation"
+
+[bookshelf]
+
+[[bookshelf.book]]
+id = "root"
 title = "Root Book"
 src = "docs"
 
-[bookshelf]
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root"]
 "#,
     );
 
     let error = build_input_catalog(&config_path).expect_err("wrong-location summary must fail");
     assert_eq!(
         format!(
-            "book 'docs' missing canonical summary 'docs/SUMMARY.md' derived from src 'docs' at {}",
+            "book 'root' missing canonical summary 'docs/SUMMARY.md' derived from src 'docs' at {}",
             temp.path().join("docs/SUMMARY.md").display()
         ),
         error.to_string()

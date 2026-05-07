@@ -4,12 +4,12 @@
 [![crates.io](https://img.shields.io/crates/v/mdbook-bookshelf.svg)](https://crates.io/crates/mdbook-bookshelf)
 [![LICENSE](https://img.shields.io/github/license/OptimalCNC/mdBook-bookshelf.svg)](LICENSE)
 
-`mdbook-bookshelf` builds multi-book documentation sites on top of stock
-mdBook.
+`mdbook-bookshelf` builds category-driven multi-book documentation portals on
+top of stock mdBook.
 
 Stock mdBook still owns loading and rendering each individual book.
-`mdbook-bookshelf` adds the multi-book routing, navigation, search, and
-bookshelf UI around that mdBook core.
+`mdbook-bookshelf` adds the documentation index, multi-book routing,
+navigation, search, and return UI around that mdBook core.
 
 ## Start Here
 

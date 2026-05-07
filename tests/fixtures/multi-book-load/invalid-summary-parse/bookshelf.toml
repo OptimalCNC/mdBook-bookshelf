@@ -1,7 +1,18 @@
 [book]
+title = "Documentation"
+
+[bookshelf]
+
+[[bookshelf.book]]
+id = "root"
 title = "Root Book"
 src = "root-book/docs"
 
 [[bookshelf.book]]
+id = "broken"
 title = "Broken Book"
 src = "broken-book/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root", "broken"]

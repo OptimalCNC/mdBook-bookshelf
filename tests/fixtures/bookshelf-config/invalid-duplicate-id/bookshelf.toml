@@ -5,9 +5,20 @@ src = "docs"
 [bookshelf]
 
 [[bookshelf.book]]
+id = "parser"
+title = "Core Docs"
+src = "docs"
+
+[[bookshelf.book]]
+id = "parser"
 title = "Parser Docs"
 src = "modules/parser/docs"
 
 [[bookshelf.book]]
+id = "parser"
 title = "Duplicate"
 src = "modules/parser/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core", "parser"]

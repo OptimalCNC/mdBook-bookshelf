@@ -1,4 +1,3 @@
-use crate::root_bookshelf_preprocessor::ROOT_BOOKSHELF_CHAPTER_PATH;
 use crate::route_paths::{path_to_string, relative_path};
 use anyhow::{Context, Result};
 use mdbook_driver::config::Config;
@@ -8,17 +7,17 @@ use serde::Serialize;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const PREPROCESSOR_NAME: &str = "bookshelf-page-metadata";
-const BOOKSHELF_RETURN_CSS_NAME: &str = "bookshelf-return.css";
-const BOOKSHELF_RETURN_JS_NAME: &str = "bookshelf-return.js";
-const BOOKSHELF_RETURN_LINK_CLASS: &str = "bookshelf-return-link";
-const BOOKSHELF_RETURN_LINK_ID: &str = "bookshelf-return-link";
-const BOOKSHELF_SEARCH_JS_NAME: &str = "bookshelf-search.js";
-const BOOKSHELF_PAGE_METADATA_ID: &str = "mdbook-bookshelf-page-metadata";
-const BOOKSHELF_ASSET_GITIGNORE_NAME: &str = ".gitignore";
-const BOOKSHELF_ASSET_GITIGNORE_CONTENTS: &str = "*\n";
-const BOOKSHELF_ASSET_README_NAME: &str = "README.md";
-const BOOKSHELF_ASSET_README_CONTENTS: &str = "\
+const PREPROCESSOR_NAME: &str = "documentation-page-metadata";
+const DOCUMENTATION_RETURN_CSS_NAME: &str = "documentation-return.css";
+const DOCUMENTATION_RETURN_JS_NAME: &str = "documentation-return.js";
+const DOCUMENTATION_SEARCH_JS_NAME: &str = "documentation-search.js";
+const DOCUMENTATION_RETURN_LINK_CLASS: &str = "documentation-return-link";
+const DOCUMENTATION_RETURN_LINK_ID: &str = "documentation-return-link";
+const DOCUMENTATION_PAGE_METADATA_ID: &str = "mdbook-bookshelf-page-metadata";
+const DOCUMENTATION_ASSET_GITIGNORE_NAME: &str = ".gitignore";
+const DOCUMENTATION_ASSET_GITIGNORE_CONTENTS: &str = "*\n";
+const DOCUMENTATION_ASSET_README_NAME: &str = "README.md";
+const DOCUMENTATION_ASSET_README_CONTENTS: &str = "\
 # mdbook-bookshelf Generated Assets
 
 This directory is managed by mdbook-bookshelf.
@@ -31,81 +30,84 @@ Do not edit these files or place project-owned assets here. Put your own assets
 outside this directory and configure them with stock mdBook settings.
 ";
 
-pub struct BookshelfAssets {
+pub struct DocumentationAssets {
     config_root: PathBuf,
     asset_dir: PathBuf,
+    index_title: String,
 }
 
-impl BookshelfAssets {
-    pub fn new(config_root: &Path, asset_dir: &Path) -> Self {
+impl DocumentationAssets {
+    pub fn new(config_root: &Path, asset_dir: &Path, index_title: &str) -> Self {
         Self {
             config_root: config_root.to_path_buf(),
             asset_dir: asset_dir.to_path_buf(),
+            index_title: index_title.to_string(),
         }
     }
 
-    pub fn inject_bookshelf_runtime_assets(&self, config: &mut Config) -> Result<()> {
-        let return_css_rel_path = self.asset_dir.join(BOOKSHELF_RETURN_CSS_NAME);
-        let return_js_rel_path = self.asset_dir.join(BOOKSHELF_RETURN_JS_NAME);
-        let search_js_rel_path = self.asset_dir.join(BOOKSHELF_SEARCH_JS_NAME);
-        let gitignore_rel_path = self.asset_dir.join(BOOKSHELF_ASSET_GITIGNORE_NAME);
-        let readme_rel_path = self.asset_dir.join(BOOKSHELF_ASSET_README_NAME);
+    pub fn inject_documentation_runtime_assets(&self, config: &mut Config) -> Result<()> {
+        let return_css_rel_path = self.asset_dir.join(DOCUMENTATION_RETURN_CSS_NAME);
+        let return_js_rel_path = self.asset_dir.join(DOCUMENTATION_RETURN_JS_NAME);
+        let search_js_rel_path = self.asset_dir.join(DOCUMENTATION_SEARCH_JS_NAME);
+        let gitignore_rel_path = self.asset_dir.join(DOCUMENTATION_ASSET_GITIGNORE_NAME);
+        let readme_rel_path = self.asset_dir.join(DOCUMENTATION_ASSET_README_NAME);
 
         write_asset_file(
             &self.config_root.join(&gitignore_rel_path),
-            BOOKSHELF_ASSET_GITIGNORE_CONTENTS,
+            DOCUMENTATION_ASSET_GITIGNORE_CONTENTS,
         )?;
         write_asset_file(
             &self.config_root.join(&readme_rel_path),
-            BOOKSHELF_ASSET_README_CONTENTS,
+            DOCUMENTATION_ASSET_README_CONTENTS,
         )?;
         write_asset_file(
             &self.config_root.join(&return_css_rel_path),
-            &render_bookshelf_return_css(),
+            &render_documentation_return_css(),
         )?;
         write_asset_file(
             &self.config_root.join(&return_js_rel_path),
-            &render_bookshelf_return_js(),
+            &render_documentation_return_js(&self.index_title),
         )?;
         write_asset_file(
             &self.config_root.join(&search_js_rel_path),
-            &render_bookshelf_search_js(),
+            &render_documentation_search_js(),
         )?;
 
         append_output_asset(config, "output.html.additional-css", return_css_rel_path).context(
-            "failed to append bookshelf return stylesheet to output.html.additional-css",
+            "failed to append documentation return stylesheet to output.html.additional-css",
         )?;
         append_output_asset(config, "output.html.additional-js", return_js_rel_path)
-            .context("failed to append bookshelf return script to output.html.additional-js")?;
-        append_output_asset(config, "output.html.additional-js", search_js_rel_path)
-            .context("failed to append bookshelf search override to output.html.additional-js")?;
+            .context("failed to append documentation return script to output.html.additional-js")?;
+        append_output_asset(config, "output.html.additional-js", search_js_rel_path).context(
+            "failed to append documentation search override to output.html.additional-js",
+        )?;
 
         Ok(())
     }
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct BookshelfPageMetadataPreprocessor {
+pub(crate) struct DocumentationPageMetadataPreprocessor {
     book_output_rel: PathBuf,
-    root_bookshelf_rel: PathBuf,
+    documentation_index_rel: PathBuf,
     search_index_rel: PathBuf,
 }
 
-impl BookshelfPageMetadataPreprocessor {
+impl DocumentationPageMetadataPreprocessor {
     pub(crate) fn new(
         book_output_rel: PathBuf,
-        root_bookshelf_rel: PathBuf,
+        documentation_index_rel: PathBuf,
         search_index_rel: PathBuf,
     ) -> Self {
         Self {
             book_output_rel,
-            root_bookshelf_rel,
+            documentation_index_rel,
             search_index_rel,
         }
     }
 
     fn inject_chapter_metadata(&self, chapter: &mut Chapter) -> Result<()> {
-        if chapter.content.contains(BOOKSHELF_PAGE_METADATA_ID) {
+        if chapter.content.contains(DOCUMENTATION_PAGE_METADATA_ID) {
             return Ok(());
         }
 
@@ -119,30 +121,26 @@ impl BookshelfPageMetadataPreprocessor {
         let chapter_output_dir = chapter_output_path
             .parent()
             .unwrap_or_else(|| Path::new(""));
-        let bookshelf_target = if chapter_path == Path::new(ROOT_BOOKSHELF_CHAPTER_PATH) {
-            None
-        } else {
-            Some(path_to_string(&relative_path(
-                chapter_output_dir,
-                &self.root_bookshelf_rel,
-            )))
-        };
+        let documentation_index_target = path_to_string(&relative_path(
+            chapter_output_dir,
+            &self.documentation_index_rel,
+        ));
         let search_index_target =
             path_to_string(&relative_path(chapter_output_dir, &self.search_index_rel));
         let metadata = PageMetadata {
-            bookshelf_target,
+            documentation_index_target,
             search_index_target,
         };
         let json = serde_json::to_string(&metadata).context("failed to serialize page metadata")?;
         let prefix = format!(
-            "<script type=\"application/json\" id=\"{BOOKSHELF_PAGE_METADATA_ID}\">{json}</script>\n\n"
+            "<script type=\"application/json\" id=\"{DOCUMENTATION_PAGE_METADATA_ID}\">{json}</script>\n\n"
         );
         chapter.content.insert_str(0, &prefix);
         Ok(())
     }
 }
 
-impl Preprocessor for BookshelfPageMetadataPreprocessor {
+impl Preprocessor for DocumentationPageMetadataPreprocessor {
     fn name(&self) -> &str {
         PREPROCESSOR_NAME
     }
@@ -160,7 +158,7 @@ impl Preprocessor for BookshelfPageMetadataPreprocessor {
 
             if let Err(err) = self.inject_chapter_metadata(chapter).with_context(|| {
                 format!(
-                    "chapter '{}' failed to inject bookshelf metadata",
+                    "chapter '{}' failed to inject documentation metadata",
                     chapter.name
                 )
             }) {
@@ -183,7 +181,7 @@ impl Preprocessor for BookshelfPageMetadataPreprocessor {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PageMetadata {
-    bookshelf_target: Option<String>,
+    documentation_index_target: String,
     search_index_target: String,
 }
 
@@ -208,11 +206,14 @@ fn write_asset_file(path: &Path, contents: &str) -> Result<()> {
     fs::write(path, contents).with_context(|| format!("failed to write {}", path.display()))
 }
 
-fn render_bookshelf_return_js() -> String {
+fn render_documentation_return_js(index_title: &str) -> String {
+    let index_title_json = serde_json::to_string(index_title)
+        .expect("documentation index title should serialize as JSON string");
     r##"(() => {
-const metadata = readBookshelfPageMetadata();
-const bookshelfTarget = typeof metadata.bookshelfTarget === "string" ? metadata.bookshelfTarget : "";
-if (!bookshelfTarget) {
+const documentationIndexLabel = __INDEX_TITLE__;
+const metadata = readDocumentationPageMetadata();
+const documentationIndexTarget = typeof metadata.documentationIndexTarget === "string" ? metadata.documentationIndexTarget : "";
+if (!documentationIndexTarget) {
     return;
 }
 const buttonContainer = document.querySelector("#mdbook-menu-bar .right-buttons");
@@ -223,13 +224,13 @@ const svgNamespace = "http://www.w3.org/2000/svg";
 const link = document.createElement("a");
 link.id = "__LINK_ID__";
 link.className = "__LINK_CLASS__";
-link.href = bookshelfTarget;
+link.href = documentationIndexTarget;
 link.rel = "up";
-link.title = "Return to Bookshelf";
-link.setAttribute("aria-label", "Return to Bookshelf");
+link.title = "Return to " + documentationIndexLabel;
+link.setAttribute("aria-label", "Return to " + documentationIndexLabel);
 
 const icon = document.createElementNS(svgNamespace, "svg");
-icon.setAttribute("class", "bookshelf-return-icon");
+icon.setAttribute("class", "documentation-return-icon");
 icon.setAttribute("viewBox", "0 0 24 24");
 icon.setAttribute("fill", "none");
 icon.setAttribute("stroke", "currentColor");
@@ -254,14 +255,14 @@ for (const [tag, attrs] of shapes) {
 }
 
 const label = document.createElement("span");
-label.className = "bookshelf-return-label";
-label.textContent = "Bookshelf";
+label.className = "documentation-return-label";
+label.textContent = documentationIndexLabel;
 
 link.appendChild(icon);
 link.appendChild(label);
 buttonContainer.prepend(link);
 
-function readBookshelfPageMetadata() {
+function readDocumentationPageMetadata() {
     const node = document.getElementById("__METADATA_ID__");
     if (!node) {
         return {};
@@ -274,92 +275,14 @@ function readBookshelfPageMetadata() {
 }
 })();
 "##
-    .replace("__LINK_CLASS__", BOOKSHELF_RETURN_LINK_CLASS)
-    .replace("__LINK_ID__", BOOKSHELF_RETURN_LINK_ID)
-    .replace("__METADATA_ID__", BOOKSHELF_PAGE_METADATA_ID)
+    .replace("__INDEX_TITLE__", &index_title_json)
+    .replace("__LINK_CLASS__", DOCUMENTATION_RETURN_LINK_CLASS)
+    .replace("__LINK_ID__", DOCUMENTATION_RETURN_LINK_ID)
+    .replace("__METADATA_ID__", DOCUMENTATION_PAGE_METADATA_ID)
 }
 
-fn render_bookshelf_return_css() -> String {
-    r#".bookshelf-list {
-    display: grid;
-    gap: 1rem;
-    grid-template-columns: repeat(auto-fill, minmax(22rem, 1fr));
-    list-style: none;
-    margin: 1.5rem 0 0;
-    padding: 0;
-}
-
-.bookshelf-list > li {
-    margin: 0;
-    padding: 0;
-}
-
-.bookshelf-book {
-    background: var(--quote-bg, var(--sidebar-bg, var(--bg)));
-    border: 1px solid var(--table-border-color);
-    border-inline-start: 3px solid var(--links);
-    border-radius: 3px;
-    color: var(--fg);
-    display: flex;
-    flex-direction: column;
-    gap: 0.35rem;
-    height: 100%;
-    padding: 0.85rem 1rem 0.9rem 1.1rem;
-    position: relative;
-    text-decoration: none;
-    transition: border-inline-start-width 120ms ease, box-shadow 120ms ease, transform 120ms ease;
-}
-
-.content .bookshelf-book:link,
-.content .bookshelf-book:visited {
-    color: var(--fg);
-}
-
-.bookshelf-book:hover,
-.bookshelf-book:focus-visible {
-    border-inline-start-width: 5px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-    text-decoration: none;
-    transform: translateY(-1px);
-}
-
-.bookshelf-book:focus-visible {
-    outline: 2px solid var(--links);
-    outline-offset: 2px;
-}
-
-.bookshelf-book-title {
-    color: var(--links);
-    font-size: 1.05em;
-    font-weight: 600;
-    line-height: 1.3;
-}
-
-.bookshelf-book-description {
-    color: var(--fg);
-    font-size: 0.95em;
-    line-height: 1.4;
-    opacity: 0.78;
-}
-
-@media (max-width: 480px) {
-    .bookshelf-list {
-        grid-template-columns: 1fr;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .bookshelf-book {
-        transition: none;
-    }
-
-    .bookshelf-book:hover,
-    .bookshelf-book:focus-visible {
-        transform: none;
-    }
-}
-
-#mdbook-menu-bar .right-buttons .__LINK_CLASS__ {
+fn render_documentation_return_css() -> String {
+    r#"#mdbook-menu-bar .right-buttons .__LINK_CLASS__ {
     align-items: center;
     background: transparent;
     border: 0;
@@ -387,20 +310,20 @@ fn render_bookshelf_return_css() -> String {
     outline-offset: -2px;
 }
 
-#mdbook-menu-bar .right-buttons .bookshelf-return-icon {
+#mdbook-menu-bar .right-buttons .documentation-return-icon {
     display: block;
     flex-shrink: 0;
     height: 1.1em;
     width: 1.1em;
 }
 
-#mdbook-menu-bar .right-buttons .bookshelf-return-label {
+#mdbook-menu-bar .right-buttons .documentation-return-label {
     font-size: 0.85em;
     font-weight: 500;
 }
 
 @media (max-width: 700px) {
-    #mdbook-menu-bar .right-buttons .bookshelf-return-label {
+    #mdbook-menu-bar .right-buttons .documentation-return-label {
         border: 0;
         clip: rect(0 0 0 0);
         height: 1px;
@@ -413,18 +336,18 @@ fn render_bookshelf_return_css() -> String {
     }
 }
 "#
-    .replace("__LINK_CLASS__", BOOKSHELF_RETURN_LINK_CLASS)
+    .replace("__LINK_CLASS__", DOCUMENTATION_RETURN_LINK_CLASS)
 }
 
-fn render_bookshelf_search_js() -> String {
+fn render_documentation_search_js() -> String {
     format!(
         "(() => {{\n\
-const metadata = readBookshelfPageMetadata();\n\
+const metadata = readDocumentationPageMetadata();\n\
 if (typeof metadata.searchIndexTarget === \"string\" && metadata.searchIndexTarget !== \"\") {{\n\
     window.path_to_searchindex_js = metadata.searchIndexTarget;\n\
 }}\n\
 \n\
-function readBookshelfPageMetadata() {{\n\
+function readDocumentationPageMetadata() {{\n\
     const node = document.getElementById(\"{metadata_id}\");\n\
     if (!node) {{\n\
         return {{}};\n\
@@ -436,7 +359,7 @@ function readBookshelfPageMetadata() {{\n\
     }}\n\
 }}\n\
 }})();\n",
-        metadata_id = BOOKSHELF_PAGE_METADATA_ID,
+        metadata_id = DOCUMENTATION_PAGE_METADATA_ID,
     )
 }
 
@@ -446,9 +369,10 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn inject_bookshelf_runtime_assets_preserves_existing_output_assets() {
+    fn inject_documentation_ui_runtime_assets_preserves_existing_output_assets() {
         let temp_root = make_temp_dir("mdbook-bookshelf-bookshelf-ui");
-        let ui_assets = BookshelfAssets::new(&temp_root, Path::new(".generated/bookshelf"));
+        let ui_assets =
+            DocumentationAssets::new(&temp_root, Path::new(".generated/bookshelf"), "Docs Portal");
         let mut config = Config::default();
         config
             .set(
@@ -464,7 +388,7 @@ mod tests {
             .expect("existing js should be configured");
 
         ui_assets
-            .inject_bookshelf_runtime_assets(&mut config)
+            .inject_documentation_runtime_assets(&mut config)
             .expect("asset injection should succeed");
 
         let css_assets = config
@@ -474,7 +398,7 @@ mod tests {
         assert_eq!(css_assets[0], PathBuf::from("shared/site.css"));
         assert_eq!(
             css_assets[1],
-            PathBuf::from(".generated/bookshelf/bookshelf-return.css")
+            PathBuf::from(".generated/bookshelf/documentation-return.css")
         );
         assert!(temp_root.join(&css_assets[1]).exists());
 
@@ -485,25 +409,27 @@ mod tests {
         assert_eq!(js_assets[0], PathBuf::from("shared/site.js"));
         assert_eq!(
             js_assets[1],
-            PathBuf::from(".generated/bookshelf/bookshelf-return.js")
+            PathBuf::from(".generated/bookshelf/documentation-return.js")
         );
         assert_eq!(
             js_assets[2],
-            PathBuf::from(".generated/bookshelf/bookshelf-search.js")
+            PathBuf::from(".generated/bookshelf/documentation-search.js")
         );
         assert_file_contents(
             temp_root.join(".generated/bookshelf/.gitignore"),
-            BOOKSHELF_ASSET_GITIGNORE_CONTENTS,
+            DOCUMENTATION_ASSET_GITIGNORE_CONTENTS,
         );
         assert_file_contents(
             temp_root.join(".generated/bookshelf/README.md"),
-            BOOKSHELF_ASSET_README_CONTENTS,
+            DOCUMENTATION_ASSET_README_CONTENTS,
         );
         assert!(temp_root.join(&js_assets[1]).exists());
         assert!(temp_root.join(&js_assets[2]).exists());
+        assert_file_contains(temp_root.join(&js_assets[1]), "Docs Portal");
 
         let search_js = fs::read_to_string(temp_root.join(&js_assets[2]))
             .expect("search override should be readable");
+        assert!(search_js.contains("readDocumentationPageMetadata"));
         assert!(search_js.contains("window.path_to_searchindex_js"));
         assert!(search_js.contains("searchIndexTarget"));
 
@@ -511,10 +437,10 @@ mod tests {
     }
 
     #[test]
-    fn page_metadata_preprocessor_uses_page_relative_targets() {
-        let preprocessor = BookshelfPageMetadataPreprocessor::new(
+    fn page_metadata_preprocessor_uses_page_relative_documentation_targets() {
+        let preprocessor = DocumentationPageMetadataPreprocessor::new(
             PathBuf::from("modules/parser/docs"),
-            PathBuf::from("docs/bookshelf.html"),
+            PathBuf::from("index.html"),
             PathBuf::from("modules/parser/docs/bookshelf-searchindex.js"),
         );
         let mut chapter = Chapter::new(
@@ -528,26 +454,26 @@ mod tests {
             .inject_chapter_metadata(&mut chapter)
             .expect("metadata should inject");
 
-        assert!(chapter.content.contains(BOOKSHELF_PAGE_METADATA_ID));
+        assert!(chapter.content.contains(DOCUMENTATION_PAGE_METADATA_ID));
         assert!(chapter
             .content
-            .contains("\"bookshelfTarget\":\"../../../../docs/bookshelf.html\""));
+            .contains("\"documentationIndexTarget\":\"../../../../index.html\""));
         assert!(chapter
             .content
             .contains("\"searchIndexTarget\":\"../bookshelf-searchindex.js\""));
     }
 
     #[test]
-    fn page_metadata_preprocessor_omits_return_target_on_bookshelf_page() {
-        let preprocessor = BookshelfPageMetadataPreprocessor::new(
+    fn page_metadata_preprocessor_includes_documentation_target_on_authored_bookshelf_page() {
+        let preprocessor = DocumentationPageMetadataPreprocessor::new(
             PathBuf::from("docs"),
-            PathBuf::from("docs/bookshelf.html"),
+            PathBuf::from("index.html"),
             PathBuf::from("docs/bookshelf-searchindex.js"),
         );
         let mut chapter = Chapter::new(
             "Bookshelf",
             "# Bookshelf".to_string(),
-            ROOT_BOOKSHELF_CHAPTER_PATH,
+            "bookshelf.md",
             Vec::new(),
         );
 
@@ -555,18 +481,31 @@ mod tests {
             .inject_chapter_metadata(&mut chapter)
             .expect("metadata should inject");
 
-        assert!(chapter.content.contains("\"bookshelfTarget\":null"));
+        assert!(chapter
+            .content
+            .contains("\"documentationIndexTarget\":\"../index.html\""));
         assert!(chapter
             .content
             .contains("\"searchIndexTarget\":\"bookshelf-searchindex.js\""));
     }
 
     #[test]
-    fn render_bookshelf_search_js_uses_page_metadata() {
-        let script = render_bookshelf_search_js();
+    fn render_documentation_search_js_uses_page_metadata() {
+        let script = render_documentation_search_js();
 
+        assert!(script.contains("readDocumentationPageMetadata"));
         assert!(script.contains("searchIndexTarget"));
         assert!(script.contains("window.path_to_searchindex_js = metadata.searchIndexTarget;"));
+    }
+
+    #[test]
+    fn render_documentation_return_js_uses_configured_index_title() {
+        let script = render_documentation_return_js("Docs Portal");
+
+        assert!(script.contains("const documentationIndexLabel = \"Docs Portal\";"));
+        assert!(script.contains("label.textContent = documentationIndexLabel;"));
+        assert!(script.contains("Return to \" + documentationIndexLabel"));
+        assert!(!script.contains("label.textContent = \"Documentation\";"));
     }
 
     fn make_temp_dir(tag: &str) -> PathBuf {
@@ -585,5 +524,14 @@ mod tests {
         let actual = fs::read_to_string(&path)
             .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
         assert_eq!(actual, expected);
+    }
+
+    fn assert_file_contains(path: PathBuf, expected: &str) {
+        let actual = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        assert!(
+            actual.contains(expected),
+            "{path:?} did not contain {expected:?}"
+        );
     }
 }

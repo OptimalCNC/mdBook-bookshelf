@@ -519,7 +519,7 @@ while ((match = scriptPattern.exec(pageHtml)) !== null) {
     });
     continue;
   }
-  if (src.endsWith("bookshelf-search.js")) {
+  if (src.endsWith("documentation-search.js")) {
     relevantScripts.push({
       label: src,
       code: fs.readFileSync(path.resolve(path.dirname(pageHtmlPath), src), "utf8"),
@@ -541,7 +541,7 @@ const combinedSource = relevantScripts
       lines.push(
         "globalThis.__audit.configuredAfterSearcher = window.path_to_searchindex_js || \"\";",
       );
-    } else if (script.label.endsWith("bookshelf-search.js")) {
+    } else if (script.label.endsWith("documentation-search.js")) {
       lines.push(
         "globalThis.__audit.configuredAfterOverride = window.path_to_searchindex_js || \"\";",
       );
@@ -568,12 +568,13 @@ process.stdout.write(
 "##;
 
 #[test]
-fn build_cli_emits_bookshelf_ui_assets_from_fixture_asset_dir() {
+fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asset_dir() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
     let fixture_root =
         copy_bookshelf_ui_site_fixture(&repo_root, "chunk-011-build-cli-bookshelf-ui-site-fixture");
     let config_path = fixture_root.join("bookshelf.toml");
+    write_documentation_index_bookshelf_ui_site_config(&config_path);
     let output_dir = make_temp_dir("chunk-011-build-cli", &repo_root);
     let fixture_entries_before =
         without_bookshelf_asset_entries(collect_tree_entries(&fixture_root));
@@ -595,53 +596,30 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_asset_dir() {
     }
 
     let root_entry_html = assert_read_to_string(output_dir.join("index.html"));
-    assert_text_contains(
+    assert_text_contains(&root_entry_html, "Table of Contents");
+    assert_text_contains(&root_entry_html, "class=\"documentation-index\"");
+    assert_text_contains(&root_entry_html, "class=\"documentation-index-toc\"");
+    assert_text_contains(&root_entry_html, "class=\"documentation-category\"");
+    assert_text_not_contains(&root_entry_html, "documentation-book-cover");
+    assert_text_not_contains(&root_entry_html, ".mdbook/bookshelf/covers");
+    assert_documentation_index_category(
         &root_entry_html,
-        "http-equiv=\"refresh\" content=\"0; url=docs/index.html\"",
+        "category-core",
+        "Core",
+        &[("Fixture Core", "docs/index.html")],
     );
-    assert_text_contains(
+    assert_documentation_index_category(
         &root_entry_html,
-        "window.location.replace(\"docs/index.html\")",
+        "category-modules",
+        "Modules",
+        &[
+            ("Fixture Parser", "modules/parser/docs/index.html"),
+            ("Fixture UI", "modules/ui/docs/index.html"),
+        ],
     );
-    assert_text_contains(&root_entry_html, "href=\"docs/index.html\"");
-    assert_text_not_contains(&root_entry_html, "bookshelf-list");
-    assert_text_not_contains(&root_entry_html, "Fixture Core");
-
-    let bookshelf_html = assert_read_to_string(output_dir.join("docs/bookshelf.html"));
-    assert_text_contains(&bookshelf_html, "<h1 id=\"bookshelf\">");
-    assert_text_contains(&bookshelf_html, "Fixture Core");
-    assert_text_contains(
-        &bookshelf_html,
-        "Repository-wide onboarding and architecture notes.",
-    );
-    assert_text_contains(&bookshelf_html, "Fixture Parser");
-    assert_text_contains(
-        &bookshelf_html,
-        "Parser-specific reference pages with their own reading order.",
-    );
-    assert_text_contains(&bookshelf_html, "Fixture UI");
-    assert_text_contains(
-        &bookshelf_html,
-        "Interface and runtime guides for the UI book.",
-    );
-    assert_text_contains(&bookshelf_html, "class=\"bookshelf-list\"");
-    assert_text_contains(
-        &bookshelf_html,
-        "<a class=\"bookshelf-book\" href=\"index.html\">",
-    );
-    assert_text_contains(
-        &bookshelf_html,
-        "<span class=\"bookshelf-book-title\">Fixture Core</span>",
-    );
-    assert_text_contains(
-        &bookshelf_html,
-        "<a class=\"bookshelf-book\" href=\"../modules/parser/docs/index.html\">",
-    );
-    assert_text_contains(
-        &bookshelf_html,
-        "<a class=\"bookshelf-book\" href=\"../modules/ui/docs/index.html\">",
-    );
-    assert_text_not_contains(&bookshelf_html, "href=\"bookshelf.html\">Fixture Core</a>");
+    assert_text_not_contains(&root_entry_html, "http-equiv=\"refresh\"");
+    assert_text_not_contains(&root_entry_html, "Bookshelf");
+    assert!(!output_dir.join("docs/bookshelf.html").exists());
 
     let root_index_html = assert_read_to_string(output_dir.join("docs/index.html"));
     assert_text_contains(
@@ -653,11 +631,17 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_asset_dir() {
         "Repository-wide onboarding and architecture guidance for the fixture project.",
     );
     assert_text_contains(&root_index_html, "href=\"./onboarding.html\"");
-    assert_text_contains(&root_index_html, "bookshelf-return.css");
-    assert_text_contains(&root_index_html, "bookshelf-return.js");
-    assert_text_contains(&root_index_html, "bookshelf-search.js");
+    assert_text_contains(&root_index_html, "documentation-return.css");
+    assert_text_contains(&root_index_html, "documentation-return.js");
+    assert_text_contains(&root_index_html, "documentation-search.js");
+    assert_text_not_contains(&root_index_html, "bookshelf-return.css");
+    assert_text_not_contains(&root_index_html, "bookshelf-return.js");
+    assert_text_not_contains(&root_index_html, "bookshelf-search.js");
     assert_text_contains(&root_index_html, "id=\"mdbook-bookshelf-page-metadata\"");
-    assert_text_contains(&root_index_html, "\"bookshelfTarget\":\"bookshelf.html\"");
+    assert_text_contains(
+        &root_index_html,
+        "\"documentationIndexTarget\":\"../index.html\"",
+    );
     assert_text_contains(
         &root_index_html,
         "\"searchIndexTarget\":\"bookshelf-searchindex.js\"",
@@ -679,12 +663,15 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_asset_dir() {
 
     let parser_index_html =
         assert_read_to_string(output_dir.join("modules/parser/docs/index.html"));
-    assert_text_contains(&parser_index_html, "bookshelf-return.css");
-    assert_text_contains(&parser_index_html, "bookshelf-return.js");
-    assert_text_contains(&parser_index_html, "bookshelf-search.js");
+    assert_text_contains(&parser_index_html, "documentation-return.css");
+    assert_text_contains(&parser_index_html, "documentation-return.js");
+    assert_text_contains(&parser_index_html, "documentation-search.js");
+    assert_text_not_contains(&parser_index_html, "bookshelf-return.css");
+    assert_text_not_contains(&parser_index_html, "bookshelf-return.js");
+    assert_text_not_contains(&parser_index_html, "bookshelf-search.js");
     assert_text_contains(
         &parser_index_html,
-        "\"bookshelfTarget\":\"../../../docs/bookshelf.html\"",
+        "\"documentationIndexTarget\":\"../../../index.html\"",
     );
     assert_text_contains(
         &parser_index_html,
@@ -705,33 +692,42 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_asset_dir() {
     ));
     assert_sidebar_toc_scope(
         &root_toc_html,
-        &["Fixture Core", "Onboarding", "Architecture", "Bookshelf"],
-        &["Fixture Parser", "Grammar", "Fixture UI", "Navigation"],
+        &["Fixture Core", "Onboarding", "Architecture"],
+        &[
+            "Documentation",
+            "Bookshelf",
+            "Fixture Parser",
+            "Grammar",
+            "Fixture UI",
+            "Navigation",
+        ],
     );
-    assert_root_bookshelf_link_order(&root_toc_html, "Fixture Core");
     assert_runtime_toc(
         &root_toc_script,
         "https://example.test/docs/index.html#what-it-does",
         "",
-        &["Bookshelf", "Fixture Core", "Onboarding", "Architecture"],
+        &["Fixture Core", "Onboarding", "Architecture"],
         "Fixture Core",
         "https://example.test/docs/index.html",
     );
 
     assert_exists(output_dir.join("docs/index.html"));
-    assert_exists(output_dir.join("docs/bookshelf.html"));
     assert_exists(output_dir.join("docs/architecture.html"));
     assert_exists(output_dir.join("docs/onboarding.html"));
     assert_exists(output_dir.join("docs/toc.html"));
     assert_has_file_with_prefix(&output_dir.join("docs"), "book-", ".js");
     let root_return_script =
-        assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.js");
+        assert_single_file_named_recursive(&output_dir.join("docs"), "documentation-return.js");
     let root_return_css =
-        assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.css");
-    assert_file_contains(root_return_script.clone(), "readBookshelfPageMetadata");
+        assert_single_file_named_recursive(&output_dir.join("docs"), "documentation-return.css");
+    assert_file_contains(root_return_script.clone(), "readDocumentationPageMetadata");
     assert_file_contains(
         root_return_script.clone(),
-        "label.textContent = \"Bookshelf\";",
+        "const documentationIndexLabel = \"Documentation\";",
+    );
+    assert_file_contains(
+        root_return_script.clone(),
+        "label.textContent = documentationIndexLabel;",
     );
     assert_file_contains(
         root_return_script.clone(),
@@ -741,9 +737,13 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_asset_dir() {
         root_return_script.clone(),
         "document.querySelector(\"#mdbook-menu-bar .right-buttons\")",
     );
-    assert_file_contains(root_return_script, "metadata.bookshelfTarget");
-    assert_file_contains(root_return_css.clone(), ".bookshelf-return-link");
-    assert_file_contains(root_return_css, ".bookshelf-list");
+    assert_file_contains(root_return_script, "metadata.documentationIndexTarget");
+    assert_file_contains(root_return_css.clone(), ".documentation-return-link");
+    assert_file_not_contains(root_return_css.clone(), ".bookshelf-list");
+    assert_file_not_contains(root_return_css.clone(), ".bookshelf-book");
+    assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.js");
+    assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-return.css");
+    assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-search.js");
     assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.js");
     assert_no_file_named_recursive(&output_dir.join("docs"), "bookshelf-breadcrumb.css");
     assert_exists(output_dir.join("modules/parser/docs/index.html"));
@@ -772,15 +772,18 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_asset_dir() {
             ));
     let parser_return_script = assert_single_file_named_recursive(
         &output_dir.join("modules/parser/docs"),
-        "bookshelf-return.js",
+        "documentation-return.js",
     );
     let parser_return_css = assert_single_file_named_recursive(
         &output_dir.join("modules/parser/docs"),
-        "bookshelf-return.css",
+        "documentation-return.css",
     );
-    assert_file_contains(parser_return_script.clone(), "metadata.bookshelfTarget");
+    assert_file_contains(
+        parser_return_script.clone(),
+        "metadata.documentationIndexTarget",
+    );
     assert_file_contains(parser_return_script, "link.rel = \"up\";");
-    assert_file_contains(parser_return_css, ".bookshelf-return-link");
+    assert_file_contains(parser_return_css, ".documentation-return-link");
     let parser_runtime_html =
         assert_read_to_string(output_dir.join("modules/parser/docs/runtime.html"));
     assert_text_contains(
@@ -833,19 +836,47 @@ fn build_cli_emits_bookshelf_ui_assets_from_fixture_asset_dir() {
         "Navigation",
         "https://example.test/modules/ui/docs/navigation.html",
     );
-    assert_text_not_contains(&bookshelf_html, "data-bookshelf-breadcrumb");
     assert_no_authored_root_relative_markdown_links(&output_dir);
     assert!(!fixture_root.join(".mdbook-bookshelf").exists());
     assert!(fixture_root
-        .join(".mdbook/bookshelf/bookshelf-return.js")
+        .join(".mdbook/bookshelf/documentation-return.js")
         .exists());
     assert!(fixture_root
-        .join(".mdbook/bookshelf/bookshelf-search.js")
+        .join(".mdbook/bookshelf/documentation-search.js")
         .exists());
     assert_eq!(
         without_bookshelf_asset_entries(collect_tree_entries(&fixture_root)),
         fixture_entries_before
     );
+
+    fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
+    fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
+}
+
+#[test]
+fn build_cli_rejects_documentation_index_cover_config() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let fixture_root =
+        copy_bookshelf_ui_site_fixture(&repo_root, "build-cli-cover-config-rejected");
+    let config_path = fixture_root.join("bookshelf.toml");
+    write_documentation_index_cover_config(&config_path);
+    let output_dir = make_temp_dir("build-cli-cover-config-rejected-output", &repo_root);
+
+    let output = Command::new(&bin)
+        .arg("build")
+        .arg(&config_path)
+        .arg("--dest-dir")
+        .arg(&output_dir)
+        .output()
+        .expect("build command should run");
+
+    assert!(
+        !output.status.success(),
+        "build should reject documentation index cover config"
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_text_contains(&stderr, "unknown field `root-book`");
 
     fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
     fs::remove_dir_all(&output_dir).expect("temp output directory should be removed");
@@ -877,10 +908,25 @@ fn build_cli_smoke_builds_public_self_contained_example_from_default_config_path
         );
     }
 
-    assert_exists(output_dir.join("index.html"));
-    let bookshelf_html = assert_read_to_string(output_dir.join("docs/bookshelf.html"));
-    assert_text_contains(&bookshelf_html, "Example Core");
-    assert_text_contains(&bookshelf_html, "Example Parser");
+    let documentation_index_html = assert_read_to_string(output_dir.join("index.html"));
+    assert_text_contains(&documentation_index_html, "Table of Contents");
+    assert_text_contains(&documentation_index_html, "class=\"documentation-index\"");
+    assert_documentation_index_category(
+        &documentation_index_html,
+        "category-core",
+        "Core",
+        &[("Example Core", "docs/index.html")],
+    );
+    assert_documentation_index_category(
+        &documentation_index_html,
+        "category-modules",
+        "Modules",
+        &[
+            ("Example Parser", "modules/parser/docs/index.html"),
+            ("Example UI", "modules/ui/docs/index.html"),
+        ],
+    );
+    assert!(!output_dir.join("docs/bookshelf.html").exists());
 
     let onboarding_html = assert_read_to_string(output_dir.join("docs/onboarding.html"));
     assert_text_contains(
@@ -914,6 +960,7 @@ fn build_cli_prints_concise_relative_progress() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
     let fixture_root = copy_bookshelf_ui_site_fixture(&repo_root, "build-cli-layout-log");
+    write_documentation_index_bookshelf_ui_site_config(&fixture_root.join("bookshelf.toml"));
     let output_dir = PathBuf::from(".site-log");
 
     let output = Command::new(&bin)
@@ -953,9 +1000,10 @@ fn build_cli_prints_concise_relative_progress() {
         .lines()
         .find(|line| line.contains("[3/3] Fixture UI: modules/ui/docs"))
         .expect("ui progress line should be present");
-    assert_text_contains(core_line, ", 4 pages)");
+    assert_text_contains(core_line, ", 3 pages)");
     assert_text_contains(parser_line, ", 3 pages)");
     assert_text_contains(ui_line, ", 3 pages)");
+    assert_text_contains(&stderr, "documentation index:");
     assert_text_contains(&stderr, "search index:");
     assert_text_contains(&stderr, "Finished: .site-log");
     assert_text_not_contains(&stderr, "Loading bookshelf config and source catalog...");
@@ -1036,10 +1084,7 @@ fn build_cli_prints_error_cause_chain_for_authoring_failures() {
         &stderr,
         "failed to load books for site-root Markdown link map",
     );
-    assert_text_contains(
-        &stderr,
-        "book 'broken-book/docs' failed to parse canonical summary",
-    );
+    assert_text_contains(&stderr, "book 'broken' failed to parse canonical summary");
     assert_text_contains(&stderr, "broken-book/docs/SUMMARY.md");
     assert_text_contains(&stderr, "failed to parse SUMMARY.md line");
 
@@ -1135,20 +1180,31 @@ fn build_cli_supports_configured_mdbook_mermaid_preprocessor_and_additional_js()
     fs::write(
         &config_path,
         r#"
-[book]
-title = "Mermaid Root"
-language = "en"
-src = "docs"
+	[book]
+	title = "Documentation"
+	language = "en"
 
-[preprocessor.mermaid]
-command = "mdbook-mermaid"
+	[preprocessor.mermaid]
+	command = "mdbook-mermaid"
 
 [output.html]
-additional-js = ["mermaid.min.js", "mermaid-init.js"]
+	additional-js = ["mermaid.min.js", "mermaid-init.js"]
 
-[[bookshelf.book]]
+	[bookshelf]
+
+	[[bookshelf.book]]
+	id = "root"
+	title = "Mermaid Root"
+	src = "docs"
+
+	[[bookshelf.book]]
+	id = "child"
 title = "Mermaid Child"
 src = "modules/child/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root", "child"]
 "#,
     )
     .expect("bookshelf config should be written");
@@ -1249,14 +1305,14 @@ sequenceDiagram
     assert_file_contains(child_mermaid_js, "__bookshelfMermaidRuntime");
     assert_file_contains(child_mermaid_init_js, "__bookshelfMermaidInit");
 
-    assert_text_contains(&root_index_html, "bookshelf-return.js");
-    assert_text_contains(&root_index_html, "bookshelf-search.js");
-    assert_text_contains(&child_index_html, "bookshelf-return.js");
-    assert_text_contains(&child_index_html, "bookshelf-search.js");
-    assert_single_file_named_recursive(&root_output, "bookshelf-return.js");
-    assert_single_file_named_recursive(&root_output, "bookshelf-search.js");
-    assert_single_file_named_recursive(&child_output, "bookshelf-return.js");
-    assert_single_file_named_recursive(&child_output, "bookshelf-search.js");
+    assert_text_contains(&root_index_html, "documentation-return.js");
+    assert_text_contains(&root_index_html, "documentation-search.js");
+    assert_text_contains(&child_index_html, "documentation-return.js");
+    assert_text_contains(&child_index_html, "documentation-search.js");
+    assert_single_file_named_recursive(&root_output, "documentation-return.js");
+    assert_single_file_named_recursive(&root_output, "documentation-search.js");
+    assert_single_file_named_recursive(&child_output, "documentation-return.js");
+    assert_single_file_named_recursive(&child_output, "documentation-search.js");
     assert_no_file_named_recursive(&root_output, "bookshelf-breadcrumb.js");
     assert_no_file_named_recursive(&child_output, "bookshelf-breadcrumb.js");
 
@@ -1282,22 +1338,34 @@ fn build_cli_supports_mdbook_variables_before_site_root_link_rewrites() {
     fs::write(
         &config_path,
         r#"
-[book]
-title = "Variables Root"
-language = "en"
-src = "docs"
+	[book]
+	title = "Documentation"
+	language = "en"
 
-[preprocessor.variables.variables]
-ParserRoot = "/modules/parser/docs"
+	[preprocessor.variables.variables]
+	ParserRoot = "/modules/parser/docs"
 UiRoot = "/modules/ui/docs"
 
-[[bookshelf.book]]
+	[bookshelf]
+
+	[[bookshelf.book]]
+	id = "root"
+	title = "Variables Root"
+	src = "docs"
+
+	[[bookshelf.book]]
+	id = "parser"
 title = "Variables Parser"
 src = "modules/parser/docs"
 
 [[bookshelf.book]]
+id = "ui"
 title = "Variables UI"
 src = "modules/ui/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root", "parser", "ui"]
 "#,
     )
     .expect("bookshelf config should be written");
@@ -1386,16 +1454,27 @@ fn build_cli_allows_relative_input_404_from_shared_root_model() {
     fs::write(
         &config_path,
         r#"
-[book]
-title = "Root Book"
-src = "docs"
+	[book]
+	title = "Documentation"
 
-[output.html]
-input-404 = "missing.md"
+	[output.html]
+	input-404 = "missing.md"
 
-[[bookshelf.book]]
+	[bookshelf]
+
+	[[bookshelf.book]]
+	id = "root"
+	title = "Root Book"
+	src = "docs"
+
+	[[bookshelf.book]]
+	id = "child"
 title = "Child Book"
 src = "modules/child/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root", "child"]
 "#,
     )
     .expect("bookshelf config should be written");
@@ -1464,16 +1543,27 @@ fn build_cli_allows_disabled_input_404_for_child_roots() {
     fs::write(
         &config_path,
         r#"
-[book]
-title = "Root Book"
-src = "docs"
+	[book]
+	title = "Documentation"
 
-[output.html]
-input-404 = ""
+	[output.html]
+	input-404 = ""
 
-[[bookshelf.book]]
+	[bookshelf]
+
+	[[bookshelf.book]]
+	id = "root"
+	title = "Root Book"
+	src = "docs"
+
+	[[bookshelf.book]]
+	id = "child"
 title = "Child Book"
 src = "modules/child/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root", "child"]
 "#,
     )
     .expect("bookshelf config should be written");
@@ -1557,14 +1647,14 @@ fn build_cli_uses_shared_site_wide_search_index() {
     let root_index_html = assert_read_to_string(output_dir.join("docs/index.html"));
     let parser_grammar_html =
         assert_read_to_string(output_dir.join("modules/parser/docs/grammar.html"));
-    assert_text_contains(&root_index_html, "bookshelf-search.js");
-    assert_text_contains(&parser_grammar_html, "bookshelf-search.js");
+    assert_text_contains(&root_index_html, "documentation-search.js");
+    assert_text_contains(&parser_grammar_html, "documentation-search.js");
 
     let root_search_override =
-        assert_single_file_named_recursive(&output_dir.join("docs"), "bookshelf-search.js");
+        assert_single_file_named_recursive(&output_dir.join("docs"), "documentation-search.js");
     let parser_search_override = assert_single_file_named_recursive(
         &output_dir.join("modules/parser/docs"),
-        "bookshelf-search.js",
+        "documentation-search.js",
     );
     assert_file_contains(
         root_search_override,
@@ -1577,6 +1667,10 @@ fn build_cli_uses_shared_site_wide_search_index() {
     assert_text_contains(
         &parser_grammar_html,
         "\"searchIndexTarget\":\"bookshelf-searchindex.js\"",
+    );
+    assert_text_contains(
+        &parser_grammar_html,
+        "\"documentationIndexTarget\":\"../../../index.html\"",
     );
 
     let elasticlunr_js = output_dir.join("docs").join(assert_has_file_with_prefix(
@@ -1618,39 +1712,26 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
 
     run_build_cli(&bin, &config_path, &output_dir);
 
-    let root_entry_html = assert_read_to_string(output_dir.join("index.html"));
-    assert_text_contains(
-        &root_entry_html,
-        "http-equiv=\"refresh\" content=\"0; url=docs/bookshelf.html\"",
+    let documentation_index_html = assert_read_to_string(output_dir.join("index.html"));
+    assert_text_contains(&documentation_index_html, "Table of Contents");
+    assert_text_contains(&documentation_index_html, "class=\"documentation-index\"");
+    assert_documentation_index_category(
+        &documentation_index_html,
+        "category-overview",
+        "Overview",
+        &[("MetaNC", "docs/index.html")],
     );
-    assert_text_contains(
-        &root_entry_html,
-        "window.location.replace(\"docs/bookshelf.html\")",
+    assert_documentation_index_category(
+        &documentation_index_html,
+        "category-modules",
+        "Modules",
+        &[
+            ("G-code Parser", "modules/gcode-parser/docs/index.html"),
+            ("HMI", "modules/hmi/docs/index.html"),
+        ],
     );
-    assert_text_contains(&root_entry_html, "href=\"docs/bookshelf.html\"");
+    assert!(!output_dir.join("docs/bookshelf.html").exists());
     assert!(!output_dir.join("bookshelf.html").exists());
-
-    let bookshelf_html = assert_read_to_string(output_dir.join("docs/bookshelf.html"));
-    assert_text_contains(&bookshelf_html, "<h1 id=\"bookshelf\">");
-    assert_text_contains(&bookshelf_html, "class=\"bookshelf-list\"");
-    assert_text_contains(
-        &bookshelf_html,
-        "<span class=\"bookshelf-book-title\">MetaNC</span>",
-    );
-    assert_text_contains(
-        &bookshelf_html,
-        "<a class=\"bookshelf-book\" href=\"index.html\">",
-    );
-    assert_text_contains(
-        &bookshelf_html,
-        "<a class=\"bookshelf-book\" href=\"../modules/gcode-parser/docs/index.html\">",
-    );
-    assert_text_contains(
-        &bookshelf_html,
-        "<a class=\"bookshelf-book\" href=\"../modules/hmi/docs/index.html\">",
-    );
-    assert_text_not_contains(&bookshelf_html, "href=\"bookshelf.html\">MetaNC</a>");
-    assert_text_not_contains(&bookshelf_html, "data-bookshelf-breadcrumb");
 
     let metanc_index_html = assert_read_to_string(output_dir.join("docs/index.html"));
     let architecture_html = assert_read_to_string(output_dir.join("docs/architecture.html"));
@@ -1661,27 +1742,40 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
     );
     let hmi_index_html = assert_read_to_string(output_dir.join("modules/hmi/docs/index.html"));
 
+    assert_text_contains(
+        &metanc_index_html,
+        "\"documentationIndexTarget\":\"../index.html\"",
+    );
+    assert_text_contains(
+        &parser_index_html,
+        "\"documentationIndexTarget\":\"../../../index.html\"",
+    );
+    assert_text_contains(
+        &hmi_index_html,
+        "\"documentationIndexTarget\":\"../../../index.html\"",
+    );
     assert_stock_search_contract(&output_dir.join("docs"), &metanc_index_html);
     assert_stock_search_contract(
         &output_dir.join("modules/gcode-parser/docs"),
         &parser_index_html,
     );
     assert_stock_search_contract(&output_dir.join("modules/hmi/docs"), &hmi_index_html);
-    assert_text_contains(&architecture_html, "bookshelf-search.js");
-    assert_text_contains(&modal_groups_html, "bookshelf-search.js");
+    assert_text_contains(&architecture_html, "documentation-search.js");
+    assert_text_contains(&modal_groups_html, "documentation-search.js");
     assert_text_not_contains(&architecture_html, "bookshelf-breadcrumb");
     assert_text_not_contains(&modal_groups_html, "bookshelf-breadcrumb");
 
     let root_toc_html = assert_read_to_string(output_dir.join("docs/toc.html"));
     assert_sidebar_toc_scope(
         &root_toc_html,
-        &["MetaNC", "Getting Started", "Architecture", "Bookshelf"],
-        &["G-code Parser", "Modal Groups", "HMI", "Operator Panels"],
-    );
-    assert_root_bookshelf_link_order_for(
-        &root_toc_html,
-        "MetaNC",
-        &["Getting Started", "Architecture"],
+        &["MetaNC", "Getting Started", "Architecture"],
+        &[
+            "Bookshelf",
+            "G-code Parser",
+            "Grammar",
+            "HMI",
+            "Operator Panels",
+        ],
     );
 
     let parser_toc_html =
@@ -1810,11 +1904,11 @@ fn build_cli_audits_search_cold_load_residual_on_repo_scale_output() {
         "searcher-",
         ".js",
     );
-    assert_script_order(&parser_page_html, &searcher_name, "bookshelf-search.js");
+    assert_script_order(&parser_page_html, &searcher_name, "documentation-search.js");
 
     let search_override = assert_single_file_named_recursive(
         &output_dir.join("modules/gcode-parser/docs"),
-        "bookshelf-search.js",
+        "documentation-search.js",
     );
     assert_file_contains(
         search_override,
@@ -1823,6 +1917,10 @@ fn build_cli_audits_search_cold_load_residual_on_repo_scale_output() {
     assert_text_contains(
         &parser_page_html,
         "\"searchIndexTarget\":\"../bookshelf-searchindex.js\"",
+    );
+    assert_text_contains(
+        &parser_page_html,
+        "\"documentationIndexTarget\":\"../../../../index.html\"",
     );
 
     let audit = run_search_cold_load_audit(
@@ -1844,8 +1942,8 @@ fn build_cli_audits_search_cold_load_residual_on_repo_scale_output() {
         audit
             .script_sequence
             .iter()
-            .any(|entry| entry.ends_with("bookshelf-search.js")),
-        "expected emitted page HTML to include the bookshelf search override script"
+            .any(|entry| entry.ends_with("documentation-search.js")),
+        "expected emitted page HTML to include the documentation search override script"
     );
     assert_eq!(
         audit.path_to_root.as_deref(),
@@ -2007,63 +2105,23 @@ fn assert_file_contains(path: PathBuf, needle: &str) {
     );
 }
 
+fn assert_file_not_contains(path: PathBuf, needle: &str) {
+    let content = fs::read_to_string(&path)
+        .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+    assert!(
+        !content.contains(needle),
+        "expected {} not to contain {:?}",
+        path.display(),
+        needle
+    );
+}
+
 fn assert_sidebar_toc_scope(toc_html: &str, expected_labels: &[&str], unexpected_labels: &[&str]) {
     for label in expected_labels {
         assert_text_contains(toc_html, label);
     }
     for label in unexpected_labels {
         assert_text_not_contains(toc_html, label);
-    }
-}
-
-fn assert_root_bookshelf_link_order(root_toc_html: &str, root_title: &str) {
-    assert_root_bookshelf_link_order_for(
-        root_toc_html,
-        root_title,
-        &["Onboarding", "Architecture"],
-    );
-}
-
-fn assert_root_bookshelf_link_order_for(
-    root_toc_html: &str,
-    root_title: &str,
-    chapter_labels: &[&str],
-) {
-    let root_index = root_toc_html
-        .find(&format!("1.</strong> {root_title}"))
-        .unwrap_or_else(|| panic!("root TOC should contain numbered root-book index entry"));
-    let chapter_positions = chapter_labels
-        .iter()
-        .enumerate()
-        .map(|(idx, label)| {
-            root_toc_html
-                .find(&format!("1.{}.</strong> {label}", idx + 1))
-                .unwrap_or_else(|| panic!("root TOC should contain numbered entry for {label}"))
-        })
-        .collect::<Vec<_>>();
-    let bookshelf_link = "<a href=\"bookshelf.html\" target=\"_parent\">Bookshelf</a>";
-    let bookshelf = root_toc_html
-        .find(bookshelf_link)
-        .expect("root TOC should contain unnumbered Bookshelf entry");
-    let first_link = root_toc_html
-        .find("<a href=")
-        .expect("root TOC should contain sidebar links");
-
-    assert_eq!(
-        first_link, bookshelf,
-        "expected Bookshelf to be the first root-book sidebar entry"
-    );
-    assert!(
-        bookshelf < root_index,
-        "expected Bookshelf to be the first root-book sidebar entry"
-    );
-    let mut previous = root_index;
-    for position in chapter_positions {
-        assert!(
-            previous < position,
-            "expected root-book numbered chapters to keep their authored order after Bookshelf"
-        );
-        previous = position;
     }
 }
 
@@ -2233,6 +2291,48 @@ fn assert_text_not_contains(haystack: &str, needle: &str) {
         "expected text not to contain {:?}",
         needle
     );
+}
+
+fn assert_documentation_index_category(
+    html: &str,
+    category_id: &str,
+    title: &str,
+    expected_books: &[(&str, &str)],
+) {
+    let section = documentation_index_category_section(html, category_id);
+    assert_text_contains(section, &format!("<h2>{title}</h2>"));
+    assert_documentation_index_books_in_order(section, expected_books);
+}
+
+fn documentation_index_category_section<'a>(html: &'a str, category_id: &str) -> &'a str {
+    let marker = format!("<section class=\"documentation-category\" id=\"{category_id}\"");
+    let start = html
+        .find(&marker)
+        .unwrap_or_else(|| panic!("expected documentation index category {category_id:?}"));
+    let after_start = start + marker.len();
+    let end = html[after_start..]
+        .find("<section class=\"documentation-category\"")
+        .map(|relative| after_start + relative)
+        .unwrap_or(html.len());
+    &html[start..end]
+}
+
+fn assert_documentation_index_books_in_order(section: &str, expected_books: &[(&str, &str)]) {
+    let mut cursor = 0;
+    for (title, href) in expected_books {
+        let href_marker = format!("href=\"{href}\"");
+        let href_offset = section[cursor..]
+            .find(&href_marker)
+            .unwrap_or_else(|| panic!("expected category section to contain {href_marker:?}"));
+        let href_start = cursor + href_offset;
+        let next_card = section[href_start + href_marker.len()..]
+            .find("<a class=\"documentation-book-card\"")
+            .map(|relative| href_start + href_marker.len() + relative)
+            .unwrap_or(section.len());
+        let book_card = &section[href_start..next_card];
+        assert_text_contains(book_card, title);
+        cursor = next_card;
+    }
 }
 
 fn assert_no_authored_root_relative_markdown_links(output_dir: &Path) {
@@ -2510,6 +2610,93 @@ fn copy_bookshelf_ui_site_fixture(repo_root: &Path, tag: &str) -> PathBuf {
     copy_dir_all(&repo_root.join(BOOKSHELF_UI_SITE_FIXTURE), &fixture_root)
         .expect("bookshelf UI site fixture should be copied");
     fixture_root
+}
+
+fn write_documentation_index_bookshelf_ui_site_config(config_path: &Path) {
+    fs::write(
+        config_path,
+        r#"[book]
+	title = "Documentation"
+	description = "Fixture site metadata."
+	language = "en"
+	src = "docs"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "ayu"
+
+	[bookshelf]
+
+	[[bookshelf.book]]
+	id = "core"
+	title = "Fixture Core"
+	description = "Repository-wide onboarding and architecture notes."
+	src = "docs"
+
+	[[bookshelf.book]]
+	id = "parser"
+title = "Fixture Parser"
+description = "Parser-specific reference pages with their own reading order."
+src = "modules/parser/docs"
+
+[[bookshelf.book]]
+id = "ui"
+title = "Fixture UI"
+description = "Interface and runtime guides for the UI book."
+src = "modules/ui/docs"
+
+[[bookshelf.category]]
+title = "Core"
+books = ["core"]
+
+[[bookshelf.category]]
+title = "Modules"
+books = ["parser", "ui"]
+"#,
+    )
+    .expect("temporary bookshelf config should be rewritten");
+}
+
+fn write_documentation_index_cover_config(config_path: &Path) {
+    fs::write(
+        config_path,
+        r#"[book]
+	title = "Documentation"
+	description = "Fixture site metadata."
+	language = "en"
+	src = "docs"
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "ayu"
+
+	[bookshelf]
+
+	[bookshelf.root-book]
+	cover = "assets/covers/core.png"
+
+[[bookshelf.book]]
+id = "parser"
+title = "Fixture Parser"
+description = "Parser-specific reference pages with their own reading order."
+src = "modules/parser/docs"
+
+[[bookshelf.book]]
+id = "ui"
+title = "Fixture UI"
+description = "Interface and runtime guides for the UI book."
+src = "modules/ui/docs"
+
+[[bookshelf.category]]
+title = "Core"
+books = ["core"]
+
+[[bookshelf.category]]
+title = "Modules"
+books = ["parser", "ui"]
+"#,
+    )
+    .expect("cover bookshelf config should be written");
 }
 
 fn copy_public_self_contained_example_fixture(repo_root: &Path, tag: &str) -> PathBuf {

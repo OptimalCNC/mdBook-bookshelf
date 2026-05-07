@@ -500,7 +500,6 @@ mod tests {
             book_src_rel: PathBuf::from(output_rel),
             book_src_abs: PathBuf::from("/tmp").join(output_rel),
             summary_abs: PathBuf::from("/tmp").join(output_rel).join("SUMMARY.md"),
-            is_root_book: false,
         }
     }
 }
