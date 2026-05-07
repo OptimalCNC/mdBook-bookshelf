@@ -1,22 +1,36 @@
 [book]
-title = "MetaNC"
-description = "Repository-wide architecture, onboarding, and integration notes."
+title = "MetaNC Documentation"
+description = "Repository documentation portal."
 language = "en"
-src = "docs"
 
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "ayu"
 
 [bookshelf]
-entry-page = "bookshelf"
 
 [[bookshelf.book]]
+id = "metanc"
+title = "MetaNC"
+description = "Repository-wide architecture, onboarding, and integration notes."
+src = "docs"
+
+[[bookshelf.book]]
+id = "gcode-parser"
 title = "G-code Parser"
 description = "Grammar, modal semantics, and parser diagnostics."
 src = "modules/gcode-parser/docs"
 
 [[bookshelf.book]]
+id = "hmi"
 title = "HMI"
 description = "Operator workflows and runtime notes for the interface book."
 src = "modules/hmi/docs"
+
+[[bookshelf.category]]
+title = "Overview"
+books = ["metanc"]
+
+[[bookshelf.category]]
+title = "Modules"
+books = ["gcode-parser", "hmi"]

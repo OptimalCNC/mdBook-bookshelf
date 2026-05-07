@@ -1,5 +1,13 @@
 [book]
+title = "Documentation"
+
+[bookshelf]
+
+[[bookshelf.book]]
+id = "root"
 title = "Meta Root"
 src = "docs"
 
-[bookshelf]
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root"]

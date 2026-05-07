@@ -67,25 +67,51 @@ fn serve_cli_serves_bookshelf_ui_fixture_site() {
         "/",
     );
     assert_status_ok(&root_response);
-    assert_text_contains(
+    assert_documentation_index_body(
         response_body(&root_response),
-        "http-equiv=\"refresh\" content=\"0; url=docs/index.html\"",
-    );
-    assert_text_contains(
-        response_body(&root_response),
-        "window.location.replace(\"docs/index.html\")",
+        &[
+            ExpectedDocumentationCategory {
+                id: "category-core",
+                title: "Core",
+                books: &[("Fixture Core", "docs/index.html")],
+            },
+            ExpectedDocumentationCategory {
+                id: "category-modules",
+                title: "Modules",
+                books: &[
+                    ("Fixture Parser", "modules/parser/docs/index.html"),
+                    ("Fixture UI", "modules/ui/docs/index.html"),
+                ],
+            },
+        ],
     );
 
-    let shelf_response = wait_for_response(
+    let index_response = wait_for_response(
         &mut child,
         &stderr_lines,
         &mut stderr_log,
         &server_address,
-        "/docs/bookshelf.html",
+        "/index.html",
     );
-    assert_status_ok(&shelf_response);
-    assert_text_contains(response_body(&shelf_response), "<h1 id=\"bookshelf\">");
-    assert_text_contains(response_body(&shelf_response), "class=\"bookshelf-list\"");
+    assert_status_ok(&index_response);
+    assert_documentation_index_body(
+        response_body(&index_response),
+        &[
+            ExpectedDocumentationCategory {
+                id: "category-core",
+                title: "Core",
+                books: &[("Fixture Core", "docs/index.html")],
+            },
+            ExpectedDocumentationCategory {
+                id: "category-modules",
+                title: "Modules",
+                books: &[
+                    ("Fixture Parser", "modules/parser/docs/index.html"),
+                    ("Fixture UI", "modules/ui/docs/index.html"),
+                ],
+            },
+        ],
+    );
 
     let parser_response = wait_for_response(
         &mut child,
@@ -135,16 +161,59 @@ fn serve_cli_smoke_serves_public_self_contained_example_from_default_config_path
     let mut stderr_log = String::new();
     let server_address = wait_for_serving_address(&mut child, &stderr_lines, &mut stderr_log);
 
-    let shelf_response = wait_for_response(
+    let root_response = wait_for_response(
         &mut child,
         &stderr_lines,
         &mut stderr_log,
         &server_address,
-        "/docs/bookshelf.html",
+        "/",
     );
-    assert_status_ok(&shelf_response);
-    assert_text_contains(response_body(&shelf_response), "<h1 id=\"bookshelf\">");
-    assert_text_contains(response_body(&shelf_response), "Example Core");
+    assert_status_ok(&root_response);
+    assert_documentation_index_body(
+        response_body(&root_response),
+        &[
+            ExpectedDocumentationCategory {
+                id: "category-core",
+                title: "Core",
+                books: &[("Example Core", "docs/index.html")],
+            },
+            ExpectedDocumentationCategory {
+                id: "category-modules",
+                title: "Modules",
+                books: &[
+                    ("Example Parser", "modules/parser/docs/index.html"),
+                    ("Example UI", "modules/ui/docs/index.html"),
+                ],
+            },
+        ],
+    );
+
+    let index_response = wait_for_response(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        "/index.html",
+    );
+    assert_status_ok(&index_response);
+    assert_documentation_index_body(
+        response_body(&index_response),
+        &[
+            ExpectedDocumentationCategory {
+                id: "category-core",
+                title: "Core",
+                books: &[("Example Core", "docs/index.html")],
+            },
+            ExpectedDocumentationCategory {
+                id: "category-modules",
+                title: "Modules",
+                books: &[
+                    ("Example Parser", "modules/parser/docs/index.html"),
+                    ("Example UI", "modules/ui/docs/index.html"),
+                ],
+            },
+        ],
+    );
 
     shutdown_child(&mut child);
     fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
@@ -307,6 +376,34 @@ fn serve_cli_rebuilds_changed_source_and_serves_live_reload_output() {
     let server_address = wait_for_serving_address(&mut child, &stderr_lines, &mut stderr_log);
 
     let parser_path = "/modules/parser/docs/grammar.html";
+    let root_index_response = wait_for_response(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        "/index.html",
+    );
+    assert_status_ok(&root_index_response);
+    assert_text_contains(response_body(&root_index_response), "__livereload");
+    assert_documentation_index_body(
+        response_body(&root_index_response),
+        &[
+            ExpectedDocumentationCategory {
+                id: "category-core",
+                title: "Core",
+                books: &[("Fixture Core", "docs/index.html")],
+            },
+            ExpectedDocumentationCategory {
+                id: "category-modules",
+                title: "Modules",
+                books: &[
+                    ("Fixture Parser", "modules/parser/docs/index.html"),
+                    ("Fixture UI", "modules/ui/docs/index.html"),
+                ],
+            },
+        ],
+    );
+
     let initial_response = wait_for_response(
         &mut child,
         &stderr_lines,
@@ -710,6 +807,64 @@ fn assert_text_not_contains(text: &str, unexpected: &str) {
         unexpected,
         text
     );
+}
+
+struct ExpectedDocumentationCategory<'a> {
+    id: &'a str,
+    title: &'a str,
+    books: &'a [(&'a str, &'a str)],
+}
+
+fn assert_documentation_index_body(body: &str, categories: &[ExpectedDocumentationCategory<'_>]) {
+    assert_text_contains(body, "Table of Contents");
+    assert_text_contains(body, "class=\"documentation-index\"");
+    for category in categories {
+        assert_documentation_index_category(body, category.id, category.title, category.books);
+    }
+    assert_text_not_contains(body, "http-equiv=\"refresh\"");
+    assert_text_not_contains(body, "bookshelf.html");
+}
+
+fn assert_documentation_index_category(
+    html: &str,
+    category_id: &str,
+    title: &str,
+    expected_books: &[(&str, &str)],
+) {
+    let section = documentation_index_category_section(html, category_id);
+    assert_text_contains(section, &format!("<h2>{title}</h2>"));
+    assert_documentation_index_books_in_order(section, expected_books);
+}
+
+fn documentation_index_category_section<'a>(html: &'a str, category_id: &str) -> &'a str {
+    let marker = format!("<section class=\"documentation-category\" id=\"{category_id}\"");
+    let start = html
+        .find(&marker)
+        .unwrap_or_else(|| panic!("expected documentation index category {category_id:?}"));
+    let after_start = start + marker.len();
+    let end = html[after_start..]
+        .find("<section class=\"documentation-category\"")
+        .map(|relative| after_start + relative)
+        .unwrap_or(html.len());
+    &html[start..end]
+}
+
+fn assert_documentation_index_books_in_order(section: &str, expected_books: &[(&str, &str)]) {
+    let mut cursor = 0;
+    for (title, href) in expected_books {
+        let href_marker = format!("href=\"{href}\"");
+        let href_offset = section[cursor..]
+            .find(&href_marker)
+            .unwrap_or_else(|| panic!("expected category section to contain {href_marker:?}"));
+        let href_start = cursor + href_offset;
+        let next_card = section[href_start + href_marker.len()..]
+            .find("<a class=\"documentation-book-card\"")
+            .map(|relative| href_start + href_marker.len() + relative)
+            .unwrap_or(section.len());
+        let book_card = &section[href_start..next_card];
+        assert_text_contains(book_card, title);
+        cursor = next_card;
+    }
 }
 
 fn shutdown_child(child: &mut Child) {

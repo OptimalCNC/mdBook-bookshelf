@@ -7,17 +7,59 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[test]
 fn multi_book_load() {
-    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let fixtures = repo_root.join("tests/fixtures/multi-book-load");
+    let temp = TempDir::new("multi-book-load");
 
-    let valid_catalog = build_input_catalog(fixtures.join("valid/bookshelf.toml"))
-        .expect("valid fixture should build input catalog");
+    write_file(
+        temp.path(),
+        "valid/root-book/docs/SUMMARY.md",
+        "# Summary\n\n- [Root Intro](index.md)\n",
+    );
+    write_file(
+        temp.path(),
+        "valid/root-book/docs/index.md",
+        "# Root Intro\n",
+    );
+    write_file(
+        temp.path(),
+        "valid/modules/child/docs/SUMMARY.md",
+        "# Summary\n\n- [Child Intro](index.md)\n",
+    );
+    write_file(
+        temp.path(),
+        "valid/modules/child/docs/index.md",
+        "# Child Intro\n",
+    );
+    let valid_config = write_file(
+        temp.path(),
+        "valid/bookshelf.toml",
+        r#"[book]
+	title = "Documentation"
+
+	[bookshelf]
+
+	[[bookshelf.book]]
+	id = "root"
+	title = "Root Book"
+	src = "root-book/docs"
+
+	[[bookshelf.book]]
+	id = "child"
+title = "Child Book"
+src = "modules/child/docs"
+
+[[bookshelf.category]]
+title = "Main"
+books = ["root", "child"]
+"#,
+    );
+
+    let valid_catalog =
+        build_input_catalog(&valid_config).expect("valid fixture should build input catalog");
     let loaded = load_books_from_catalog(&valid_catalog).expect("valid fixture should load books");
 
-    assert_eq!("root-book/docs", loaded.root_book_id);
     assert_eq!(2, loaded.books.len());
-    assert_eq!("root-book/docs", loaded.books[0].book_id);
-    assert_eq!("modules/child/docs", loaded.books[1].book_id);
+    assert_eq!("root", loaded.books[0].book_id);
+    assert_eq!("child", loaded.books[1].book_id);
     assert!(
         !loaded.books[0].summary.numbered_chapters.is_empty(),
         "root summary should contain chapter entries"
@@ -40,35 +82,114 @@ fn multi_book_load() {
     assert!(root_chapter_count > 0, "root mdbook should load chapters");
     assert!(child_chapter_count > 0, "child mdbook should load chapters");
 
-    let invalid_catalog =
-        build_input_catalog(fixtures.join("invalid-summary-parse/bookshelf.toml"))
-            .expect("invalid-summary-parse fixture should build catalog");
+    write_file(
+        temp.path(),
+        "invalid-summary-parse/root-book/docs/SUMMARY.md",
+        "# Summary\n\n- [Root Intro](index.md)\n",
+    );
+    write_file(
+        temp.path(),
+        "invalid-summary-parse/root-book/docs/index.md",
+        "# Root Intro\n",
+    );
+    write_file(
+        temp.path(),
+        "invalid-summary-parse/broken-book/docs/SUMMARY.md",
+        "# Summary\n\n- [Broken Chapter](chapter.md\n",
+    );
+    write_file(
+        temp.path(),
+        "invalid-summary-parse/broken-book/docs/chapter.md",
+        "# Broken Chapter\n",
+    );
+    let invalid_summary_config = write_file(
+        temp.path(),
+        "invalid-summary-parse/bookshelf.toml",
+        r#"[book]
+	title = "Documentation"
+
+	[bookshelf]
+
+	[[bookshelf.book]]
+	id = "root"
+	title = "Root Book"
+	src = "root-book/docs"
+
+	[[bookshelf.book]]
+	id = "broken"
+title = "Broken Book"
+src = "broken-book/docs"
+
+[[bookshelf.category]]
+title = "Main"
+books = ["root", "broken"]
+"#,
+    );
+    let invalid_catalog = build_input_catalog(&invalid_summary_config)
+        .expect("invalid-summary-parse fixture should build catalog");
     let parse_err = match load_books_from_catalog(&invalid_catalog) {
         Ok(_) => panic!("must fail"),
         Err(err) => err,
     };
     assert_eq!(
         format!(
-            "book 'broken-book/docs' failed to parse canonical summary at {}",
-            fixtures
+            "book 'broken' failed to parse canonical summary at {}",
+            temp.path()
                 .join("invalid-summary-parse/broken-book/docs/SUMMARY.md")
                 .display()
         ),
         parse_err.to_string()
     );
 
-    let invalid_load_catalog =
-        build_input_catalog(fixtures.join("invalid-mdbook-load/bookshelf.toml"))
-            .expect("invalid-mdbook-load fixture should build catalog");
+    write_file(
+        temp.path(),
+        "invalid-mdbook-load/root-book/docs/SUMMARY.md",
+        "# Summary\n\n- [Root Intro](index.md)\n",
+    );
+    write_file(
+        temp.path(),
+        "invalid-mdbook-load/root-book/docs/index.md",
+        "# Root Intro\n",
+    );
+    write_file(
+        temp.path(),
+        "invalid-mdbook-load/missing-book/docs/SUMMARY.md",
+        "# Summary\n\n- [Missing Chapter](missing.md)\n",
+    );
+    let invalid_load_config = write_file(
+        temp.path(),
+        "invalid-mdbook-load/bookshelf.toml",
+        r#"[book]
+	title = "Documentation"
+
+	[bookshelf]
+
+	[[bookshelf.book]]
+	id = "root"
+	title = "Root Book"
+	src = "root-book/docs"
+
+	[[bookshelf.book]]
+	id = "missing"
+title = "Missing Chapter Book"
+src = "missing-book/docs"
+
+[[bookshelf.category]]
+title = "Main"
+books = ["root", "missing"]
+"#,
+    );
+    let invalid_load_catalog = build_input_catalog(&invalid_load_config)
+        .expect("invalid-mdbook-load fixture should build catalog");
     let load_err = match load_books_from_catalog(&invalid_load_catalog) {
         Ok(_) => panic!("must fail"),
         Err(err) => err,
     };
     assert_eq!(
         format!(
-            "book 'missing-book/docs' failed to load mdbook from root {} and source {}",
-            fixtures.join("invalid-mdbook-load").display(),
-            fixtures
+            "book 'missing' failed to load mdbook from root {} and source {}",
+            temp.path().join("invalid-mdbook-load").display(),
+            temp.path()
                 .join("invalid-mdbook-load/missing-book/docs")
                 .display()
         ),
@@ -77,8 +198,8 @@ fn multi_book_load() {
 }
 
 #[test]
-fn rejects_nested_authored_bookshelf_page_in_child_book() {
-    let temp = TempDir::new("chunk-06d-authored-nested-child-bookshelf");
+fn loads_authored_bookshelf_markdown_pages() {
+    let temp = TempDir::new("authored-bookshelf-page");
     write_file(
         temp.path(),
         "docs/SUMMARY.md",
@@ -88,41 +209,55 @@ fn rejects_nested_authored_bookshelf_page_in_child_book() {
     write_file(
         temp.path(),
         "modules/child/docs/SUMMARY.md",
-        "# Summary\n\n- [Child](index.md)\n- [Guide](guide/bookshelf.md)\n",
+        "# Summary\n\n- [Child](index.md)\n- [Guide Bookshelf](guide/bookshelf.md)\n",
     );
     write_file(temp.path(), "modules/child/docs/index.md", "# Child\n");
     write_file(
         temp.path(),
         "modules/child/docs/guide/bookshelf.md",
-        "# Nested Child Bookshelf\n",
+        "# Authored Bookshelf\n",
     );
     let config_path = write_file(
         temp.path(),
         "bookshelf.toml",
-        r#"
-[book]
-title = "Root"
-src = "docs"
+        r#"[book]
+	title = "Documentation"
 
-[bookshelf]
+	[bookshelf]
 
-[[bookshelf.book]]
+	[[bookshelf.book]]
+	id = "root"
+	title = "Root"
+	src = "docs"
+
+	[[bookshelf.book]]
+	id = "child"
 title = "Child"
 src = "modules/child/docs"
+
+[[bookshelf.category]]
+title = "Main"
+books = ["root", "child"]
 "#,
     );
 
     let catalog = build_input_catalog(&config_path).expect("catalog should build");
-    let error = match load_books_from_catalog(&catalog) {
-        Ok(_) => panic!("reserved nested child bookshelf page must fail"),
-        Err(error) => error,
-    };
-    let error_text = format!("{error:#}");
+    let loaded = load_books_from_catalog(&catalog).expect("authored bookshelf.md should load");
+    let child = loaded
+        .books
+        .iter()
+        .find(|book| book.book_id == "child")
+        .expect("child book should be loaded");
+
     assert!(
-        error_text.contains(
-            "book 'modules/child/docs' already contains reserved bookshelf path 'bookshelf.md'"
-        ),
-        "unexpected error: {error_text}"
+        child.mdbook.iter().any(|item| {
+            matches!(
+                item,
+                BookItem::Chapter(chapter)
+                    if chapter.path.as_deref() == Some(Path::new("guide/bookshelf.md"))
+            )
+        }),
+        "child book should include authored guide/bookshelf.md chapter"
     );
 }
 

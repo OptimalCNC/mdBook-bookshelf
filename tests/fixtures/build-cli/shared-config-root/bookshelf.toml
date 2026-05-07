@@ -1,11 +1,23 @@
 [book]
-title = "Root Book"
+title = "Documentation"
 language = "en"
 src = "docs"
 
 [output.html]
 additional-css = ["shared/site.css"]
 
+[bookshelf]
+
 [[bookshelf.book]]
+id = "root"
+title = "Root Book"
+src = "docs"
+
+[[bookshelf.book]]
+id = "child"
 title = "Child Book"
 src = "modules/child/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["root", "child"]

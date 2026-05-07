@@ -20,11 +20,11 @@ Here, `my-repo/` is the root directory.
 In `mdbook-bookshelf`:
 
 - each book `src` is resolved from that directory
-- bookshelf site-root link and image destinations start with a single `/`
+- documentation site-root link and image destinations start with a single `/`
 
 So `/docs/index.md` means "the file `docs/index.md` under the
 `bookshelf.toml` directory". A destination that starts with `//` is a
-protocol-relative URL, not a bookshelf site-root destination.
+protocol-relative URL, not a documentation site-root destination.
 
 ## How To Write Links
 
@@ -71,7 +71,7 @@ Query strings and fragments are preserved after the destination is rewritten.
 Non-markdown single-slash destinations, such as images or other assets, are
 rewritten as paths under the site root.
 
-These destinations are not bookshelf site-root destinations and are left
+These destinations are not documentation site-root destinations and are left
 unchanged by this preprocessor:
 
 ```md
@@ -104,7 +104,7 @@ Do not author links like these:
 - `/modules/parser/docs/index.html`
 - `/modules/parser/index.html`
 - `../../outside-the-site.md`
-- `/docs/bookshelf.html` when you really mean the target book's `index.md`
+- `/docs/index.html` when you can link to the source page as `/docs/index.md`
 
 The authoring contract is always based on source paths under the
 `bookshelf.toml` root.

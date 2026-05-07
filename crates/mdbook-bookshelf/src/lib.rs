@@ -1,10 +1,10 @@
-pub(crate) mod bookshelf_ui;
 pub mod build;
 pub mod catalog;
 pub mod config;
+pub(crate) mod documentation_index;
+pub(crate) mod documentation_ui;
 pub mod loader;
 pub mod navigation;
-pub mod root_bookshelf_preprocessor;
 pub(crate) mod route_paths;
 pub(crate) mod search;
 pub mod serve;
@@ -12,14 +12,10 @@ pub mod site_model;
 pub(crate) mod site_root_link_preprocessor;
 
 pub use build::{build_bookshelf, build_bookshelf_site};
-pub use catalog::{build_input_catalog, InputBook, InputCatalog};
-pub use config::{load_bookshelf_config, BookshelfBook, BookshelfConfig, BookshelfEntryPage};
+pub use catalog::{build_input_catalog, InputBook, InputCatalog, InputCategory};
+pub use config::{load_bookshelf_config, BookshelfBook, BookshelfCategory, BookshelfConfig};
 pub use loader::{load_books_from_catalog, load_books_from_config, LoadedBook, LoadedBooks};
 pub use navigation::{build_navigation_metadata, NavigationMetadata, PageNavigation};
-pub use root_bookshelf_preprocessor::{
-    inject_root_bookshelf_page, site_root_bookshelf_entry_path, ROOT_BOOKSHELF_CHAPTER_NAME,
-    ROOT_BOOKSHELF_CHAPTER_PATH, ROOT_BOOKSHELF_HTML_PATH,
-};
 pub use serve::{serve_bookshelf, ServeOptions};
 pub use site_model::{build_site_model, SiteBook, SiteModel, SitePage, SitePageKind};
 

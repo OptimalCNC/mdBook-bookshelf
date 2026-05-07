@@ -2,7 +2,6 @@
 title = "mdbook-bookshelf"
 description = "Project documentation for mdbook-bookshelf."
 language = "en"
-src = "docs"
 
 [build]
 build-dir = ".site"
@@ -17,3 +16,14 @@ additional-js = [".mdbook/mermaid.min.js", ".mdbook/mermaid-init.js"]
 
 [bookshelf]
 asset-dir = ".mdbook/bookshelf"
+index-title = "Project Documentation"
+
+[[bookshelf.book]]
+id = "mdbook-bookshelf"
+title = "mdbook-bookshelf"
+description = "Project documentation for mdbook-bookshelf."
+src = "docs"
+
+[[bookshelf.category]]
+title = "Project Documentation"
+books = ["mdbook-bookshelf"]

@@ -5,5 +5,10 @@ src = "docs"
 [bookshelf]
 
 [[bookshelf.book]]
+id = "parser"
 title = "Parser Docs"
-src = "docs"
+src = "modules/parser/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["parser"]

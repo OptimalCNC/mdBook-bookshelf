@@ -1,8 +1,7 @@
 [book]
-title = "Example Core"
-description = "Repository-wide onboarding and architecture notes."
+title = "MetaNC Documentation"
+description = ""
 language = "en"
-src = "docs"
 
 [build]
 build-dir = ".site"
@@ -17,13 +16,30 @@ UiRoot = "/modules/ui/docs"
 
 [bookshelf]
 asset-dir = ".mdbook/bookshelf"
+index-title = "MetaNC Books"
 
 [[bookshelf.book]]
+id = "core"
+title = "Example Core"
+description = "Repository-wide onboarding and architecture notes."
+src = "docs"
+
+[[bookshelf.book]]
+id = "parser"
 title = "Example Parser"
 description = "Parser-specific reference pages with their own reading order."
 src = "modules/parser/docs"
 
 [[bookshelf.book]]
+id = "ui"
 title = "Example UI"
 description = "Interface and runtime guides for the UI book."
 src = "modules/ui/docs"
+
+[[bookshelf.category]]
+title = "Core"
+books = ["core"]
+
+[[bookshelf.category]]
+title = "Modules"
+books = ["parser", "ui"]

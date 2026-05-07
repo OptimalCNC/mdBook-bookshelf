@@ -11,5 +11,16 @@ no-section-label = true # standard mdBook boolean field
 [bookshelf]
 
 [[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+description = "Root \"book\"."
+src = "docs"
+
+[[bookshelf.book]]
+id = "parser"
 title = "Parser Docs"
 src = "modules/parser/docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core", "parser"]

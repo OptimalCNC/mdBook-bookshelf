@@ -1,6 +1,5 @@
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
 use crate::load_single_book_with_config_and_parsed_summary;
-use crate::root_bookshelf_preprocessor::ensure_reserved_bookshelf_path_is_available;
 use anyhow::{Context, Result};
 use mdbook_driver::MDBook;
 use mdbook_summary::{parse_summary, Summary};
@@ -8,7 +7,6 @@ use std::fs;
 use std::path::Path;
 
 pub struct LoadedBooks {
-    pub root_book_id: String,
     pub books: Vec<LoadedBook>,
 }
 
@@ -32,7 +30,6 @@ pub(crate) fn load_books_from_catalog_with_progress(
     mut before_book: impl FnMut(usize, usize, &InputBook),
 ) -> Result<LoadedBooks> {
     let mut books = Vec::with_capacity(catalog.books.len());
-    let root_book_id = catalog.root_book()?.id.clone();
     let total_books = catalog.books.len();
 
     for (index, book) in catalog.books.iter().enumerate() {
@@ -68,13 +65,6 @@ pub(crate) fn load_books_from_catalog_with_progress(
                 book.book_src_abs.display()
             )
         })?;
-        ensure_reserved_bookshelf_path_is_available(&mdbook.book, &book.id).with_context(|| {
-            format!(
-                "book '{}' uses a reserved bookshelf content path while loading {}",
-                book.id,
-                book.summary_abs.display()
-            )
-        })?;
 
         books.push(LoadedBook {
             book_id: book.id.clone(),
@@ -83,8 +73,5 @@ pub(crate) fn load_books_from_catalog_with_progress(
         });
     }
 
-    Ok(LoadedBooks {
-        root_book_id,
-        books,
-    })
+    Ok(LoadedBooks { books })
 }
