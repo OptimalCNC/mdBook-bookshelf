@@ -1,6 +1,6 @@
 [book]
-title = "Example Documentation"
-description = "Example documentation portal."
+title = "MetaNC Documentation"
+description = ""
 language = "en"
 
 [build]
@@ -16,7 +16,7 @@ UiRoot = "/modules/ui/docs"
 
 [bookshelf]
 asset-dir = ".mdbook/bookshelf"
-index-title = "Example Books"
+index-title = "MetaNC Books"
 
 [[bookshelf.book]]
 id = "core"
