@@ -10,6 +10,8 @@ Layout:
 - UI book under `modules/ui/docs/`
 - config in `bookshelf.toml` with site-level mdBook `[book]` metadata plus
   explicit `[[bookshelf.book]]` entries
+- `index-title = "Example Books"` configures the generated main page heading
+  and return button label
 - category sections group `core`, `parser`, and `ui` for the documentation
   index
 - books use config-root-relative mdBook-native `src` values

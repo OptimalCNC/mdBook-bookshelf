@@ -10,6 +10,7 @@ pub struct BookshelfConfig {
     pub config_path: PathBuf,
     pub config_dir: PathBuf,
     pub mdbook_config: Config,
+    pub index_title: String,
     pub asset_dir: PathBuf,
     pub books: Vec<BookshelfBook>,
     pub categories: Vec<BookshelfCategory>,
@@ -31,6 +32,7 @@ pub struct BookshelfCategory {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case", deny_unknown_fields)]
 struct RawBookshelf {
+    index_title: Option<String>,
     #[serde(default = "default_bookshelf_asset_dir")]
     asset_dir: PathBuf,
     #[serde(default, rename = "book")]
@@ -82,6 +84,7 @@ fn validate_and_build(
         "src path",
         true,
     )?;
+    let index_title = normalize_index_title(raw.index_title.as_deref())?;
     let asset_dir = normalize_bookshelf_asset_dir_path(&raw.asset_dir)?;
 
     let mut seen_book_ids = std::collections::BTreeSet::new();
@@ -118,6 +121,7 @@ fn validate_and_build(
         config_path,
         config_dir,
         mdbook_config,
+        index_title,
         asset_dir,
         books,
         categories,
@@ -202,6 +206,14 @@ fn parse_bookshelf_book(
         bail!("missing required key bookshelf.book.src");
     }
     Ok(ParsedBookshelfBook { id, book })
+}
+
+fn normalize_index_title(raw: Option<&str>) -> Result<String> {
+    let title = raw.unwrap_or("Documentation").trim();
+    if title.is_empty() {
+        bail!("bookshelf.index-title must not be empty");
+    }
+    Ok(title.to_string())
 }
 
 fn parse_toml_value<T>(value: toml::Value, key: &str) -> Result<T>

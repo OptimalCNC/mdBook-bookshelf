@@ -723,7 +723,11 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
     assert_file_contains(root_return_script.clone(), "readDocumentationPageMetadata");
     assert_file_contains(
         root_return_script.clone(),
-        "label.textContent = \"Documentation\";",
+        "const documentationIndexLabel = \"Documentation\";",
+    );
+    assert_file_contains(
+        root_return_script.clone(),
+        "label.textContent = documentationIndexLabel;",
     );
     assert_file_contains(
         root_return_script.clone(),

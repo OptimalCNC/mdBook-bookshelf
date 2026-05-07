@@ -15,6 +15,7 @@ description = "Site-level metadata."
 src = "site-default"
 
 [bookshelf]
+index-title = "Docs Portal"
 
 [[bookshelf.book]]
 id = "core"
@@ -48,6 +49,7 @@ books = ["parser"]
         Path::new("site-default"),
         config.mdbook_config.book.src.as_path()
     );
+    assert_eq!("Docs Portal", config.index_title);
     assert_eq!(2, config.books.len());
     assert_eq!("core", config.books[0].id);
     assert_eq!(Path::new("docs"), config.books[0].source_rel.as_path());
@@ -127,6 +129,26 @@ books = ["core"]
 #[test]
 fn rejects_invalid_documentation_index_category_config() {
     for (tag, toml_fragment, expected) in [
+        (
+            "empty-index-title",
+            r#"
+[book]
+title = "Documentation"
+
+[bookshelf]
+index-title = ""
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core"]
+"#,
+            "bookshelf.index-title must not be empty",
+        ),
         (
             "missing-book-id",
             r#"

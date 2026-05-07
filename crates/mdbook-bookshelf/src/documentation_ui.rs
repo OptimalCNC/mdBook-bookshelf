@@ -33,13 +33,15 @@ outside this directory and configure them with stock mdBook settings.
 pub struct DocumentationAssets {
     config_root: PathBuf,
     asset_dir: PathBuf,
+    index_title: String,
 }
 
 impl DocumentationAssets {
-    pub fn new(config_root: &Path, asset_dir: &Path) -> Self {
+    pub fn new(config_root: &Path, asset_dir: &Path, index_title: &str) -> Self {
         Self {
             config_root: config_root.to_path_buf(),
             asset_dir: asset_dir.to_path_buf(),
+            index_title: index_title.to_string(),
         }
     }
 
@@ -64,7 +66,7 @@ impl DocumentationAssets {
         )?;
         write_asset_file(
             &self.config_root.join(&return_js_rel_path),
-            &render_documentation_return_js(),
+            &render_documentation_return_js(&self.index_title),
         )?;
         write_asset_file(
             &self.config_root.join(&search_js_rel_path),
@@ -204,8 +206,11 @@ fn write_asset_file(path: &Path, contents: &str) -> Result<()> {
     fs::write(path, contents).with_context(|| format!("failed to write {}", path.display()))
 }
 
-fn render_documentation_return_js() -> String {
+fn render_documentation_return_js(index_title: &str) -> String {
+    let index_title_json = serde_json::to_string(index_title)
+        .expect("documentation index title should serialize as JSON string");
     r##"(() => {
+const documentationIndexLabel = __INDEX_TITLE__;
 const metadata = readDocumentationPageMetadata();
 const documentationIndexTarget = typeof metadata.documentationIndexTarget === "string" ? metadata.documentationIndexTarget : "";
 if (!documentationIndexTarget) {
@@ -221,8 +226,8 @@ link.id = "__LINK_ID__";
 link.className = "__LINK_CLASS__";
 link.href = documentationIndexTarget;
 link.rel = "up";
-link.title = "Return to documentation index";
-link.setAttribute("aria-label", "Return to documentation index");
+link.title = "Return to " + documentationIndexLabel;
+link.setAttribute("aria-label", "Return to " + documentationIndexLabel);
 
 const icon = document.createElementNS(svgNamespace, "svg");
 icon.setAttribute("class", "documentation-return-icon");
@@ -251,7 +256,7 @@ for (const [tag, attrs] of shapes) {
 
 const label = document.createElement("span");
 label.className = "documentation-return-label";
-label.textContent = "Documentation";
+label.textContent = documentationIndexLabel;
 
 link.appendChild(icon);
 link.appendChild(label);
@@ -270,6 +275,7 @@ function readDocumentationPageMetadata() {
 }
 })();
 "##
+    .replace("__INDEX_TITLE__", &index_title_json)
     .replace("__LINK_CLASS__", DOCUMENTATION_RETURN_LINK_CLASS)
     .replace("__LINK_ID__", DOCUMENTATION_RETURN_LINK_ID)
     .replace("__METADATA_ID__", DOCUMENTATION_PAGE_METADATA_ID)
@@ -365,7 +371,8 @@ mod tests {
     #[test]
     fn inject_documentation_ui_runtime_assets_preserves_existing_output_assets() {
         let temp_root = make_temp_dir("mdbook-bookshelf-bookshelf-ui");
-        let ui_assets = DocumentationAssets::new(&temp_root, Path::new(".generated/bookshelf"));
+        let ui_assets =
+            DocumentationAssets::new(&temp_root, Path::new(".generated/bookshelf"), "Docs Portal");
         let mut config = Config::default();
         config
             .set(
@@ -418,6 +425,7 @@ mod tests {
         );
         assert!(temp_root.join(&js_assets[1]).exists());
         assert!(temp_root.join(&js_assets[2]).exists());
+        assert_file_contains(temp_root.join(&js_assets[1]), "Docs Portal");
 
         let search_js = fs::read_to_string(temp_root.join(&js_assets[2]))
             .expect("search override should be readable");
@@ -490,6 +498,16 @@ mod tests {
         assert!(script.contains("window.path_to_searchindex_js = metadata.searchIndexTarget;"));
     }
 
+    #[test]
+    fn render_documentation_return_js_uses_configured_index_title() {
+        let script = render_documentation_return_js("Docs Portal");
+
+        assert!(script.contains("const documentationIndexLabel = \"Docs Portal\";"));
+        assert!(script.contains("label.textContent = documentationIndexLabel;"));
+        assert!(script.contains("Return to \" + documentationIndexLabel"));
+        assert!(!script.contains("label.textContent = \"Documentation\";"));
+    }
+
     fn make_temp_dir(tag: &str) -> PathBuf {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -506,5 +524,14 @@ mod tests {
         let actual = fs::read_to_string(&path)
             .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
         assert_eq!(actual, expected);
+    }
+
+    fn assert_file_contains(path: PathBuf, expected: &str) {
+        let actual = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        assert!(
+            actual.contains(expected),
+            "{path:?} did not contain {expected:?}"
+        );
     }
 }

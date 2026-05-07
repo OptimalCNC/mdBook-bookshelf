@@ -32,7 +32,7 @@ fn site_model_build() {
     );
     let documentation_index = documentation_index_pages[0];
     assert_eq!("documentation:index", documentation_index.page_id);
-    assert_eq!("Documentation", documentation_index.title);
+    assert_eq!("Docs Portal", documentation_index.title);
     assert_eq!(None, documentation_index.owning_book_id);
     assert_eq!(None, documentation_index.order_in_book);
     assert!(
@@ -125,6 +125,7 @@ fn write_explicit_id_fixture(dir: &Path) -> PathBuf {
 title = "Documentation"
 
 [bookshelf]
+index-title = "Docs Portal"
 
 [[bookshelf.book]]
 id = "root"

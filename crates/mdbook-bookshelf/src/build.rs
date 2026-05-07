@@ -92,7 +92,8 @@ pub(crate) fn build_bookshelf_site_with_options(
     let site_root_link_map = SiteRootLinkMap::from_catalog_with_progress(&catalog, |_, _, _| {})
         .context("failed to build site-root Markdown link map")?;
     let documentation_index_rel = PathBuf::from("index.html");
-    let documentation_assets = DocumentationAssets::new(&config_root, &catalog.asset_dir);
+    let documentation_assets =
+        DocumentationAssets::new(&config_root, &catalog.asset_dir, &catalog.index_title);
 
     let total_books = catalog.books.len();
     for (index, book) in catalog.books.iter().enumerate() {

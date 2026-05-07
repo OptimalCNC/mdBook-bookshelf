@@ -56,10 +56,11 @@ pub(crate) fn render_documentation_index_html(
         .as_deref()
         .or(catalog.mdbook_config.book.language.as_deref())
         .unwrap_or("en");
+    let index_title = catalog.index_title.trim();
     let page_title = if site_title.trim().is_empty() {
-        "Documentation".to_string()
+        index_title.to_string()
     } else {
-        format!("Documentation - {}", site_title.trim())
+        format!("{} - {}", index_title, site_title.trim())
     };
     let live_reload_endpoint = projected_config
         .get::<String>("output.html.live-reload-endpoint")
@@ -130,7 +131,9 @@ fn render_categories(
     books_by_id: &BTreeMap<&str, &InputBook>,
 ) -> Result<()> {
     html.push_str("<main class=\"documentation-index-content\">\n");
-    html.push_str("<h1>Documentation</h1>\n");
+    html.push_str("<h1>");
+    html.push_str(&escape_html_text(&catalog.index_title));
+    html.push_str("</h1>\n");
     for (category, category_id) in catalog.categories.iter().zip(category_ids) {
         html.push_str("<section class=\"documentation-category\" id=\"");
         html.push_str(&escape_html_attr(category_id));
@@ -322,6 +325,7 @@ mod tests {
             .expect("index should render");
 
         assert!(html.contains("<title>Documentation - Root Book</title>"));
+        assert!(html.contains("<h1>Documentation</h1>"));
         assert!(html.contains("Table of Contents"));
         assert!(html.contains("href=\"#category-start-here\""));
         assert!(
@@ -334,6 +338,18 @@ mod tests {
         assert!(html.contains("href=\"modules/parser/docs/index.html\""));
         assert!(!html.contains("documentation-book-cover"));
         assert!(!html.contains(".mdbook/bookshelf/covers"));
+    }
+
+    #[test]
+    fn renders_configured_index_title() {
+        let mut catalog = sample_catalog();
+        catalog.index_title = "Docs Portal".to_string();
+        let html = render_documentation_index_html(&catalog, &Config::default())
+            .expect("index should render");
+
+        assert!(html.contains("<title>Docs Portal - Root Book</title>"));
+        assert!(html.contains("<h1>Docs Portal</h1>"));
+        assert!(!html.contains("<h1>Documentation</h1>"));
     }
 
     #[test]
@@ -408,6 +424,7 @@ mod tests {
             config_path: PathBuf::from("bookshelf.toml"),
             config_dir: PathBuf::from("."),
             mdbook_config,
+            index_title: "Documentation".to_string(),
             asset_dir: PathBuf::from(".mdbook/bookshelf"),
             books: vec![
                 sample_book(

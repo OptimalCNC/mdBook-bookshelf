@@ -16,6 +16,7 @@ additional-js = [".mdbook/mermaid.min.js", ".mdbook/mermaid-init.js"]
 
 [bookshelf]
 asset-dir = ".mdbook/bookshelf"
+index-title = "Project Documentation"
 
 [[bookshelf.book]]
 id = "mdbook-bookshelf"

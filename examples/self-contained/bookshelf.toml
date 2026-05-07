@@ -16,6 +16,7 @@ UiRoot = "/modules/ui/docs"
 
 [bookshelf]
 asset-dir = ".mdbook/bookshelf"
+index-title = "Example Books"
 
 [[bookshelf.book]]
 id = "core"

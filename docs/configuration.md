@@ -10,6 +10,8 @@ This document explains how to write `bookshelf.toml`.
 - `[book]` provides shared site-level mdBook metadata and defaults
 - `[bookshelf]` is required and enables documentation portal behavior
 - `[bookshelf].asset-dir` selects the tool-owned generated asset directory
+- `[bookshelf].index-title` selects the generated index heading, browser title
+  prefix, site-model page title, and return button label
 - `[[bookshelf.book]]` declares each visible book
 - `[[bookshelf.category]]` groups every book for the documentation index
 
@@ -33,6 +35,7 @@ preferred-dark-theme = "ayu"
 
 [bookshelf]
 asset-dir = ".mdbook/bookshelf"
+index-title = "Example Books"
 
 [[bookshelf.book]]
 id = "core"
@@ -60,6 +63,8 @@ books = ["parser"]
 These rules are enforced when `mdbook-bookshelf` parses `bookshelf.toml`:
 
 - `[bookshelf]` is required
+- `[bookshelf].index-title` defaults to `Documentation` when omitted
+- `[bookshelf].index-title` must not be empty when configured
 - `book.title` is required and must not be empty
 - every book ID must be unique and must not be `.` or `..`
 - every `[[bookshelf.book]]` requires a unique `id`

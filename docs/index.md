@@ -68,6 +68,8 @@ with one extra table:
 - `[book]` provides shared site-level mdBook metadata and defaults
 - `[bookshelf]` enables documentation portal behavior
 - `[bookshelf].asset-dir` configures tool-owned generated runtime assets
+- `[bookshelf].index-title` configures the generated index heading and return
+  button label
 - `[[bookshelf.book]]` declares each visible book
 - `[[bookshelf.category]]` groups every book for the documentation index
 
@@ -88,6 +90,7 @@ default-theme = "light"
 
 [bookshelf]
 asset-dir = ".mdbook/bookshelf"
+index-title = "MetaNC Docs"
 
 [[bookshelf.book]]
 id = "core"

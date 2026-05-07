@@ -51,7 +51,7 @@ pub fn build_site_model(catalog: &InputCatalog, loaded: &LoadedBooks) -> Result<
         page_id: documentation_index_page_id.clone(),
         kind: SitePageKind::DocumentationIndex,
         owning_book_id: None,
-        title: "Documentation".to_string(),
+        title: catalog.index_title.clone(),
         source_path: None,
         order_in_book: None,
     });
