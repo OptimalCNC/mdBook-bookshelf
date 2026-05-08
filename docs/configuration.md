@@ -21,6 +21,10 @@ The top-level `[book]` uses mdBook's own `BookConfig` fields. Each
 entries are applied as overrides on top of the shared `[book]` defaults, then
 their `src` is kept as the full config-root-relative source path.
 
+Top-level mdBook `[build].build-dir` is also honored. If it is omitted,
+`mdbook-bookshelf` uses `site/` as the output directory instead of mdBook's
+stock `book/` default.
+
 ## Minimal Example
 
 ```toml

@@ -101,6 +101,64 @@ books = ["parser"]
 }
 
 #[test]
+fn parses_bookshelf_default_and_explicit_mdbook_build_dirs() {
+    for (tag, build_fragment, expected) in [
+        ("omitted", "", "site"),
+        (
+            "empty-build-table",
+            r#"
+[build]
+"#,
+            "site",
+        ),
+        (
+            "explicit-book",
+            r#"
+[build]
+build-dir = "book"
+"#,
+            "book",
+        ),
+        (
+            "explicit-dot-site",
+            r#"
+[build]
+build-dir = ".site"
+"#,
+            ".site",
+        ),
+    ] {
+        let temp = TempDir::new(&format!("mdbook-build-dir-{tag}"));
+        let config_path = write_temp_bookshelf_toml(
+            temp.path(),
+            &format!(
+                r#"
+[book]
+title = "Documentation"
+{build_fragment}
+[bookshelf]
+
+[[bookshelf.book]]
+id = "core"
+title = "Core Docs"
+src = "docs"
+
+[[bookshelf.category]]
+title = "All Docs"
+books = ["core"]
+"#
+            ),
+        );
+
+        let config = load_bookshelf_config(&config_path).expect("build-dir config should parse");
+        assert_eq!(
+            Path::new(expected),
+            config.mdbook_config.build.build_dir.as_path()
+        );
+    }
+}
+
+#[test]
 fn rejects_root_book_id_as_unknown_bookshelf_field() {
     let temp = TempDir::new("explicit-books-config-root-book-id-rejected");
     let config_path = write_temp_bookshelf_toml(

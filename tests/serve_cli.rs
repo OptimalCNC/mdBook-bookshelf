@@ -132,6 +132,74 @@ fn serve_cli_serves_bookshelf_ui_fixture_site() {
 }
 
 #[test]
+fn serve_cli_defaults_omitted_dest_and_build_dir_to_site() {
+    let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
+    let fixture_root = copy_bookshelf_ui_site_fixture(&repo_root, "serve-default-site");
+
+    let mut child = Command::new(&bin)
+        .current_dir(&fixture_root)
+        .arg("serve")
+        .arg("--hostname")
+        .arg("127.0.0.1")
+        .arg("--port")
+        .arg("0")
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("serve command should spawn");
+
+    let stderr = child
+        .stderr
+        .take()
+        .expect("serve child stderr should be piped");
+    let stderr_lines = spawn_stderr_reader(stderr);
+    let mut stderr_log = String::new();
+    let server_address = wait_for_serving_address(&mut child, &stderr_lines, &mut stderr_log);
+    assert_text_contains(&stderr_log, "output: site");
+
+    let root_response = wait_for_response(
+        &mut child,
+        &stderr_lines,
+        &mut stderr_log,
+        &server_address,
+        "/",
+    );
+    assert_status_ok(&root_response);
+    assert_documentation_index_body(
+        response_body(&root_response),
+        &[
+            ExpectedDocumentationCategory {
+                id: "core",
+                title: "Core",
+                books: &[("Fixture Core", "docs/index.html")],
+            },
+            ExpectedDocumentationCategory {
+                id: "modules",
+                title: "Modules",
+                books: &[
+                    ("Fixture Parser", "modules/parser/docs/index.html"),
+                    ("Fixture UI", "modules/ui/docs/index.html"),
+                ],
+            },
+        ],
+    );
+    let default_index = fixture_root.join("site/index.html");
+    assert!(
+        default_index.exists(),
+        "expected serve to build default site output at {}",
+        default_index.display()
+    );
+    assert!(
+        !fixture_root.join("book/index.html").exists(),
+        "omitted build-dir should not fall back to mdBook's stock book/ output"
+    );
+
+    shutdown_child(&mut child);
+    fs::remove_dir_all(&fixture_root).expect("temp fixture directory should be removed");
+}
+
+#[test]
 fn serve_cli_smoke_serves_public_self_contained_example_from_default_config_path() {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bin = PathBuf::from(env!("CARGO_BIN_EXE_book"));
@@ -960,6 +1028,13 @@ fn copy_public_self_contained_example_fixture(repo_root: &Path, tag: &str) -> Pa
         &fixture_root,
     )
     .expect("public self-contained example fixture should be copied");
+    fixture_root
+}
+
+fn copy_bookshelf_ui_site_fixture(repo_root: &Path, tag: &str) -> PathBuf {
+    let fixture_root = make_temp_dir(tag, repo_root);
+    copy_dir_all(&repo_root.join(BOOKSHELF_UI_SITE_FIXTURE), &fixture_root)
+        .expect("bookshelf UI site fixture should be copied");
     fixture_root
 }
 

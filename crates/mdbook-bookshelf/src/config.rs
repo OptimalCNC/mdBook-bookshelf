@@ -141,7 +141,11 @@ fn parse_bookshelf_table(toml_root: &mut toml::Table, config_path: &Path) -> Res
     })
 }
 
-fn parse_mdbook_config(toml_root: toml::Table, config_path: &Path) -> Result<Config> {
+const DEFAULT_BOOKSHELF_BUILD_DIR: &str = "site";
+
+fn parse_mdbook_config(mut toml_root: toml::Table, config_path: &Path) -> Result<Config> {
+    apply_bookshelf_mdbook_defaults(&mut toml_root);
+
     let projected = toml::to_string(&toml_root).with_context(|| {
         format!(
             "failed to serialize mdBook config from {} after removing [bookshelf]",
@@ -155,6 +159,25 @@ fn parse_mdbook_config(toml_root: toml::Table, config_path: &Path) -> Result<Con
             config_path.display()
         )
     })
+}
+
+fn apply_bookshelf_mdbook_defaults(toml_root: &mut toml::Table) {
+    match toml_root.get_mut("build") {
+        Some(toml::Value::Table(build)) => {
+            build
+                .entry("build-dir")
+                .or_insert_with(|| toml::Value::String(DEFAULT_BOOKSHELF_BUILD_DIR.to_string()));
+        }
+        Some(_) => {}
+        None => {
+            let mut build = toml::Table::new();
+            build.insert(
+                "build-dir".to_string(),
+                toml::Value::String(DEFAULT_BOOKSHELF_BUILD_DIR.to_string()),
+            );
+            toml_root.insert("build".to_string(), toml::Value::Table(build));
+        }
+    }
 }
 
 fn parse_bookshelf_book(

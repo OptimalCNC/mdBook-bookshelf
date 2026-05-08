@@ -25,8 +25,9 @@ If `--dest-dir` is provided, site output is written there. A relative
 `--dest-dir` is resolved from the current working directory.
 
 If `--dest-dir` is omitted, output uses the mdBook `[build].build-dir` value
-from the loaded config. A relative build directory is resolved from the
-directory containing `BOOKSHELF_TOML`.
+from the loaded config. If `[build].build-dir` is also omitted,
+`mdbook-bookshelf` defaults the site output to `site/`. A relative build
+directory is resolved from the directory containing `BOOKSHELF_TOML`.
 
 Both subcommands print the resolved config root, the site output directory, and
 the number of books before rendering. As each book finishes, the CLI prints
