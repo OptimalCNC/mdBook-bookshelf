@@ -3,6 +3,9 @@ title = "Fixture Documentation"
 description = "Fixture documentation portal."
 language = "en"
 
+[build]
+build-dir = "site"
+
 [output.html]
 default-theme = "light"
 preferred-dark-theme = "ayu"

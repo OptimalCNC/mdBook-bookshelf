@@ -8,6 +8,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const PREPROCESSOR_NAME: &str = "documentation-page-metadata";
+const DOCUMENTATION_INDEX_CSS_NAME: &str = "documentation-index.css";
 const DOCUMENTATION_RETURN_CSS_NAME: &str = "documentation-return.css";
 const DOCUMENTATION_RETURN_JS_NAME: &str = "documentation-return.js";
 const DOCUMENTATION_SEARCH_JS_NAME: &str = "documentation-search.js";
@@ -22,9 +23,11 @@ const DOCUMENTATION_ASSET_README_CONTENTS: &str = "\
 
 This directory is managed by mdbook-bookshelf.
 
-Files here are generated runtime source assets passed to mdBook through
-output.html.additional-css and output.html.additional-js. They can be
-rewritten when mdbook-bookshelf changes their generated contents.
+Files here are generated source assets. Runtime assets are passed to mdBook
+through output.html.additional-css and output.html.additional-js. The
+documentation-index directory is generated mdBook source for the site-root
+documentation index. These files can be rewritten when mdbook-bookshelf changes
+their generated contents.
 
 Do not edit these files or place project-owned assets here. Put your own assets
 outside this directory and configure them with stock mdBook settings.
@@ -47,6 +50,7 @@ impl DocumentationAssets {
 
     pub fn ensure_documentation_runtime_assets(&self) -> Result<()> {
         let return_css_rel_path = self.asset_dir.join(DOCUMENTATION_RETURN_CSS_NAME);
+        let index_css_rel_path = self.asset_dir.join(DOCUMENTATION_INDEX_CSS_NAME);
         let return_js_rel_path = self.asset_dir.join(DOCUMENTATION_RETURN_JS_NAME);
         let search_js_rel_path = self.asset_dir.join(DOCUMENTATION_SEARCH_JS_NAME);
         let gitignore_rel_path = self.asset_dir.join(DOCUMENTATION_ASSET_GITIGNORE_NAME);
@@ -59,6 +63,10 @@ impl DocumentationAssets {
         write_asset_file(
             &self.config_root.join(&readme_rel_path),
             DOCUMENTATION_ASSET_README_CONTENTS,
+        )?;
+        write_asset_file(
+            &self.config_root.join(&index_css_rel_path),
+            render_documentation_index_css(),
         )?;
         write_asset_file(
             &self.config_root.join(&return_css_rel_path),
@@ -76,16 +84,31 @@ impl DocumentationAssets {
         Ok(())
     }
 
+    pub fn append_documentation_index_assets(&self, config: &mut Config) -> Result<()> {
+        let index_css_rel_path = self.asset_dir.join(DOCUMENTATION_INDEX_CSS_NAME);
+
+        append_output_asset(config, "output.html.additional-css", index_css_rel_path).context(
+            "failed to append documentation index stylesheet to output.html.additional-css",
+        )?;
+
+        self.append_documentation_search_assets(config)
+    }
+
     pub fn append_documentation_runtime_assets(&self, config: &mut Config) -> Result<()> {
         let return_css_rel_path = self.asset_dir.join(DOCUMENTATION_RETURN_CSS_NAME);
         let return_js_rel_path = self.asset_dir.join(DOCUMENTATION_RETURN_JS_NAME);
-        let search_js_rel_path = self.asset_dir.join(DOCUMENTATION_SEARCH_JS_NAME);
 
         append_output_asset(config, "output.html.additional-css", return_css_rel_path).context(
             "failed to append documentation return stylesheet to output.html.additional-css",
         )?;
         append_output_asset(config, "output.html.additional-js", return_js_rel_path)
             .context("failed to append documentation return script to output.html.additional-js")?;
+
+        self.append_documentation_search_assets(config)
+    }
+
+    pub fn append_documentation_search_assets(&self, config: &mut Config) -> Result<()> {
+        let search_js_rel_path = self.asset_dir.join(DOCUMENTATION_SEARCH_JS_NAME);
         append_output_asset(config, "output.html.additional-js", search_js_rel_path).context(
             "failed to append documentation search override to output.html.additional-js",
         )?;
@@ -97,7 +120,7 @@ impl DocumentationAssets {
 #[derive(Debug, Clone)]
 pub(crate) struct DocumentationPageMetadataPreprocessor {
     book_output_rel: PathBuf,
-    documentation_index_rel: PathBuf,
+    documentation_index_rel: Option<PathBuf>,
     search_index_rel: PathBuf,
 }
 
@@ -109,7 +132,18 @@ impl DocumentationPageMetadataPreprocessor {
     ) -> Self {
         Self {
             book_output_rel,
-            documentation_index_rel,
+            documentation_index_rel: Some(documentation_index_rel),
+            search_index_rel,
+        }
+    }
+
+    pub(crate) fn without_documentation_index_target(
+        book_output_rel: PathBuf,
+        search_index_rel: PathBuf,
+    ) -> Self {
+        Self {
+            book_output_rel,
+            documentation_index_rel: None,
             search_index_rel,
         }
     }
@@ -129,10 +163,12 @@ impl DocumentationPageMetadataPreprocessor {
         let chapter_output_dir = chapter_output_path
             .parent()
             .unwrap_or_else(|| Path::new(""));
-        let documentation_index_target = path_to_string(&relative_path(
-            chapter_output_dir,
-            &self.documentation_index_rel,
-        ));
+        let documentation_index_target =
+            self.documentation_index_rel
+                .as_deref()
+                .map(|documentation_index_rel| {
+                    path_to_string(&relative_path(chapter_output_dir, documentation_index_rel))
+                });
         let search_index_target =
             path_to_string(&relative_path(chapter_output_dir, &self.search_index_rel));
         let metadata = PageMetadata {
@@ -189,7 +225,8 @@ impl Preprocessor for DocumentationPageMetadataPreprocessor {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PageMetadata {
-    documentation_index_target: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    documentation_index_target: Option<String>,
     search_index_target: String,
 }
 
@@ -221,6 +258,128 @@ fn write_asset_file(path: &Path, contents: &str) -> Result<()> {
     }
 
     fs::write(path, contents).with_context(|| format!("failed to write {}", path.display()))
+}
+
+fn render_documentation_index_css() -> &'static str {
+    r#".bookshelf-list {
+    display: grid;
+    gap: 1.25rem 1.1rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(22rem, 100%), 1fr));
+    list-style: none;
+    margin: 1.5rem 0 2rem;
+    padding: 0;
+}
+
+.bookshelf-list > li {
+    margin: 0;
+    padding: 0;
+}
+
+.bookshelf-book {
+    --bookshelf-spine: var(--links);
+    --bookshelf-cover: var(--quote-bg, var(--sidebar-bg, var(--bg)));
+
+    background:
+        linear-gradient(
+            to right,
+            rgba(0, 0, 0, 0.10) 14px,
+            rgba(0, 0, 0, 0) 32px
+        ),
+        var(--bookshelf-cover);
+    border: 1px solid var(--table-border-color);
+    border-radius: 2px 5px 5px 2px;
+    color: var(--fg);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    height: 100%;
+    isolation: isolate;
+    overflow: hidden;
+    padding: 1rem 1.2rem 1.1rem 2rem;
+    position: relative;
+    text-decoration: none;
+    box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.08),
+        0 2px 6px rgba(0, 0, 0, 0.05);
+    transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.bookshelf-book::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 14px;
+    background:
+        linear-gradient(
+            to bottom,
+            transparent 0,
+            transparent calc(20% - 1px),
+            color-mix(in srgb, var(--bookshelf-spine) 100%, black 35%) calc(20% - 1px),
+            color-mix(in srgb, var(--bookshelf-spine) 100%, black 35%) calc(20% + 1px),
+            transparent calc(20% + 1px),
+            transparent calc(80% - 1px),
+            color-mix(in srgb, var(--bookshelf-spine) 100%, black 35%) calc(80% - 1px),
+            color-mix(in srgb, var(--bookshelf-spine) 100%, black 35%) calc(80% + 1px),
+            transparent calc(80% + 1px)
+        ),
+        linear-gradient(
+            to right,
+            color-mix(in srgb, var(--bookshelf-spine) 100%, black 22%),
+            var(--bookshelf-spine) 35%,
+            var(--bookshelf-spine) 70%,
+            color-mix(in srgb, var(--bookshelf-spine) 100%, black 28%)
+        );
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.22);
+    z-index: 1;
+}
+
+.content .bookshelf-book:link,
+.content .bookshelf-book:visited {
+    color: var(--fg);
+}
+
+.bookshelf-book:hover,
+.bookshelf-book:focus-visible {
+    transform: translateY(-3px);
+    text-decoration: none;
+    box-shadow:
+        0 4px 8px rgba(0, 0, 0, 0.12),
+        0 8px 22px rgba(0, 0, 0, 0.10);
+}
+
+.bookshelf-book:focus-visible {
+    outline: 2px solid var(--links);
+    outline-offset: 3px;
+}
+
+.bookshelf-book-title {
+    color: var(--bookshelf-spine);
+    font-size: 1.06em;
+    font-weight: 600;
+    letter-spacing: 0.015em;
+    line-height: 1.3;
+}
+
+.bookshelf-book-description {
+    color: var(--fg);
+    font-size: 0.95em;
+    line-height: 1.45;
+    opacity: 0.78;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bookshelf-book {
+        transition: none;
+    }
+
+    .bookshelf-book:hover,
+    .bookshelf-book:focus-visible {
+        transform: none;
+    }
+}
+"#
 }
 
 fn render_documentation_return_js(index_title: &str) -> String {
@@ -420,6 +579,9 @@ mod tests {
             css_assets[1],
             PathBuf::from(".generated/bookshelf/documentation-return.css")
         );
+        assert!(temp_root
+            .join(".generated/bookshelf/documentation-index.css")
+            .exists());
         assert!(temp_root.join(&css_assets[1]).exists());
 
         let js_assets = config
@@ -452,6 +614,81 @@ mod tests {
         assert!(search_js.contains("readDocumentationPageMetadata"));
         assert!(search_js.contains("window.path_to_searchindex_js"));
         assert!(search_js.contains("searchIndexTarget"));
+
+        fs::remove_dir_all(temp_root).expect("temporary asset directory should be removed");
+    }
+
+    #[test]
+    fn documentation_index_assets_include_card_styles_and_search_without_return_assets() {
+        let temp_root = make_temp_dir("mdbook-bookshelf-index-ui");
+        let ui_assets =
+            DocumentationAssets::new(&temp_root, Path::new(".generated/bookshelf"), "Docs Portal");
+        let mut config = Config::default();
+
+        ui_assets
+            .ensure_documentation_runtime_assets()
+            .expect("asset generation should succeed");
+        ui_assets
+            .append_documentation_index_assets(&mut config)
+            .expect("index asset config append should succeed");
+
+        let css_assets = config
+            .get::<Vec<PathBuf>>("output.html.additional-css")
+            .expect("css assets should deserialize")
+            .expect("css assets should exist");
+        assert_eq!(
+            css_assets,
+            vec![PathBuf::from(
+                ".generated/bookshelf/documentation-index.css"
+            )]
+        );
+        assert_file_contains(temp_root.join(&css_assets[0]), ".bookshelf-list");
+        assert_file_contains(temp_root.join(&css_assets[0]), ".bookshelf-book");
+
+        let js_assets = config
+            .get::<Vec<PathBuf>>("output.html.additional-js")
+            .expect("js assets should deserialize")
+            .expect("js assets should exist");
+        assert_eq!(
+            js_assets,
+            vec![PathBuf::from(
+                ".generated/bookshelf/documentation-search.js"
+            )]
+        );
+
+        fs::remove_dir_all(temp_root).expect("temporary asset directory should be removed");
+    }
+
+    #[test]
+    fn documentation_search_assets_can_be_appended_without_return_assets() {
+        let temp_root = make_temp_dir("mdbook-bookshelf-search-only-ui");
+        let ui_assets =
+            DocumentationAssets::new(&temp_root, Path::new(".generated/bookshelf"), "Docs Portal");
+        let mut config = Config::default();
+
+        ui_assets
+            .ensure_documentation_runtime_assets()
+            .expect("asset generation should succeed");
+        ui_assets
+            .append_documentation_search_assets(&mut config)
+            .expect("search asset config append should succeed");
+
+        let css_assets = config
+            .get::<Vec<PathBuf>>("output.html.additional-css")
+            .expect("css assets should deserialize")
+            .unwrap_or_default();
+        assert!(css_assets.is_empty());
+
+        let js_assets = config
+            .get::<Vec<PathBuf>>("output.html.additional-js")
+            .expect("js assets should deserialize")
+            .expect("js assets should exist");
+        assert_eq!(
+            js_assets,
+            vec![PathBuf::from(
+                ".generated/bookshelf/documentation-search.js"
+            )]
+        );
 
         fs::remove_dir_all(temp_root).expect("temporary asset directory should be removed");
     }
@@ -507,6 +744,31 @@ mod tests {
         assert!(chapter
             .content
             .contains("\"searchIndexTarget\":\"bookshelf-searchindex.js\""));
+    }
+
+    #[test]
+    fn page_metadata_preprocessor_can_omit_documentation_target() {
+        let preprocessor =
+            DocumentationPageMetadataPreprocessor::without_documentation_index_target(
+                PathBuf::new(),
+                PathBuf::from("searchindex.js"),
+            );
+        let mut chapter = Chapter::new(
+            "Documentation",
+            "# Documentation".to_string(),
+            "index.md",
+            Vec::new(),
+        );
+
+        preprocessor
+            .inject_chapter_metadata(&mut chapter)
+            .expect("metadata should inject");
+
+        assert!(chapter.content.contains(DOCUMENTATION_PAGE_METADATA_ID));
+        assert!(!chapter.content.contains("documentationIndexTarget"));
+        assert!(chapter
+            .content
+            .contains("\"searchIndexTarget\":\"searchindex.js\""));
     }
 
     #[test]

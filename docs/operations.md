@@ -33,10 +33,10 @@ the number of books before rendering. As each book finishes, the CLI prints
 that book's title, source directory, elapsed time, and page count. Paths are
 shown relative to the directory where the command was invoked when possible.
 
-The CLI also prints build progress on stderr. It reports each book as it
-finishes rendering, documentation index output, shared search index output, and
-the final output directory. This makes long-running builds show which book or
-site-wide phase just completed.
+The CLI also prints build progress on stderr. It reports the generated
+documentation index build, each content book as it finishes rendering, shared
+search index output, and the final output directory. This makes long-running
+builds show which book or site-wide phase just completed.
 
 ## Build
 
@@ -52,13 +52,15 @@ Build to an explicit output directory:
 book build bookshelf.toml --dest-dir .tmp/site
 ```
 
-The build loads the root `[book]` and each `[[bookshelf.book]]`, lets mdBook
-load and render each book from the config root, then writes the documentation
-index, routing metadata, search, and generated runtime assets into the site
-output.
-Runtime source assets are generated under `[bookshelf].asset-dir`, which
-defaults to `.mdbook/bookshelf`; unchanged runtime source assets are left
-untouched between builds.
+The build loads the root `[book]` and each `[[bookshelf.book]]`, writes managed
+runtime assets and documentation-index source under `[bookshelf].asset-dir`,
+builds the generated documentation index to the site root, lets mdBook load and
+render each content book from the config root, then writes shared search output
+into the site output.
+
+Runtime source assets and the generated documentation-index source are written
+under `[bookshelf].asset-dir`, which defaults to `.mdbook/bookshelf`;
+unchanged generated files are left untouched between builds.
 
 The repository's own `bookshelf.toml` configures the `mdbook-mermaid`
 preprocessor:

@@ -17,8 +17,9 @@ Layout:
 - books use config-root-relative mdBook-native `src` values
 - core content uses `docs/index.md`, like the other module books use their own
   `docs/index.md`
-- the documentation index is generated at site-root `index.html`, not authored
-  in `docs/SUMMARY.md`
+- the documentation index source is generated under
+  `.mdbook/bookshelf/documentation-index/` and rendered to site-root
+  `index.html`, not authored in `docs/SUMMARY.md`
 
 Prerequisite:
 

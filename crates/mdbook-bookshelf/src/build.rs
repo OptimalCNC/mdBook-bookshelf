@@ -1,5 +1,7 @@
 use crate::catalog::{build_input_catalog, InputBook, InputCatalog};
-use crate::documentation_index::write_documentation_index;
+use crate::documentation_index::{
+    build_documentation_index_book, write_documentation_index_sources,
+};
 use crate::documentation_ui::{DocumentationAssets, DocumentationPageMetadataPreprocessor};
 use crate::load_single_book_with_config_and_parsed_summary;
 use crate::route_paths::{path_to_string, relative_path};
@@ -103,6 +105,20 @@ pub(crate) fn build_bookshelf_site_with_options(
             )
         })?;
 
+    let documentation_index_sources = write_documentation_index_sources(&catalog)
+        .context("failed to write documentation index source files")?;
+
+    let index_started = Instant::now();
+    build_documentation_index_book(
+        &catalog,
+        &mdbook_config,
+        &site_dest_dir,
+        &documentation_assets,
+        &documentation_index_sources,
+    )
+    .context("failed to build documentation index")?;
+    progress.documentation_index_written(index_started.elapsed());
+
     let total_books = catalog.books.len();
     for (index, book) in catalog.books.iter().enumerate() {
         let book_started = Instant::now();
@@ -131,11 +147,6 @@ pub(crate) fn build_bookshelf_site_with_options(
             page_count,
         );
     }
-
-    let index_started = Instant::now();
-    write_documentation_index(&catalog, &mdbook_config, &site_dest_dir)
-        .context("failed to write documentation index")?;
-    progress.documentation_index_written(index_started.elapsed());
 
     let search_started = Instant::now();
     write_site_wide_search_index(&catalog, &site_dest_dir)

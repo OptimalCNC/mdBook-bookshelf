@@ -1,145 +1,178 @@
-#![allow(dead_code)]
-
 use crate::catalog::{InputBook, InputCatalog};
+use crate::documentation_ui::{DocumentationAssets, DocumentationPageMetadataPreprocessor};
+use crate::load_single_book_with_config_and_parsed_summary;
+use crate::search::SHARED_SEARCH_INDEX_NAME;
 use anyhow::{Context, Result};
 use mdbook_driver::config::Config;
+use mdbook_summary::parse_summary;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
 
-pub(crate) fn write_documentation_index(
+const DOCUMENTATION_INDEX_SOURCE_DIR: &str = "documentation-index";
+const SUMMARY_MD: &str = "SUMMARY.md";
+const INDEX_MD: &str = "index.md";
+
+#[derive(Debug, Clone)]
+pub(crate) struct DocumentationIndexSources {
+    source_rel: PathBuf,
+    summary: String,
+}
+
+pub(crate) fn write_documentation_index_sources(
     catalog: &InputCatalog,
-    projected_config: &Config,
-    site_dest_dir: &Path,
-) -> Result<()> {
-    let html = render_documentation_index_html(catalog, projected_config)?;
-    fs::create_dir_all(site_dest_dir).with_context(|| {
-        format!(
-            "failed to create site output directory {}",
-            site_dest_dir.display()
-        )
-    })?;
-    let index_path: PathBuf = site_dest_dir.join("index.html");
-    fs::write(&index_path, html).with_context(|| {
-        format!(
-            "failed to write documentation index at {}",
-            index_path.display()
-        )
+) -> Result<DocumentationIndexSources> {
+    let source_rel = documentation_index_source_rel(catalog);
+    let source_abs = catalog.config_dir.join(&source_rel);
+    let summary = render_documentation_index_summary(&catalog.index_title);
+    let index = render_documentation_index_markdown(catalog)?;
+
+    write_generated_file(&source_abs.join(SUMMARY_MD), &summary)?;
+    write_generated_file(&source_abs.join(INDEX_MD), &index)?;
+
+    Ok(DocumentationIndexSources {
+        source_rel,
+        summary,
     })
 }
 
-pub(crate) fn render_documentation_index_html(
+pub(crate) fn build_documentation_index_book(
     catalog: &InputCatalog,
-    projected_config: &Config,
-) -> Result<String> {
-    let mut used_category_ids = BTreeMap::new();
-    let category_ids = catalog
-        .categories
-        .iter()
-        .map(|category| category_id(&category.title, &mut used_category_ids))
-        .collect::<Vec<_>>();
+    shared_config: &Config,
+    site_dest_dir: &Path,
+    documentation_assets: &DocumentationAssets,
+    sources: &DocumentationIndexSources,
+) -> Result<usize> {
+    let summary = parse_summary(&sources.summary).with_context(|| {
+        format!(
+            "failed to parse generated documentation index summary at {}",
+            catalog
+                .config_dir
+                .join(&sources.source_rel)
+                .join(SUMMARY_MD)
+                .display()
+        )
+    })?;
+
+    let mut config = shared_config.clone();
+    config.build.build_dir = site_dest_dir.to_path_buf();
+    config
+        .set("output.html.no-section-label", true)
+        .context("failed to disable documentation index sidebar section labels")?;
+    adapt_documentation_index_input_404(&mut config, &catalog.config_dir, &sources.source_rel)
+        .context("failed to adapt documentation index 404 input")?;
+
+    documentation_assets
+        .append_documentation_index_assets(&mut config)
+        .context("failed to inject documentation index runtime assets")?;
+
+    let mut mdbook = load_single_book_with_config_and_parsed_summary(
+        &catalog.config_dir,
+        &sources.source_rel,
+        config,
+        summary,
+    )
+    .with_context(|| {
+        format!(
+            "failed to load generated documentation index mdBook from {}",
+            catalog.config_dir.join(&sources.source_rel).display()
+        )
+    })?;
+    let page_count = mdbook.book.chapters().count();
+
+    mdbook.with_preprocessor(
+        DocumentationPageMetadataPreprocessor::without_documentation_index_target(
+            PathBuf::new(),
+            PathBuf::from(SHARED_SEARCH_INDEX_NAME),
+        ),
+    );
+
+    let html_build_dir = mdbook.build_dir_for("html");
+    mdbook.build().with_context(|| {
+        format!(
+            "generated documentation index failed to build mdBook output at {}",
+            html_build_dir.display()
+        )
+    })?;
+
+    Ok(page_count)
+}
+
+fn adapt_documentation_index_input_404(
+    config: &mut Config,
+    config_root: &Path,
+    source_rel: &Path,
+) -> Result<()> {
+    let Some(input_404) = config
+        .html_config()
+        .and_then(|html_config| html_config.input_404)
+    else {
+        return Ok(());
+    };
+    if input_404.is_empty() {
+        return Ok(());
+    }
+
+    let input_404_path = Path::new(&input_404);
+    let generated_source_input = if input_404_path.is_absolute() {
+        input_404_path.to_path_buf()
+    } else {
+        config_root.join(source_rel).join(input_404_path)
+    };
+    if generated_source_input.is_file() {
+        return Ok(());
+    }
+
+    let config_root_input = if input_404_path.is_absolute() {
+        input_404_path.to_path_buf()
+    } else {
+        config_root.join(input_404_path)
+    };
+    if config_root_input.is_file() {
+        config
+            .set(
+                "output.html.input-404",
+                config_root_input.to_string_lossy().as_ref(),
+            )
+            .context("failed to point documentation index 404 input at config-root file")?;
+    } else {
+        config
+            .set("output.html.input-404", "")
+            .context("failed to disable missing documentation index 404 input")?;
+    }
+
+    Ok(())
+}
+
+fn documentation_index_source_rel(catalog: &InputCatalog) -> PathBuf {
+    catalog.asset_dir.join(DOCUMENTATION_INDEX_SOURCE_DIR)
+}
+
+fn render_documentation_index_summary(index_title: &str) -> String {
+    format!(
+        "# Summary\n\n- [{}]({INDEX_MD})\n",
+        escape_markdown_link_text(index_title)
+    )
+}
+
+pub(crate) fn render_documentation_index_markdown(catalog: &InputCatalog) -> Result<String> {
     let books_by_id = catalog
         .books
         .iter()
         .map(|book| (book.id.as_str(), book))
         .collect::<BTreeMap<_, _>>();
 
-    let site_title = projected_config
-        .book
-        .title
-        .as_deref()
-        .or(catalog.mdbook_config.book.title.as_deref())
-        .unwrap_or("Documentation");
-    let language = projected_config
-        .book
-        .language
-        .as_deref()
-        .or(catalog.mdbook_config.book.language.as_deref())
-        .unwrap_or("en");
-    let index_title = catalog.index_title.trim();
-    let page_title = if site_title.trim().is_empty() {
-        index_title.to_string()
-    } else {
-        format!("{} - {}", index_title, site_title.trim())
-    };
-    let live_reload_endpoint = projected_config
-        .get::<String>("output.html.live-reload-endpoint")
-        .context("failed to read output.html.live-reload-endpoint")?;
+    let mut markdown = String::new();
+    markdown.push_str("# ");
+    markdown.push_str(&catalog.index_title);
+    markdown.push_str("\n\n");
 
-    let mut html = String::new();
-    html.push_str("<!doctype html>\n<html lang=\"");
-    html.push_str(&escape_html_attr(language));
-    html.push_str("\">\n<head>\n  <meta charset=\"utf-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n  <title>");
-    html.push_str(&escape_html_text(&page_title));
-    html.push_str("</title>\n  <style>\n");
-    html.push_str(INDEX_CSS);
-    html.push_str("  </style>\n</head>\n<body>\n<div class=\"documentation-index\">\n");
-    render_toc(&mut html, catalog, &category_ids);
-    render_categories(&mut html, catalog, &category_ids, &books_by_id)?;
-    html.push_str("</div>\n");
-    if let Some(endpoint) = live_reload_endpoint.as_deref() {
-        render_live_reload_script(&mut html, endpoint)?;
-    }
-    html.push_str("</body>\n</html>\n");
-
-    Ok(html)
-}
-
-fn render_live_reload_script(html: &mut String, endpoint: &str) -> Result<()> {
-    let endpoint_json =
-        serde_json::to_string(endpoint).context("failed to serialize live-reload endpoint")?;
-    html.push_str(
-        "<!-- Livereload script (if served using the cli tool) -->\n<script>\n\
-const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';\n\
-const wsAddress = wsProtocol + \"//\" + location.host + \"/\" + ",
-    );
-    html.push_str(&endpoint_json);
-    html.push_str(
-        ";\n\
-const socket = new WebSocket(wsAddress);\n\
-socket.onmessage = function (event) {\n\
-    if (event.data === \"reload\") {\n\
-        socket.close();\n\
-        location.reload();\n\
-    }\n\
-};\n\
-window.onbeforeunload = function() {\n\
-    socket.close();\n\
-};\n\
-</script>\n",
-    );
-    Ok(())
-}
-
-fn render_toc(html: &mut String, catalog: &InputCatalog, category_ids: &[String]) {
-    html.push_str("<nav class=\"documentation-index-toc\" aria-label=\"Table of Contents\">\n");
-    html.push_str("<h2>Table of Contents</h2>\n<ul>\n");
-    for (category, category_id) in catalog.categories.iter().zip(category_ids) {
-        html.push_str("<li><a href=\"#");
-        html.push_str(&escape_html_attr(category_id));
-        html.push_str("\">");
-        html.push_str(&escape_html_text(&category.title));
-        html.push_str("</a></li>\n");
-    }
-    html.push_str("</ul>\n</nav>\n");
-}
-
-fn render_categories(
-    html: &mut String,
-    catalog: &InputCatalog,
-    category_ids: &[String],
-    books_by_id: &BTreeMap<&str, &InputBook>,
-) -> Result<()> {
-    html.push_str("<main class=\"documentation-index-content\">\n");
-    html.push_str("<h1>");
-    html.push_str(&escape_html_text(&catalog.index_title));
-    html.push_str("</h1>\n");
-    for (category, category_id) in catalog.categories.iter().zip(category_ids) {
-        html.push_str("<section class=\"documentation-category\" id=\"");
-        html.push_str(&escape_html_attr(category_id));
-        html.push_str("\">\n<h2>");
-        html.push_str(&escape_html_text(&category.title));
-        html.push_str("</h2>\n<div class=\"documentation-book-grid\">\n");
+    for category in &catalog.categories {
+        markdown.push_str("## ");
+        markdown.push_str(&category.title);
+        markdown.push_str(
+            "\n\n<div class=\"bookshelf\">\n<ul class=\"bookshelf-list\" role=\"list\">\n",
+        );
 
         for book_id in &category.book_ids {
             let book = books_by_id.get(book_id.as_str()).with_context(|| {
@@ -148,36 +181,31 @@ fn render_categories(
                     category.title, book_id
                 )
             })?;
-            render_book_card(html, book);
+            render_book_card(&mut markdown, book);
         }
 
-        html.push_str("</div>\n</section>\n");
+        markdown.push_str("</ul>\n</div>\n\n");
     }
-    html.push_str("</main>\n");
 
-    Ok(())
+    Ok(markdown)
 }
 
-fn render_book_card(html: &mut String, book: &InputBook) {
-    html.push_str("<a class=\"documentation-book-card\" href=\"");
-    html.push_str(&escape_html_attr(&book_href(book)));
-    html.push_str("\" aria-label=\"");
-    html.push_str(&escape_html_attr(&book.title));
-    html.push_str("\">\n");
-
-    html.push_str("<h3>");
-    html.push_str(&escape_html_text(&book.title));
-    html.push_str("</h3>\n");
+fn render_book_card(markdown: &mut String, book: &InputBook) {
+    markdown.push_str("<li>\n<a class=\"bookshelf-book\" href=\"");
+    markdown.push_str(&escape_html_attr(&book_href(book)));
+    markdown.push_str("\">\n<span class=\"bookshelf-book-title\">");
+    markdown.push_str(&escape_html_text(&book.title));
+    markdown.push_str("</span>\n");
 
     if let Some(description) = book.description.as_deref().map(str::trim) {
         if !description.is_empty() {
-            html.push_str("<p>");
-            html.push_str(&escape_html_text(description));
-            html.push_str("</p>\n");
+            markdown.push_str("<span class=\"bookshelf-book-description\">");
+            markdown.push_str(&escape_html_text(description));
+            markdown.push_str("</span>\n");
         }
     }
 
-    html.push_str("</a>\n");
+    markdown.push_str("</a>\n</li>\n");
 }
 
 fn book_href(book: &InputBook) -> String {
@@ -226,24 +254,15 @@ fn hex_digit(value: u8) -> char {
     }
 }
 
-fn category_id(title: &str, used: &mut BTreeMap<String, usize>) -> String {
-    let mut slug = String::new();
-    for ch in title.chars() {
-        if ch.is_ascii_alphanumeric() {
-            slug.push(ch.to_ascii_lowercase());
-        } else if !slug.ends_with('-') {
-            slug.push('-');
+fn escape_markdown_link_text(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for ch in text.chars() {
+        if matches!(ch, '\\' | '[' | ']') {
+            escaped.push('\\');
         }
+        escaped.push(ch);
     }
-    let slug = slug.trim_matches('-');
-    let base = if slug.is_empty() { "category" } else { slug };
-    let count = used.entry(base.to_string()).or_insert(0);
-    *count += 1;
-    if *count == 1 {
-        format!("category-{base}")
-    } else {
-        format!("category-{base}-{count}")
-    }
+    escaped
 }
 
 fn escape_html_attr(text: &str) -> String {
@@ -256,59 +275,30 @@ fn escape_html_text(text: &str) -> String {
         .replace('>', "&gt;")
 }
 
-const INDEX_CSS: &str = r#"
-:root {
-    color-scheme: light dark;
-}
-
-body {
-    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    line-height: 1.5;
-    margin: 0;
-}
-
-.documentation-index {
-    display: grid;
-    grid-template-columns: minmax(14rem, 18rem) minmax(0, 1fr);
-    min-height: 100vh;
-}
-
-.documentation-index-toc {
-    border-right: 1px solid #d8dee4;
-    padding: 2rem 1.5rem;
-}
-
-.documentation-index-content {
-    padding: 2rem clamp(1.5rem, 4vw, 4rem);
-}
-
-.documentation-book-grid {
-    display: grid;
-    gap: 1rem;
-    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
-}
-
-.documentation-book-card {
-    border: 1px solid #d8dee4;
-    border-radius: 6px;
-    color: inherit;
-    display: grid;
-    gap: 0.75rem;
-    padding: 1rem;
-    text-decoration: none;
-}
-
-@media (max-width: 760px) {
-    .documentation-index {
-        display: block;
+fn write_generated_file(path: &Path, contents: &str) -> Result<()> {
+    let parent = path.parent().with_context(|| {
+        format!(
+            "generated documentation index path {} is missing a parent directory",
+            path.display()
+        )
+    })?;
+    fs::create_dir_all(parent).with_context(|| {
+        format!(
+            "failed to create generated documentation index directory {}",
+            parent.display()
+        )
+    })?;
+    match fs::read(path) {
+        Ok(existing) if existing == contents.as_bytes() => return Ok(()),
+        Ok(_) => {}
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+        Err(err) => {
+            return Err(err).with_context(|| format!("failed to read {}", path.display()));
+        }
     }
 
-    .documentation-index-toc {
-        border-right: 0;
-        border-bottom: 1px solid #d8dee4;
-    }
+    fs::write(path, contents).with_context(|| format!("failed to write {}", path.display()))
 }
-"#;
 
 #[cfg(test)]
 mod tests {
@@ -319,51 +309,69 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
-    fn renders_category_toc_sections_and_book_text_without_covers() {
+    fn renders_markdown_summary_categories_books_and_descriptions() {
         let catalog = sample_catalog();
-        let html = render_documentation_index_html(&catalog, &Config::default())
-            .expect("index should render");
+        let summary = render_documentation_index_summary(&catalog.index_title);
+        let index =
+            render_documentation_index_markdown(&catalog).expect("index markdown should render");
 
-        assert!(html.contains("<title>Documentation - Root Book</title>"));
-        assert!(html.contains("<h1>Documentation</h1>"));
-        assert!(html.contains("Table of Contents"));
-        assert!(html.contains("href=\"#category-start-here\""));
-        assert!(
-            html.contains("<section class=\"documentation-category\" id=\"category-start-here\">")
+        assert_eq!(summary, "# Summary\n\n- [Documentation](index.md)\n");
+        assert_eq!(
+            index,
+            "\
+# Documentation
+
+## Start Here
+
+<div class=\"bookshelf\">
+<ul class=\"bookshelf-list\" role=\"list\">
+<li>
+<a class=\"bookshelf-book\" href=\"root-book/docs/index.html\">
+<span class=\"bookshelf-book-title\">Root Book</span>
+<span class=\"bookshelf-book-description\">Repository-wide docs.</span>
+</a>
+</li>
+<li>
+<a class=\"bookshelf-book\" href=\"modules/parser/docs/index.html\">
+<span class=\"bookshelf-book-title\">Parser Book</span>
+</a>
+</li>
+</ul>
+</div>
+
+"
         );
-        assert!(html.contains("Root Book"));
-        assert!(html.contains("Repository-wide docs."));
-        assert!(html.contains("href=\"root-book/docs/index.html\""));
-        assert!(html.contains("Parser Book"));
-        assert!(html.contains("href=\"modules/parser/docs/index.html\""));
-        assert!(!html.contains("documentation-book-cover"));
-        assert!(!html.contains(".mdbook/bookshelf/covers"));
     }
 
     #[test]
     fn renders_configured_index_title() {
         let mut catalog = sample_catalog();
         catalog.index_title = "Docs Portal".to_string();
-        let html = render_documentation_index_html(&catalog, &Config::default())
-            .expect("index should render");
+        let summary = render_documentation_index_summary(&catalog.index_title);
+        let index =
+            render_documentation_index_markdown(&catalog).expect("index markdown should render");
 
-        assert!(html.contains("<title>Docs Portal - Root Book</title>"));
-        assert!(html.contains("<h1>Docs Portal</h1>"));
-        assert!(!html.contains("<h1>Documentation</h1>"));
+        assert_eq!(summary, "# Summary\n\n- [Docs Portal](index.md)\n");
+        assert!(index.starts_with("# Docs Portal\n\n"));
+        assert!(!index.contains("# Documentation\n\n"));
     }
 
     #[test]
-    fn escapes_index_text_and_attributes() {
+    fn escapes_markdown_link_text() {
         let mut catalog = sample_catalog();
+        catalog.index_title = "Docs [Portal]".to_string();
         catalog.categories[0].title = "Start & <Here>".to_string();
-        catalog.books[0].title = "Root \"Book\"".to_string();
+        catalog.books[0].title = "Root [Book]".to_string();
         catalog.books[0].description = Some("A <trusted> & useful book.".to_string());
-        let html = render_documentation_index_html(&catalog, &Config::default())
-            .expect("index should render");
+        let summary = render_documentation_index_summary(&catalog.index_title);
+        let index =
+            render_documentation_index_markdown(&catalog).expect("index markdown should render");
 
-        assert!(html.contains("Start &amp; &lt;Here&gt;"));
-        assert!(html.contains("Root &quot;Book&quot;"));
-        assert!(html.contains("A &lt;trusted&gt; &amp; useful book."));
+        assert!(summary.contains("[Docs \\[Portal\\]](index.md)"));
+        assert!(index.contains("# Docs [Portal]"));
+        assert!(index.contains("## Start & <Here>"));
+        assert!(index.contains("<span class=\"bookshelf-book-title\">Root [Book]</span>"));
+        assert!(index.contains("A &lt;trusted&gt; &amp; useful book."));
     }
 
     #[test]
@@ -373,46 +381,135 @@ mod tests {
             .join("chapter#draft?review%done")
             .join("javascript:example");
 
-        let html = render_documentation_index_html(&catalog, &Config::default())
-            .expect("index should render");
+        let index =
+            render_documentation_index_markdown(&catalog).expect("index markdown should render");
 
-        assert!(html.contains(
+        assert!(index.contains(
             "href=\"root%20docs/chapter%23draft%3Freview%25done/javascript%3Aexample/index.html\""
         ));
-        assert!(!html.contains(".mdbook/bookshelf/covers"));
     }
 
     #[test]
-    fn write_documentation_index_writes_index_without_cover_assets() {
+    fn write_documentation_index_sources_writes_managed_source_files() {
         let config_root = TempDir::new("documentation-index-config-root");
-        let site_output = TempDir::new("documentation-index-site-output");
         let catalog = sample_catalog_at_config_root(config_root.path());
 
-        write_documentation_index(&catalog, &Config::default(), site_output.path())
-            .expect("documentation index should be written");
+        write_documentation_index_sources(&catalog)
+            .expect("documentation index sources should be written");
 
-        let index_path = site_output.path().join("index.html");
-        let index_html =
-            fs::read_to_string(&index_path).expect("documentation index should be readable");
-        assert!(index_path.exists());
-        assert!(index_html.contains("<div class=\"documentation-index\">"));
-        assert!(index_html.contains("Root Book"));
-        assert!(!site_output.path().join(".mdbook/bookshelf/covers").exists());
+        let source_dir = config_root
+            .path()
+            .join(".mdbook/bookshelf/documentation-index");
+        assert_file_contents(
+            source_dir.join("SUMMARY.md"),
+            "# Summary\n\n- [Documentation](index.md)\n",
+        );
+        assert_file_contains(source_dir.join("index.md"), "# Documentation");
+        assert_file_contains(
+            source_dir.join("index.md"),
+            "<a class=\"bookshelf-book\" href=\"root-book/docs/index.html\">",
+        );
     }
 
     #[test]
-    fn write_documentation_index_reports_invalid_catalog_before_writing_output() {
+    fn write_documentation_index_sources_keeps_unchanged_existing_files() {
+        let config_root = TempDir::new("documentation-index-stable-source-write");
+        let catalog = sample_catalog_at_config_root(config_root.path());
+        write_documentation_index_sources(&catalog)
+            .expect("initial documentation index sources should be written");
+
+        let source_dir = config_root
+            .path()
+            .join(".mdbook/bookshelf/documentation-index");
+        let summary_path = source_dir.join("SUMMARY.md");
+        let index_path = source_dir.join("index.md");
+        make_readonly(&summary_path);
+        make_readonly(&index_path);
+
+        let result = write_documentation_index_sources(&catalog);
+        make_writable(&summary_path);
+        make_writable(&index_path);
+        result.expect("unchanged generated source files should not be rewritten");
+
+        assert_file_contents(summary_path, "# Summary\n\n- [Documentation](index.md)\n");
+    }
+
+    #[test]
+    fn write_documentation_index_sources_reports_invalid_catalog_before_writing_output() {
         let config_root = TempDir::new("documentation-index-invalid-catalog-config-root");
-        let site_output = TempDir::new("documentation-index-invalid-catalog-site-output");
         let mut catalog = sample_catalog_at_config_root(config_root.path());
         catalog.categories[0].book_ids.push("missing".to_string());
 
-        let error = write_documentation_index(&catalog, &Config::default(), site_output.path())
-            .expect_err("invalid catalog should fail");
+        let error = write_documentation_index_sources(&catalog)
+            .expect_err("invalid catalog should fail before writing");
         let error = format!("{error:#}");
 
         assert!(error.contains("references unknown book 'missing'"));
-        assert!(!site_output.path().join("index.html").exists());
+        assert!(!config_root
+            .path()
+            .join(".mdbook/bookshelf/documentation-index/SUMMARY.md")
+            .exists());
+        assert!(!config_root
+            .path()
+            .join(".mdbook/bookshelf/documentation-index/index.md")
+            .exists());
+    }
+
+    #[test]
+    fn generated_index_disables_missing_relative_custom_404() {
+        let config_root = TempDir::new("documentation-index-missing-custom-404");
+        let mut config = Config::default();
+        config
+            .set("output.html.input-404", "missing.md")
+            .expect("custom 404 should configure");
+
+        adapt_documentation_index_input_404(
+            &mut config,
+            config_root.path(),
+            Path::new(".mdbook/bookshelf/documentation-index"),
+        )
+        .expect("custom 404 should adapt");
+
+        assert_eq!(
+            config
+                .html_config()
+                .expect("html config should exist")
+                .input_404
+                .as_deref(),
+            Some("")
+        );
+    }
+
+    #[test]
+    fn generated_index_can_use_config_root_custom_404() {
+        let config_root = TempDir::new("documentation-index-config-root-custom-404");
+        fs::write(config_root.path().join("missing.md"), "# Missing\n")
+            .expect("config-root 404 should be written");
+        let mut config = Config::default();
+        config
+            .set("output.html.input-404", "missing.md")
+            .expect("custom 404 should configure");
+
+        adapt_documentation_index_input_404(
+            &mut config,
+            config_root.path(),
+            Path::new(".mdbook/bookshelf/documentation-index"),
+        )
+        .expect("custom 404 should adapt");
+
+        let expected = config_root
+            .path()
+            .join("missing.md")
+            .to_string_lossy()
+            .into_owned();
+        assert_eq!(
+            config
+                .html_config()
+                .expect("html config should exist")
+                .input_404
+                .as_deref(),
+            Some(expected.as_str())
+        );
     }
 
     fn sample_catalog() -> InputCatalog {
@@ -467,6 +564,39 @@ mod tests {
             book_src_abs: PathBuf::from("/tmp").join(src),
             summary_abs: PathBuf::from("/tmp").join(src).join("SUMMARY.md"),
         }
+    }
+
+    fn assert_file_contents(path: PathBuf, expected: &str) {
+        let actual = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        assert_eq!(actual, expected);
+    }
+
+    fn assert_file_contains(path: PathBuf, expected: &str) {
+        let actual = fs::read_to_string(&path)
+            .unwrap_or_else(|err| panic!("failed to read {}: {err}", path.display()));
+        assert!(
+            actual.contains(expected),
+            "{path:?} did not contain {expected:?}"
+        );
+    }
+
+    fn make_readonly(path: &Path) {
+        let mut permissions = fs::metadata(path)
+            .unwrap_or_else(|err| panic!("failed to read {} metadata: {err}", path.display()))
+            .permissions();
+        permissions.set_readonly(true);
+        fs::set_permissions(path, permissions)
+            .unwrap_or_else(|err| panic!("failed to make {} read-only: {err}", path.display()));
+    }
+
+    fn make_writable(path: &Path) {
+        let mut permissions = fs::metadata(path)
+            .unwrap_or_else(|err| panic!("failed to read {} metadata: {err}", path.display()))
+            .permissions();
+        permissions.set_readonly(false);
+        fs::set_permissions(path, permissions)
+            .unwrap_or_else(|err| panic!("failed to make {} writable: {err}", path.display()));
     }
 
     struct TempDir {

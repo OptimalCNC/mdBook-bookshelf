@@ -14,7 +14,7 @@ Minimum catalog-build requirements per book:
 Also author `<src>/index.md` as each book's stable entry page. The catalog
 builder validates the canonical `<src>/SUMMARY.md`; it does not currently
 validate `index.md`. Runtime navigation still assumes `index.html` for
-documentation index cards and book entry pages.
+documentation index links and book entry pages.
 
 Example:
 
@@ -56,8 +56,13 @@ Do not:
 ## Documentation Index
 
 The documentation index is generated at the site root as `index.html`.
-It is not authored inside any book, and it does not reserve a markdown page
-inside any book.
+It is not authored inside any content book, and it does not reserve a markdown
+page inside any content book.
+
+During build, `mdbook-bookshelf` writes managed source files under
+`[bookshelf].asset-dir/documentation-index/` and renders that generated source
+with mdBook. Do not edit those generated files; change `bookshelf.toml`
+categories, book titles, and descriptions instead.
 
 Authored `bookshelf.md` is not reserved by the documentation index.
 
@@ -65,7 +70,7 @@ Authored `bookshelf.md` is not reserved by the documentation index.
 
 - keep `index.md` as the stable entry page for each book
 - put every book ID in exactly one configured category
-- use `description` fields so documentation index cards have useful copy
+- use `description` fields so documentation index entries have useful copy
 - use `/...` markdown links for cross-book references
 - use `./...` and `../...` links for nearby local pages
 - keep each book's reading order authoritative in its own `SUMMARY.md`

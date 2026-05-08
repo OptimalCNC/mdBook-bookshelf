@@ -27,7 +27,8 @@ and return UI.
 - declares every visible book through `[[bookshelf.book]]`
 - groups books through `[[bookshelf.category]]`
 - publishes authored pages at source-derived URLs
-- generates a site-root documentation index at `/index.html`
+- generates mdBook source for the site-root documentation index and publishes
+  it at `/index.html`
 - keeps sidebars and previous/next navigation scoped to the active book
 - exposes site-wide search across all books
 
@@ -67,7 +68,8 @@ with one extra table:
 - top-level mdBook config stays stock
 - `[book]` provides shared site-level mdBook metadata and defaults
 - `[bookshelf]` enables documentation portal behavior
-- `[bookshelf].asset-dir` configures tool-owned generated runtime assets
+- `[bookshelf].asset-dir` configures tool-owned generated runtime assets and
+  documentation-index source
 - `[bookshelf].index-title` configures the generated index heading and return
   button label
 - `[[bookshelf.book]]` declares each visible book

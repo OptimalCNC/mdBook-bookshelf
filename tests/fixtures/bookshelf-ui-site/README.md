@@ -11,4 +11,4 @@ Layout:
 - config in `bookshelf.toml` with site-level mdBook `[book]` metadata plus explicit `[[bookshelf.book]]` entries
 - books use config-root-relative mdBook-native `src` values
 - core content uses `docs/index.md`, like the other module books use their own `docs/index.md`
-- the `Bookshelf` page is generated in memory, not authored in `docs/SUMMARY.md`
+- the documentation index source is generated under `.mdbook/bookshelf/documentation-index/`, not authored in `docs/SUMMARY.md`

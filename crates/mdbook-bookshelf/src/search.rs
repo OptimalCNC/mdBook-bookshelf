@@ -18,7 +18,7 @@ pub(crate) fn write_site_wide_search_index(
     site_dest_dir: &Path,
 ) -> Result<()> {
     let payload = compose_shared_search_index(catalog, site_dest_dir)
-        .context("failed to compose site-wide search payload from per-book search indexes")?;
+        .context("failed to compose site-wide search payload from mdBook search indexes")?;
     let output_path = site_dest_dir.join(SHARED_SEARCH_INDEX_NAME);
     let contents =
         render_search_index_js(&payload).context("failed to render site-wide search index")?;
@@ -40,7 +40,22 @@ fn compose_shared_search_index(
     catalog: &InputCatalog,
     site_dest_dir: &Path,
 ) -> Result<SearchPayload> {
-    let mut shared: Option<SearchPayload> = None;
+    let documentation_index_search_path =
+        find_emitted_searchindex_path(site_dest_dir, Path::new(""))?;
+    let documentation_index_payload = parse_search_index_file(&documentation_index_search_path)
+        .with_context(|| {
+            format!(
+                "failed to decode emitted search index for generated documentation index at {}",
+                documentation_index_search_path.display()
+            )
+        })?;
+    let mut shared = SearchPayload::empty_from(&documentation_index_payload);
+    ingest_book_payload(
+        &mut shared,
+        Path::new(""),
+        "documentation-index",
+        documentation_index_payload,
+    )?;
 
     for book in &catalog.books {
         let searchindex_path = find_emitted_searchindex_path(site_dest_dir, &book.output_rel)?;
@@ -52,18 +67,11 @@ fn compose_shared_search_index(
             )
         })?;
 
-        if let Some(existing) = shared.as_mut() {
-            ensure_payload_compatibility(existing, &payload, &book.id)?;
-            ingest_book_payload(existing, &book.output_rel, &book.id, payload)?;
-        } else {
-            let mut initial = SearchPayload::empty_from(&payload);
-            ingest_book_payload(&mut initial, &book.output_rel, &book.id, payload)?;
-            shared = Some(initial);
-        }
+        ensure_payload_compatibility(&shared, &payload, &book.id)?;
+        ingest_book_payload(&mut shared, &book.output_rel, &book.id, payload)?;
     }
 
-    shared
-        .ok_or_else(|| anyhow!("cannot compose a shared search index without any configured books"))
+    Ok(shared)
 }
 
 fn find_emitted_searchindex_path(site_dest_dir: &Path, output_rel: &Path) -> Result<PathBuf> {

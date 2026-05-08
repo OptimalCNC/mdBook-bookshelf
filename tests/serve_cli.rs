@@ -71,12 +71,12 @@ fn serve_cli_serves_bookshelf_ui_fixture_site() {
         response_body(&root_response),
         &[
             ExpectedDocumentationCategory {
-                id: "category-core",
+                id: "core",
                 title: "Core",
                 books: &[("Fixture Core", "docs/index.html")],
             },
             ExpectedDocumentationCategory {
-                id: "category-modules",
+                id: "modules",
                 title: "Modules",
                 books: &[
                     ("Fixture Parser", "modules/parser/docs/index.html"),
@@ -98,12 +98,12 @@ fn serve_cli_serves_bookshelf_ui_fixture_site() {
         response_body(&index_response),
         &[
             ExpectedDocumentationCategory {
-                id: "category-core",
+                id: "core",
                 title: "Core",
                 books: &[("Fixture Core", "docs/index.html")],
             },
             ExpectedDocumentationCategory {
-                id: "category-modules",
+                id: "modules",
                 title: "Modules",
                 books: &[
                     ("Fixture Parser", "modules/parser/docs/index.html"),
@@ -173,12 +173,12 @@ fn serve_cli_smoke_serves_public_self_contained_example_from_default_config_path
         response_body(&root_response),
         &[
             ExpectedDocumentationCategory {
-                id: "category-core",
+                id: "core",
                 title: "Core",
                 books: &[("Example Core", "docs/index.html")],
             },
             ExpectedDocumentationCategory {
-                id: "category-modules",
+                id: "modules",
                 title: "Modules",
                 books: &[
                     ("Example Parser", "modules/parser/docs/index.html"),
@@ -200,12 +200,12 @@ fn serve_cli_smoke_serves_public_self_contained_example_from_default_config_path
         response_body(&index_response),
         &[
             ExpectedDocumentationCategory {
-                id: "category-core",
+                id: "core",
                 title: "Core",
                 books: &[("Example Core", "docs/index.html")],
             },
             ExpectedDocumentationCategory {
-                id: "category-modules",
+                id: "modules",
                 title: "Modules",
                 books: &[
                     ("Example Parser", "modules/parser/docs/index.html"),
@@ -389,12 +389,12 @@ fn serve_cli_rebuilds_changed_source_and_serves_live_reload_output() {
         response_body(&root_index_response),
         &[
             ExpectedDocumentationCategory {
-                id: "category-core",
+                id: "core",
                 title: "Core",
                 books: &[("Fixture Core", "docs/index.html")],
             },
             ExpectedDocumentationCategory {
-                id: "category-modules",
+                id: "modules",
                 title: "Modules",
                 books: &[
                     ("Fixture Parser", "modules/parser/docs/index.html"),
@@ -816,8 +816,18 @@ struct ExpectedDocumentationCategory<'a> {
 }
 
 fn assert_documentation_index_body(body: &str, categories: &[ExpectedDocumentationCategory<'_>]) {
-    assert_text_contains(body, "Table of Contents");
-    assert_text_contains(body, "class=\"documentation-index\"");
+    assert_text_contains(body, "<!-- Book generated using mdBook -->");
+    assert_text_contains(body, "id=\"mdbook-sidebar\"");
+    assert_text_contains(body, "id=\"mdbook-search-wrapper\"");
+    assert_text_contains(body, "documentation-index.css");
+    assert_text_contains(body, "documentation-search.js");
+    assert_text_contains(body, "\"searchIndexTarget\":\"searchindex.js\"");
+    assert_text_not_contains(body, "class=\"documentation-index\"");
+    assert_text_contains(body, "class=\"bookshelf-list\"");
+    assert_text_contains(body, "class=\"bookshelf-book\"");
+    assert_text_not_contains(body, "<strong aria-hidden=\"true\">1.</strong>");
+    assert_text_not_contains(body, "documentation-return.js");
+    assert_text_not_contains(body, "documentationIndexTarget");
     for category in categories {
         assert_documentation_index_category(body, category.id, category.title, category.books);
     }
@@ -832,18 +842,24 @@ fn assert_documentation_index_category(
     expected_books: &[(&str, &str)],
 ) {
     let section = documentation_index_category_section(html, category_id);
-    assert_text_contains(section, &format!("<h2>{title}</h2>"));
+    assert_text_contains(
+        section,
+        &format!(
+            "<h2 id=\"{category_id}\"><a class=\"header\" href=\"#{category_id}\">{title}</a></h2>"
+        ),
+    );
+    assert_text_contains(section, "class=\"bookshelf-list\"");
     assert_documentation_index_books_in_order(section, expected_books);
 }
 
 fn documentation_index_category_section<'a>(html: &'a str, category_id: &str) -> &'a str {
-    let marker = format!("<section class=\"documentation-category\" id=\"{category_id}\"");
+    let marker = format!("<h2 id=\"{category_id}\">");
     let start = html
         .find(&marker)
         .unwrap_or_else(|| panic!("expected documentation index category {category_id:?}"));
     let after_start = start + marker.len();
     let end = html[after_start..]
-        .find("<section class=\"documentation-category\"")
+        .find("<h2 id=\"")
         .map(|relative| after_start + relative)
         .unwrap_or(html.len());
     &html[start..end]
@@ -852,18 +868,18 @@ fn documentation_index_category_section<'a>(html: &'a str, category_id: &str) ->
 fn assert_documentation_index_books_in_order(section: &str, expected_books: &[(&str, &str)]) {
     let mut cursor = 0;
     for (title, href) in expected_books {
-        let href_marker = format!("href=\"{href}\"");
+        let href_marker = format!("class=\"bookshelf-book\" href=\"{href}\"");
         let href_offset = section[cursor..]
             .find(&href_marker)
             .unwrap_or_else(|| panic!("expected category section to contain {href_marker:?}"));
         let href_start = cursor + href_offset;
-        let next_card = section[href_start + href_marker.len()..]
-            .find("<a class=\"documentation-book-card\"")
+        let next_link = section[href_start + href_marker.len()..]
+            .find("class=\"bookshelf-book\" href=\"")
             .map(|relative| href_start + href_marker.len() + relative)
             .unwrap_or(section.len());
-        let book_card = &section[href_start..next_card];
-        assert_text_contains(book_card, title);
-        cursor = next_card;
+        let book_entry = &section[href_start..next_link];
+        assert_text_contains(book_entry, title);
+        cursor = next_link;
     }
 }
 

@@ -22,10 +22,15 @@ At a high level the build works like this:
 2. build an input catalog from explicit books and categories
 3. load each book's canonical `SUMMARY.md`
 4. ensure stable documentation runtime assets under `[bookshelf].asset-dir`
-5. inject per-page documentation runtime metadata with an mdBook preprocessor
-6. build each book with mdBook's HTML renderer into its canonical output root
-7. write the generated site-root documentation index
-8. merge per-book search indexes into one shared site-wide search index
+5. write generated documentation-index mdBook source under
+   `[bookshelf].asset-dir/documentation-index/`
+6. build that generated documentation index to the site root with mdBook's HTML
+   renderer
+7. inject per-page documentation runtime metadata with an mdBook preprocessor
+8. build each content book with mdBook's HTML renderer into its canonical
+   output root
+9. merge the generated index and per-book search indexes into one shared
+   site-wide search index
 
 The serve path builds first, then serves the output directory as static files.
 
@@ -42,10 +47,15 @@ flowchart TD
     Plugins --> MdBook
     Assets --> MdBook
     RuntimeAssets --> MdBook
+    Categories --> GeneratedIndexSource["generated index source"]
+    GeneratedIndexSource --> IndexMdBook["mdBook root index build"]
+    Plugins --> IndexMdBook
+    Assets --> IndexMdBook
+    RuntimeAssets --> IndexMdBook
+    IndexMdBook --> DocIndex["site-root index.html"]
     MdBook --> BookOutputs["per-book HTML outputs"]
-    Categories --> DocIndex["documentation index"]
-    BookOutputs --> DocIndex
     BookOutputs --> Search["site-wide search index"]
+    DocIndex --> Search
 ```
 
 ## Code Map
@@ -55,7 +65,8 @@ flowchart TD
   `bookshelf.toml`
 - `catalog.rs` builds the canonical book catalog and output roots
 - `build.rs` orchestrates the full site build
-- `documentation_index.rs` writes the generated site-root documentation index
+- `documentation_index.rs` writes the generated documentation-index source and
+  builds the site-root documentation index with mdBook
 - `documentation_ui.rs` writes the runtime assets for the return button and
   search override, and injects page metadata
 - `search.rs` composes the shared search index and localized wrappers
@@ -75,6 +86,8 @@ Changes should preserve these properties:
 - sidebars and previous/next stay scoped to the active book
 - generated documentation runtime source assets stay under
   `[bookshelf].asset-dir`
+- generated documentation-index source stays under
+  `[bookshelf].asset-dir/documentation-index/`
 
 Current reserved behavior that matters during implementation:
 

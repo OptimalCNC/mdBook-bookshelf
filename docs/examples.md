@@ -19,7 +19,8 @@ Use it for:
 
 - quick local build checks
 - simple authoring examples
-- verifying the documentation index, category cards, scoped sidebars, and
+- verifying the generated mdBook documentation index, category headings,
+  scoped sidebars, and
   shared search
 
 ## Repo-Scale Fixture

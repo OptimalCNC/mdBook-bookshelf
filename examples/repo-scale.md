@@ -22,7 +22,7 @@ The current test fixture verifies implemented behavior.
 It checks:
 
 - generated site-root documentation index
-- configured category sections and book cards
+- configured category headings and book cards
 - repository-wide book treated as a normal categorized book
 - book sidebars that stay scoped to the active book
 - direct links into nested parser pages such as `reference/modal-groups.md`

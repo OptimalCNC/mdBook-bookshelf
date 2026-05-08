@@ -596,21 +596,33 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
     }
 
     let root_entry_html = assert_read_to_string(output_dir.join("index.html"));
-    assert_text_contains(&root_entry_html, "Table of Contents");
-    assert_text_contains(&root_entry_html, "class=\"documentation-index\"");
-    assert_text_contains(&root_entry_html, "class=\"documentation-index-toc\"");
-    assert_text_contains(&root_entry_html, "class=\"documentation-category\"");
+    assert_text_contains(&root_entry_html, "<!-- Book generated using mdBook -->");
+    assert_text_contains(&root_entry_html, "id=\"mdbook-sidebar\"");
+    assert_text_contains(&root_entry_html, "id=\"mdbook-search-wrapper\"");
+    assert_text_contains(&root_entry_html, "default_dark_theme = \"ayu\"");
+    assert_text_contains(&root_entry_html, "documentation-index.css");
+    assert_text_contains(&root_entry_html, "documentation-search.js");
+    assert_text_contains(&root_entry_html, "\"searchIndexTarget\":\"searchindex.js\"");
+    assert_text_not_contains(&root_entry_html, "documentation-return.css");
+    assert_text_not_contains(&root_entry_html, "documentation-return.js");
+    assert_text_not_contains(&root_entry_html, "documentationIndexTarget");
+    assert_text_not_contains(&root_entry_html, "class=\"documentation-index\"");
+    assert_text_not_contains(&root_entry_html, "class=\"documentation-index-toc\"");
+    assert_text_not_contains(&root_entry_html, "class=\"documentation-category\"");
+    assert_text_contains(&root_entry_html, "class=\"bookshelf-list\"");
+    assert_text_contains(&root_entry_html, "class=\"bookshelf-book\"");
+    assert_text_not_contains(&root_entry_html, "<strong aria-hidden=\"true\">1.</strong>");
     assert_text_not_contains(&root_entry_html, "documentation-book-cover");
     assert_text_not_contains(&root_entry_html, ".mdbook/bookshelf/covers");
     assert_documentation_index_category(
         &root_entry_html,
-        "category-core",
+        "core",
         "Core",
         &[("Fixture Core", "docs/index.html")],
     );
     assert_documentation_index_category(
         &root_entry_html,
-        "category-modules",
+        "modules",
         "Modules",
         &[
             ("Fixture Parser", "modules/parser/docs/index.html"),
@@ -844,6 +856,18 @@ fn build_cli_emits_documentation_index_and_book_runtime_assets_from_fixture_asse
     assert!(fixture_root
         .join(".mdbook/bookshelf/documentation-search.js")
         .exists());
+    assert_file_contains(
+        fixture_root.join(".mdbook/bookshelf/documentation-index.css"),
+        ".bookshelf-list",
+    );
+    assert_file_contains(
+        fixture_root.join(".mdbook/bookshelf/documentation-index/SUMMARY.md"),
+        "- [Documentation](index.md)",
+    );
+    assert_file_contains(
+        fixture_root.join(".mdbook/bookshelf/documentation-index/index.md"),
+        "<a class=\"bookshelf-book\" href=\"modules/parser/docs/index.html\">",
+    );
     assert_eq!(
         without_bookshelf_asset_entries(collect_tree_entries(&fixture_root)),
         fixture_entries_before
@@ -909,17 +933,34 @@ fn build_cli_smoke_builds_public_self_contained_example_from_default_config_path
     }
 
     let documentation_index_html = assert_read_to_string(output_dir.join("index.html"));
-    assert_text_contains(&documentation_index_html, "Table of Contents");
-    assert_text_contains(&documentation_index_html, "class=\"documentation-index\"");
+    assert_text_contains(
+        &documentation_index_html,
+        "<!-- Book generated using mdBook -->",
+    );
+    assert_text_contains(&documentation_index_html, "id=\"mdbook-search-wrapper\"");
+    assert_text_contains(&documentation_index_html, "documentation-index.css");
+    assert_text_contains(&documentation_index_html, "documentation-search.js");
+    assert_text_contains(
+        &documentation_index_html,
+        "\"searchIndexTarget\":\"searchindex.js\"",
+    );
+    assert_text_not_contains(&documentation_index_html, "class=\"documentation-index\"");
+    assert_text_contains(&documentation_index_html, "class=\"bookshelf-list\"");
+    assert_text_contains(&documentation_index_html, "class=\"bookshelf-book\"");
+    assert_text_not_contains(
+        &documentation_index_html,
+        "<strong aria-hidden=\"true\">1.</strong>",
+    );
+    assert_text_not_contains(&documentation_index_html, "documentation-return.js");
     assert_documentation_index_category(
         &documentation_index_html,
-        "category-core",
+        "core",
         "Core",
         &[("Example Core", "docs/index.html")],
     );
     assert_documentation_index_category(
         &documentation_index_html,
-        "category-modules",
+        "modules",
         "Modules",
         &[
             ("Example Parser", "modules/parser/docs/index.html"),
@@ -1121,6 +1162,8 @@ fn build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir() {
         );
     }
 
+    let documentation_index_css =
+        assert_has_file_with_prefix(&output_dir.join("shared"), "site-", ".css");
     let root_css = assert_has_file_with_prefix(&output_dir.join("docs/shared"), "site-", ".css");
     let child_css_path = assert_single_file_with_prefix_recursive(
         &output_dir.join("modules/child/docs"),
@@ -1133,6 +1176,10 @@ fn build_cli_resolves_relative_mdbook_paths_from_bookshelf_config_dir() {
         .to_string_lossy()
         .replace('\\', "/");
 
+    assert_file_contains(
+        output_dir.join("index.html"),
+        &format!("shared/{documentation_index_css}"),
+    );
     assert_file_contains(
         output_dir.join("docs/index.html"),
         &format!("shared/{root_css}"),
@@ -1642,11 +1689,19 @@ fn build_cli_uses_shared_site_wide_search_index() {
         &shared_search_js,
         "\"modules/parser/docs/grammar.html#grammar\"",
     );
+    assert_text_contains(&shared_search_js, "\"index.html#documentation\"");
     assert_text_contains(&shared_search_js, "\"docs/architecture.html#architecture\"");
 
+    let documentation_index_html = assert_read_to_string(output_dir.join("index.html"));
     let root_index_html = assert_read_to_string(output_dir.join("docs/index.html"));
     let parser_grammar_html =
         assert_read_to_string(output_dir.join("modules/parser/docs/grammar.html"));
+    assert_text_contains(&documentation_index_html, "documentation-search.js");
+    assert_text_contains(
+        &documentation_index_html,
+        "\"searchIndexTarget\":\"searchindex.js\"",
+    );
+    assert_text_not_contains(&documentation_index_html, "documentationIndexTarget");
     assert_text_contains(&root_index_html, "documentation-search.js");
     assert_text_contains(&parser_grammar_html, "documentation-search.js");
 
@@ -1713,17 +1768,35 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
     run_build_cli(&bin, &config_path, &output_dir);
 
     let documentation_index_html = assert_read_to_string(output_dir.join("index.html"));
-    assert_text_contains(&documentation_index_html, "Table of Contents");
-    assert_text_contains(&documentation_index_html, "class=\"documentation-index\"");
+    assert_text_contains(
+        &documentation_index_html,
+        "<!-- Book generated using mdBook -->",
+    );
+    assert_text_contains(&documentation_index_html, "id=\"mdbook-sidebar\"");
+    assert_text_contains(&documentation_index_html, "id=\"mdbook-search-wrapper\"");
+    assert_text_contains(&documentation_index_html, "documentation-index.css");
+    assert_text_contains(&documentation_index_html, "documentation-search.js");
+    assert_text_contains(
+        &documentation_index_html,
+        "\"searchIndexTarget\":\"searchindex.js\"",
+    );
+    assert_text_not_contains(&documentation_index_html, "class=\"documentation-index\"");
+    assert_text_contains(&documentation_index_html, "class=\"bookshelf-list\"");
+    assert_text_contains(&documentation_index_html, "class=\"bookshelf-book\"");
+    assert_text_not_contains(
+        &documentation_index_html,
+        "<strong aria-hidden=\"true\">1.</strong>",
+    );
+    assert_text_not_contains(&documentation_index_html, "documentation-return.js");
     assert_documentation_index_category(
         &documentation_index_html,
-        "category-overview",
+        "overview",
         "Overview",
         &[("MetaNC", "docs/index.html")],
     );
     assert_documentation_index_category(
         &documentation_index_html,
-        "category-modules",
+        "modules",
         "Modules",
         &[
             ("G-code Parser", "modules/gcode-parser/docs/index.html"),
@@ -1832,6 +1905,7 @@ fn build_cli_repo_scale_whole_system_acceptance_audit() {
 
     let shared_search_path = output_dir.join("searchindex.js");
     let shared_search_js = assert_read_to_string(shared_search_path.clone());
+    assert_text_contains(&shared_search_js, "\"index.html#documentation\"");
     assert_text_contains(
         &shared_search_js,
         "\"modules/gcode-parser/docs/reference/modal-groups.html#modal-groups\"",
@@ -2300,18 +2374,24 @@ fn assert_documentation_index_category(
     expected_books: &[(&str, &str)],
 ) {
     let section = documentation_index_category_section(html, category_id);
-    assert_text_contains(section, &format!("<h2>{title}</h2>"));
+    assert_text_contains(
+        section,
+        &format!(
+            "<h2 id=\"{category_id}\"><a class=\"header\" href=\"#{category_id}\">{title}</a></h2>"
+        ),
+    );
+    assert_text_contains(section, "class=\"bookshelf-list\"");
     assert_documentation_index_books_in_order(section, expected_books);
 }
 
 fn documentation_index_category_section<'a>(html: &'a str, category_id: &str) -> &'a str {
-    let marker = format!("<section class=\"documentation-category\" id=\"{category_id}\"");
+    let marker = format!("<h2 id=\"{category_id}\">");
     let start = html
         .find(&marker)
         .unwrap_or_else(|| panic!("expected documentation index category {category_id:?}"));
     let after_start = start + marker.len();
     let end = html[after_start..]
-        .find("<section class=\"documentation-category\"")
+        .find("<h2 id=\"")
         .map(|relative| after_start + relative)
         .unwrap_or(html.len());
     &html[start..end]
@@ -2320,18 +2400,18 @@ fn documentation_index_category_section<'a>(html: &'a str, category_id: &str) ->
 fn assert_documentation_index_books_in_order(section: &str, expected_books: &[(&str, &str)]) {
     let mut cursor = 0;
     for (title, href) in expected_books {
-        let href_marker = format!("href=\"{href}\"");
+        let href_marker = format!("class=\"bookshelf-book\" href=\"{href}\"");
         let href_offset = section[cursor..]
             .find(&href_marker)
             .unwrap_or_else(|| panic!("expected category section to contain {href_marker:?}"));
         let href_start = cursor + href_offset;
-        let next_card = section[href_start + href_marker.len()..]
-            .find("<a class=\"documentation-book-card\"")
+        let next_link = section[href_start + href_marker.len()..]
+            .find("class=\"bookshelf-book\" href=\"")
             .map(|relative| href_start + href_marker.len() + relative)
             .unwrap_or(section.len());
-        let book_card = &section[href_start..next_card];
-        assert_text_contains(book_card, title);
-        cursor = next_card;
+        let book_entry = &section[href_start..next_link];
+        assert_text_contains(book_entry, title);
+        cursor = next_link;
     }
 }
 
